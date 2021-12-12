@@ -7,7 +7,7 @@ authors = ["Joakim Hellsén <tlovinator@gmail.com>"]
 [tool.poetry.dependencies]
 python = "^3.9"
 reader = "^2.6"
-typer = "^0.4.0"
+typer = {extras = ["all"], version = "^0.4.0"}
 dhooks = "^1.1.4"
 platformdirs = "^2.4.0"
 
