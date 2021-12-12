@@ -38,6 +38,22 @@ def add(feed_url: str) -> None:
 @app.command()
 def check() -> None:
     """Check new entries for every feed"""
+    feed_count = reader.get_feed_counts()
+    entry_count = reader.get_entry_counts()
+    print(
+        f"Total: {feed_count.total}\nBroken: {feed_count.broken}\nEnabled: {feed_count.updates_enabled}"
+    )
+    print(
+        f"""Total: {entry_count.total} feeds
+Read: {entry_count.read} feeds
+Important: {entry_count.important} feeds
+Has enclosures: {entry_count.has_enclosures} feeds
+Average number of entries per day:
+\t1 Month: {entry_count.averages[0]:.2f} feeds per day
+\t3 Months: {entry_count.averages[1]:.2f} feeds per day
+\t12 Months: {entry_count.averages[2]:.2f} feeds per day
+"""
+    )
     # Update the feeds
     reader.update_feeds()
 
