@@ -9,6 +9,7 @@ python = "^3.9"
 reader = "^2.6"
 typer = "^0.4.0"
 dhooks = "^1.1.4"
+platformdirs = "^2.4.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"

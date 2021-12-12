@@ -1,14 +1,12 @@
-import os
-import sys
-
 import typer
 from dhooks import Webhook
 from reader import FeedExistsError, make_reader
 
-reader = make_reader("db.sqlite")
+from discord_rss_bot.settings import Settings
 
-app = typer.Typer()
-hook = Webhook("")
+app = typer.Typer()  # For CLI (https://typer.tiangolo.com/)
+hook = Webhook(Settings.webhook_url)  # For Webhooks (https://github.com/kyb3r/dhooks)
+reader = make_reader(Settings.db_file)  # For RSS (https://github.com/lemon24/reader)
 
 
 @app.command()
