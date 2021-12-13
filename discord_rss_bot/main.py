@@ -59,14 +59,14 @@ def check() -> None:
         feed_count = reader.get_feed_counts()
         entry_count = reader.get_entry_counts()
 
-        print(
+        typer.echo(
             f"""Feeds:
         Total: {feed_count.total} feeds
         Broken: {feed_count.broken} feeds
         Enabled: {feed_count.updates_enabled} feeds"""
         )
 
-        print(
+        typer.echo(
             f"""Entries:
         Total: {entry_count.total} entries
         Read: {entry_count.read} entries
@@ -89,7 +89,7 @@ def check() -> None:
             reader.mark_entry_as_read(entry)
 
             # Send the entries to Discord
-            hook.send(f":robot: :mega: {entry.title}")
+            hook.send(f":robot: :mega: {entry.title}\n{entry.link}")
 
 
 @app.command()
@@ -107,6 +107,32 @@ def backup() -> None:
     copyfile(Settings.db_file, backup_file_location)
 
     typer.echo(f"{Settings.db_file} backed up to {backup_dir}")
+
+
+@app.command()
+def delete() -> None:
+    feed_dict = {}
+    feed_number = 0
+    message = ""
+    with closing(make_reader(Settings.db_file)) as reader:
+        for feed in reader.get_feeds():
+            feed_number += 1
+            feed_dict[feed_number] = feed.object_id
+            message += f"{feed_number}: {feed.title}\n"
+
+        typer.echo(message)
+
+        feed_to_delete: int = typer.prompt("What feed do you want to remove?")
+        feed_id = feed_dict.get(int(feed_to_delete))
+        delete = typer.confirm(f"Are you sure you want to delete {feed_id}?")
+
+        if not delete:
+            typer.echo("Not deleting")
+            raise typer.Abort()
+
+        reader.delete_feed(feed_id)
+
+        typer.echo(f"{feed_id} deleted")
 
 
 if __name__ == "__main__":
