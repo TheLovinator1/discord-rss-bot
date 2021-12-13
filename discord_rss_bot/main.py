@@ -58,21 +58,21 @@ def check() -> None:
 
         print(
             f"""Feeds:
-        Total: {feed_count.total}
-        Broken: {feed_count.broken}
-        Enabled: {feed_count.updates_enabled}"""
+        Total: {feed_count.total} feeds
+        Broken: {feed_count.broken} feeds
+        Enabled: {feed_count.updates_enabled} feeds"""
         )
 
         print(
             f"""Entries:
-        Total: {entry_count.total} feeds
-        Read: {entry_count.read} feeds
-        Important: {entry_count.important} feeds
-        Has enclosures: {entry_count.has_enclosures} feeds
+        Total: {entry_count.total} entries
+        Read: {entry_count.read} entries
+        Important: {entry_count.important} entries
+        Has enclosures: {entry_count.has_enclosures} entries
         Average number of entries per day:
-            1 Month: {entry_count.averages[0]:.2f} feeds per day
-            3 Months: {entry_count.averages[1]:.2f} feeds per day
-            12 Months: {entry_count.averages[2]:.2f} feeds per day"""
+                1 Month: {entry_count.averages[0]:.2f} entries per day
+                3 Months: {entry_count.averages[1]:.2f} entries per day
+                12 Months: {entry_count.averages[2]:.2f} entries per day"""
         )
 
         # Update the feeds
