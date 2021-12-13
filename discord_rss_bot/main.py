@@ -28,6 +28,7 @@ def add(
     except FeedExistsError:
         # If the feed already exists, print a message
         typer.echo(f"{feed_url} already exists")
+        raise typer.Exit()
 
     # Update the feeds
     reader.update_feeds()
