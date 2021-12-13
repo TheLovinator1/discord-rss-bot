@@ -1,3 +1,5 @@
+from typing import Optional
+
 import typer
 from dhooks import Webhook
 from reader import FeedExistsError, make_reader
@@ -10,7 +12,10 @@ reader = make_reader(Settings.db_file)  # For RSS (https://github.com/lemon24/re
 
 
 @app.command()
-def add(feed_url: str) -> None:
+def add(
+    feed_url: str = typer.Argument(..., help="RSS or Atom feed URL."),
+    notify_discord: bool = typer.Option(False, help="Send message to Discord."),
+) -> None:
     """Add a feed to the database
 
     Args:
@@ -31,6 +36,13 @@ def add(feed_url: str) -> None:
     entries = reader.get_entries(feed=feed_url, read=False)
     for entry in entries:
         reader.mark_entry_as_read(entry)
+
+    if notify_discord:
+        # Send a message to Discord
+        hook.send(
+            f"discord-rss-bot: {feed_url} added to the database.\nYou now have "
+            f"{reader.get_feed_counts()} feeds."
+        )
 
     typer.echo(f"{feed_url} added")
 
