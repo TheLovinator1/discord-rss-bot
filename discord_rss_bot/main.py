@@ -1,4 +1,7 @@
+import os
+import time
 from contextlib import closing
+from shutil import copyfile
 
 import typer
 from dhooks import Webhook
@@ -87,6 +90,23 @@ def check() -> None:
 
             # Send the entries to Discord
             hook.send(f":robot: :mega: {entry.title}")
+
+
+@app.command()
+def backup() -> None:
+    """Backup the database"""
+    backup_dir = os.path.join(Settings.data_dir, "backup")
+    os.makedirs(backup_dir, exist_ok=True)
+
+    # Get the current time
+    current_time = time.strftime("%Y-%m-%d_%H-%M-%S")
+
+    backup_file_location = os.path.join(
+        Settings.data_dir, "backup", f"db_{current_time}.sqlite"
+    )
+    copyfile(Settings.db_file, backup_file_location)
+
+    typer.echo(f"{Settings.db_file} backed up to {backup_dir}")
 
 
 if __name__ == "__main__":
