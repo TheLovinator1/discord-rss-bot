@@ -53,8 +53,7 @@ def add(
 
 
 @app.command()
-def check() -> None:
-    """Check new entries for every feed"""
+def stats() -> None:
     with closing(make_reader(Settings.db_file)) as reader:
         feed_count = reader.get_feed_counts()
         entry_count = reader.get_entry_counts()
@@ -78,6 +77,11 @@ def check() -> None:
                 12 Months: {entry_count.averages[2]:.2f} entries per day"""
         )
 
+
+@app.command()
+def check() -> None:
+    """Check new entries for every feed"""
+    with closing(make_reader(Settings.db_file)) as reader:
         # Update the feeds
         reader.update_feeds()
 
