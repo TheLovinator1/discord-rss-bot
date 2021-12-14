@@ -54,6 +54,7 @@ def add(
 
 @app.command()
 def stats() -> None:
+    """Print the number of feeds and entries in the database"""
     with closing(make_reader(Settings.db_file)) as reader:
         feed_count = reader.get_feed_counts()
         entry_count = reader.get_entry_counts()
@@ -115,6 +116,7 @@ def backup() -> None:
 
 @app.command()
 def delete() -> None:
+    """Delete a feed from the database"""
     feed_dict = {}
     feed_number = 0
     message = ""
