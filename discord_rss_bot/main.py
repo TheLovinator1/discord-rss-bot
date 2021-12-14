@@ -16,7 +16,7 @@ hook = Webhook(Settings.webhook_url)
 @app.command()
 def add(
     feed_url: str = typer.Argument(..., help="RSS or Atom feed URL."),
-    notify_discord: bool = typer.Option(False, help="Send message to Discord."),
+    notify_discord: bool = typer.Option(True, help="Send message to Discord."),
 ) -> None:
     """Add a feed to the database
 
