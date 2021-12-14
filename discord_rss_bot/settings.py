@@ -1,25 +1,24 @@
 import configparser
 import os
 import sys
+from pathlib import Path
 
-from platformdirs import user_data_dir
+import typer
 
 
 class Settings:
-    data_dir = user_data_dir(
-        appname="discord-rss-bot",  # The name of application.
-        appauthor="TheLovinator",  # The name of the app author or distributing body for this application
-        roaming=True,  # Whether to use the roaming appdata directory on Windows
-    )
+    APP_NAME: str = "discord-rss-bot"
+
+    app_dir = typer.get_app_dir(APP_NAME)
 
     # Create the data directory if it doesn't exist
-    os.makedirs(data_dir, exist_ok=True)
+    os.makedirs(app_dir, exist_ok=True)
 
     # Store the database file in the data directory
-    db_file = os.path.join(data_dir, "db.sqlite")
+    db_file: Path = Path(os.path.join(app_dir, "db.sqlite"))
 
     # Store the config in the data directory
-    config_location = os.path.join(data_dir, "config.conf")
+    config_location: Path = Path(os.path.join(app_dir, "config.conf"))
 
     if not os.path.isfile(config_location):
         # TODO: Add config for db_file and config_location

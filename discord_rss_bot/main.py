@@ -55,6 +55,8 @@ def add(
 @app.command()
 def stats() -> None:
     """Print the number of feeds and entries in the database"""
+    app_dir = typer.get_app_dir(Settings.APP_NAME)
+    typer.echo(app_dir)
     with closing(make_reader(Settings.db_file)) as reader:
         feed_count = reader.get_feed_counts()
         entry_count = reader.get_entry_counts()
@@ -100,14 +102,14 @@ def check() -> None:
 @app.command()
 def backup() -> None:
     """Backup the database"""
-    backup_dir = os.path.join(Settings.data_dir, "backup")
+    backup_dir = os.path.join(Settings.app_dir, "backup")
     os.makedirs(backup_dir, exist_ok=True)
 
     # Get the current time
     current_time = time.strftime("%Y-%m-%d_%H-%M-%S")
 
     backup_file_location = os.path.join(
-        Settings.data_dir, "backup", f"db_{current_time}.sqlite"
+        Settings.app_dir, "backup", f"db_{current_time}.sqlite"
     )
     copyfile(Settings.db_file, backup_file_location)
 
