@@ -55,8 +55,6 @@ def add(
 @app.command()
 def stats() -> None:
     """Print the number of feeds and entries in the database"""
-    app_dir = typer.get_app_dir(Settings.APP_NAME)
-    typer.echo(app_dir)
     with closing(make_reader(Settings.db_file)) as reader:
         feed_count = reader.get_feed_counts()
         entry_count = reader.get_entry_counts()
