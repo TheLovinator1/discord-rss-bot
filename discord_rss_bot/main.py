@@ -1,16 +1,24 @@
 import os
+import sys
 import time
 from contextlib import closing
+from pathlib import Path
 from shutil import copyfile
 
 import typer
 from dhooks import Webhook
 from reader import FeedExistsError, make_reader
-
-from discord_rss_bot.settings import Settings
+from reader._plugins import global_metadata
+from reader.exceptions import FeedMetadataNotFoundError
 
 app = typer.Typer()
-hook = Webhook(Settings.webhook_url)
+app_dir = typer.get_app_dir("discord-rss-bot")
+
+# Create the data directory if it doesn't exist
+os.makedirs(app_dir, exist_ok=True)
+
+# Store the database file in the data directory
+db_file: Path = Path(os.path.join(app_dir, "db.sqlite"))
 
 
 @app.command()
@@ -24,7 +32,7 @@ def add(
         feed_url (str): The url of the feed to add
         notify_discord (bool): Whether to send a message to Discord when the feed is added
     """
-    with closing(make_reader(Settings.db_file)) as reader:
+    with closing(make_reader(db_file, plugins=[global_metadata.init_reader])) as reader:
         try:
             # Add the feed to the database
             reader.add_feed(feed_url)
@@ -32,7 +40,7 @@ def add(
         except FeedExistsError:
             # If the feed already exists, print a message
             typer.echo(f"{feed_url} already exists")
-            raise typer.Exit()
+            sys.exit()
 
         # Update the feeds
         reader.update_feeds()
@@ -44,6 +52,9 @@ def add(
 
         if notify_discord:
             # Send a message to Discord
+            webhook_url = reader.get_global_metadata_item("webhook")
+            hook = Webhook(webhook_url)
+
             hook.send(
                 f"discord-rss-bot: {feed_url} added to the database.\nYou now have "
                 f"{reader.get_feed_counts()} feeds."
@@ -55,7 +66,7 @@ def add(
 @app.command()
 def stats() -> None:
     """Print the number of feeds and entries in the database"""
-    with closing(make_reader(Settings.db_file)) as reader:
+    with closing(make_reader(db_file, plugins=[global_metadata.init_reader])) as reader:
         feed_count = reader.get_feed_counts()
         entry_count = reader.get_entry_counts()
 
@@ -82,7 +93,7 @@ def stats() -> None:
 @app.command()
 def check() -> None:
     """Check new entries for every feed"""
-    with closing(make_reader(Settings.db_file)) as reader:
+    with closing(make_reader(db_file, plugins=[global_metadata.init_reader])) as reader:
         # Update the feeds
         reader.update_feeds()
 
@@ -93,6 +104,9 @@ def check() -> None:
             # Mark the entry as read
             reader.mark_entry_as_read(entry)
 
+            webhook_url = reader.get_global_metadata_item("webhook")
+            hook = Webhook(webhook_url)
+
             # Send the entries to Discord
             hook.send(f":robot: :mega: {entry.title}\n{entry.link}")
 
@@ -100,18 +114,16 @@ def check() -> None:
 @app.command()
 def backup() -> None:
     """Backup the database"""
-    backup_dir = os.path.join(Settings.app_dir, "backup")
+    backup_dir = os.path.join(app_dir, "backup")
     os.makedirs(backup_dir, exist_ok=True)
 
     # Get the current time
     current_time = time.strftime("%Y-%m-%d_%H-%M-%S")
 
-    backup_file_location = os.path.join(
-        Settings.app_dir, "backup", f"db_{current_time}.sqlite"
-    )
-    copyfile(Settings.db_file, backup_file_location)
+    backup_file_location = os.path.join(app_dir, "backup", f"db_{current_time}.sqlite")
+    copyfile(db_file, backup_file_location)
 
-    typer.echo(f"{Settings.db_file} backed up to {backup_dir}")
+    typer.echo(f"{db_file} backed up to {backup_dir}")
 
 
 @app.command()
@@ -120,7 +132,7 @@ def delete() -> None:
     feed_dict = {}
     feed_number = 0
     message = ""
-    with closing(make_reader(Settings.db_file)) as reader:
+    with closing(make_reader(db_file)) as reader:
         for feed in reader.get_feeds():
             feed_number += 1
             feed_dict[feed_number] = feed.object_id
@@ -139,6 +151,27 @@ def delete() -> None:
         reader.delete_feed(feed_id)
 
         typer.echo(f"{feed_id} deleted")
+
+
+@app.command()
+def webhook_add(webhook_url: str) -> None:
+    """Add a webhook to the database"""
+    with closing(make_reader(db_file, plugins=[global_metadata.init_reader])) as reader:
+        reader.set_global_metadata_item("webhook", webhook_url)
+        typer.echo(f"Webhook set to {webhook_url}")
+
+
+@app.command()
+def webhook_get() -> None:
+    """Get the webhook url"""
+    # TODO: Add name to output
+    with closing(make_reader(db_file, plugins=[global_metadata.init_reader])) as reader:
+        try:
+            webhook_url = reader.get_global_metadata_item("webhook")
+            typer.echo(f"Webhook: {webhook_url}")
+        except FeedMetadataNotFoundError:
+            typer.echo("No webhook was found. Use `webhook add` to add one.")
+            sys.exit()
 
 
 if __name__ == "__main__":
