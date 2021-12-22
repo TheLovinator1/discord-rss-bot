@@ -6,7 +6,7 @@ authors = ["Joakim Hellsén <tlovinator@gmail.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.9"
-reader = "^2.6"
+reader = {git = "https://github.com/lemon24/reader"}
 typer = {extras = ["all"], version = "^0.4.0"}
 dhooks = "^1.1.4"
 
