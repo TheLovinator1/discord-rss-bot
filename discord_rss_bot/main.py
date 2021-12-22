@@ -18,7 +18,8 @@ app_dir = typer.get_app_dir("discord-rss-bot")
 os.makedirs(app_dir, exist_ok=True)
 
 # Store the database file in the data directory
-db_file: Path = Path(os.path.join(app_dir, "db.sqlite"))
+db_name = os.getenv("DATABASE_NAME", "db.sqlite")
+db_file: Path = Path(os.path.join(app_dir, db_name))
 
 
 @app.command()
