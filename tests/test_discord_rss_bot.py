@@ -1,6 +1,6 @@
 import os
 
-from discord_rss_bot.main import app, app_dir
+from discord_rss_bot.discord_rss_bot import app, app_dir
 from typer.testing import CliRunner
 
 runner = CliRunner()
@@ -36,9 +36,7 @@ def test_backup():
 
 
 def test_add():
-    result = runner.invoke(
-        app, "add https://www.reddit.com/r/Games/new/.rss --no-notify-discord"
-    )
+    result = runner.invoke(app, "add https://www.reddit.com/r/Games/new/.rss --no-notify-discord")
 
     # Check if the exit code is 0 and if the output contains the word "added" or "already"
     assert result.exit_code == 0
@@ -55,9 +53,7 @@ def test_delete():
 
 
 def test_add_webhook():
-    result = runner.invoke(
-        app, "webhook-add https://discordapp.com/api/webhooks/123456789"
-    )
+    result = runner.invoke(app, "webhook-add https://discordapp.com/api/webhooks/123456789")
     assert result.exit_code == 0
     assert "Webhook set to " in result.stdout
 
