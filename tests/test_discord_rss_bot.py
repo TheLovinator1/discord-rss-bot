@@ -1,7 +1,8 @@
 import os
 
-from discord_rss_bot.discord_rss_bot import app, app_dir
 from typer.testing import CliRunner
+
+from discord_rss_bot.discord_rss_bot import app, app_dir
 
 runner = CliRunner()
 
