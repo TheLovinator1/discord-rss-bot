@@ -6,16 +6,16 @@ authors = ["Joakim Hellsén <tlovinator@gmail.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.9"
-reader = {git = "https://github.com/lemon24/reader"}
+reader = "^2.9"
 typer = {extras = ["all"], version = "^0.4.0"}
 dhooks = "^1.1.4"
 
 [tool.poetry.dev-dependencies]
-pytest = "^5.2"
-bandit = "^1.7.1"
+pytest = "^7.0.0"
+bandit = "^1.7.2"
 flake8 = "^4.0.1"
-mypy = "^0.910"
-black = {version = "^21.12b0", allow-prereleases = true}
+mypy = "^0.931"
+black = "^22.1.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
