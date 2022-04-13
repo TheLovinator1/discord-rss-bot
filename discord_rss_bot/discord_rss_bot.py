@@ -143,7 +143,7 @@ def delete() -> None:
         typer.echo(message)
 
         feed_to_delete: int = typer.prompt("What feed do you want to remove?")
-        feed_id = feed_dict.get(int(feed_to_delete))
+        feed_id = feed_dict.get(feed_to_delete)
         delete = typer.confirm(f"Are you sure you want to delete {feed_id}?")
 
         if not delete:
