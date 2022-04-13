@@ -31,7 +31,8 @@ def add(
 
     Args:
         feed_url (str): The url of the feed to add
-        notify_discord (bool): Whether to send a message to Discord when the feed is added
+        notify_discord (bool): Whether to send a message to Discord when
+        the feed is added
     """
     with closing(make_reader(db_file, plugins=[global_metadata.init_reader])) as reader:
         try:
@@ -57,8 +58,8 @@ def add(
             hook = Webhook(webhook_url)
 
             hook.send(
-                f"discord-rss-bot: {feed_url} added to the database.\nYou now have "
-                f"{reader.get_feed_counts()} feeds."
+                f"discord-rss-bot: {feed_url} added to the database.\n"
+                f"You now have {reader.get_feed_counts()} feeds."
             )
 
         typer.echo(f"{feed_url} added")
