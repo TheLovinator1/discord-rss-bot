@@ -8,7 +8,7 @@ authors = ["Joakim Hellsén <tlovinator@gmail.com>"]
 python = "^3.9"
 reader = "^2.12"
 typer = { extras = ["all"], version = "^0.4.1" }
-discord-webhook = "^0.15.0"
+discord-webhook = "^0.16.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
