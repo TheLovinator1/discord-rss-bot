@@ -1,10 +1,10 @@
 import os
-import sys
-import time
 from contextlib import closing
 from pathlib import Path
 from shutil import copyfile
 
+import sys
+import time
 import typer
 from dhooks import Webhook
 from reader import FeedExistsError, make_reader
@@ -24,8 +24,8 @@ db_file: Path = Path(os.path.join(app_dir, db_name))
 
 @app.command()
 def add(
-    feed_url: str = typer.Argument(..., help="RSS or Atom feed URL."),
-    notify_discord: bool = typer.Option(True, help="Send message to Discord."),
+        feed_url: str = typer.Argument(..., help="RSS or Atom feed URL."),
+        notify_discord: bool = typer.Option(True, help="Send message to Discord."),
 ) -> None:
     """Add a feed to the database
 

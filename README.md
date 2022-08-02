@@ -1,6 +1,7 @@
 # discord-rss-bot
 
-A RSS bot for Discord built with [reader](https://github.com/lemon24/reader). It is designed to be executed by a [cron job](https://wiki.archlinux.org/title/Cron) or [systemd timer](https://wiki.archlinux.org/title/Systemd/Timers).
+A RSS bot for Discord built with [reader](https://github.com/lemon24/reader). It is designed to be executed by
+a [cron job](https://wiki.archlinux.org/title/Cron) or [systemd timer](https://wiki.archlinux.org/title/Systemd/Timers).
 
     Usage: discord_rss_bot.py [OPTIONS] COMMAND [ARGS]...
 
