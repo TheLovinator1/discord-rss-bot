@@ -22,6 +22,9 @@ def test_backup():
     # Where we store backups
     backup_dir = os.path.join(app_dir, "backup")
 
+    # Make sure the backup directory exists
+    os.makedirs(backup_dir, exist_ok=True)
+
     # Check how many files in the backup directory
     files_before = len(os.listdir(backup_dir))
 
