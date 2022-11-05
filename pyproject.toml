@@ -7,7 +7,7 @@ authors = ["Joakim Hellsén <tlovinator@gmail.com>"]
 [tool.poetry.dependencies]
 python = "^3.9"
 reader = "^3.2"
-typer = { extras = ["all"], version = "^0.6.1" }
+typer = { extras = ["all"], version = "^0.7.0" }
 discord-webhook = "^0.17.0"
 
 [tool.poetry.group.dev.dependencies]
