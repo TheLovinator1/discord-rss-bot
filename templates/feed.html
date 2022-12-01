@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Feed</title>
+</head>
+<body>
+URL: {{feed.url}} <br>
+Title: {{feed.title}} <br>
+Updated: {{feed.updated}} <br>
+Link: {{feed.link}} <br>
+Author: {{feed.author}} <br>
+Subtitle: {{feed.subtitle}} <br>
+Version: {{feed.version}} <br>
+User title: {{feed.user_title}} <br>
+Added on: {{feed.added}} <br>
+Last update: {{feed.last_update}} <br>
+Last exception: {{feed.last_exception}} <br>
+Updates enabled: {{feed.updates_enabled}} <br>
+
+<form action="/check" method="post">
+    <button type="submit" name="feed_url" value="{{feed.url}}">
+        Send new entries to Discord.
+    </button>
+</form>
+
+<form action="/remove" method="post">
+    <button type="submit" name="feed_url" value="{{feed.url}}">
+        Remove feed.
+    </button>
+</form>
+</body>
+</html>

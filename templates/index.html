@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Index</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+<!-- Create a new feed -->
+<form action="/add" method="post">
+    <label>
+        <input type="text" name="feed_url" placeholder="Feed URL">
+    </label>
+    <input type="submit" value="Add feed">
+</form>
+<!-- List all feeds -->
+<ul>
+    {% for feed in feeds %}
+    <form action="/feed" method="post">
+        <button type="submit" name="feed_url" value="{{feed.url}}">
+            {{ feed.url }}
+        </button>
+    </form>
+    {% endfor %}
+</ul>
+<ul>
+    <li>
+        <p>Feed stats:</p>
+        <p>Total: {{feed_count.total}} feeds</p>
+        <p>Broken: {{feed_count.broken}} feeds</p>
+        <p>Broken: {{feed_count.broken}} feeds</p>
+        <p>Enabled: {{feed_count.updates_enabled}} feeds</p>
+    </li>
+</ul>
+<ul>
+    <li>
+        <p>Feed entries:</p>
+        <p>Total: {{entry_count.total}} entries</p>
+        <p>Read: {{entry_count.broken}} entries</p>
+        <p>Enabled: {{entry_count.updates_enabled}} entries</p>
+        <p>Important: {{entry_count.important}} entries</p>
+        <p>Has enclosures: {{entry_count.has_enclosures}} entries</p>
+    </li>
+</ul>
+
+</body>
+</html>
