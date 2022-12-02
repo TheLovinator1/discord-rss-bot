@@ -1,31 +1,28 @@
-import logging
+import enum
+import sys
 
+import uvicorn
 from apscheduler.schedulers.background import BackgroundScheduler
-from discord_webhook import DiscordWebhook
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from reader import make_reader
+from reader import FeedExistsError
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger(__name__)
+from discord_rss_bot.feeds import _check_feed
+from discord_rss_bot.settings import logger, read_settings_file, reader
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
-reader = make_reader("db.sqlite")
 
 
 @app.post("/check", response_class=HTMLResponse)
-def read_check_feed(request: Request, feed_url: str = Form()):
+def check_feed(request: Request, feed_url: str = Form()):
     """Check all feeds"""
     reader.update_feeds()
     entry = reader.get_entries(feed=feed_url, read=False)
-    _check_feed(entry)
+    _check_feed(entry, feed_url)
 
     logger.info(f"Get feed: {feed_url}")
     feed = reader.get_feed(feed_url)
@@ -33,46 +30,25 @@ def read_check_feed(request: Request, feed_url: str = Form()):
     return templates.TemplateResponse("feed.html", {"request": request, "feed": feed})
 
 
-def check_feeds() -> None:
-    """Check all feeds"""
-    reader.update_feeds()
-    entries = reader.get_entries(read=False)
-    _check_feed(entries)
-
-
-def check_feed(feed_url: str) -> None:
-    """Check a single feed"""
-    reader.update_feeds()
-    entry = reader.get_entries(feed=feed_url, read=False)
-    _check_feed(entry)
-
-
-def _check_feed(entries):
-    for entry in entries:
-        reader.mark_entry_as_read(entry)
-        print(f"New entry: {entry.title}")
-
-        webhook_url = reader.get_tag((), "webhook")
-        if webhook_url:
-            print(f"Sending to webhook: {webhook_url}")
-            webhook = DiscordWebhook(url=str(webhook_url), content=f":robot: :mega: New entry: {entry.title}\n"
-                                                                   f"{entry.link}", rate_limit_retry=True)
-            response = webhook.execute()
-            if not response.ok:
-                # TODO: Send error to discord
-                print(f"Error: {response.status_code} {response.reason}")
-                reader.mark_entry_as_unread(entry)
-
-
 @app.on_event('startup')
-def init_data():
-    """Run on startup"""
+def startup():
+    """This is called when the server starts.
+
+    It reads the settings file and starts the scheduler."""
+    settings = read_settings_file()
+
+    if not settings["webhooks"]:
+        logger.critical("No webhooks found in settings file.")
+        sys.exit()
+    for key in settings["webhooks"]:
+        logger.info(f"Webhook name: {key} with URL: {settings['webhooks'][key]}")
+
     scheduler = BackgroundScheduler()
     scheduler.start()
 
 
 @app.get("/", response_class=HTMLResponse)
-def read_root(request: Request):
+def index(request: Request):
     """
     This is the root of the website.
 
@@ -82,14 +58,39 @@ def read_root(request: Request):
     Returns:
         HTMLResponse: The HTML response.
     """
+    context = make_context_index(request)
+    return templates.TemplateResponse("index.html", context)
+
+
+def make_context_index(request) -> dict:
+    """
+    Create the needed context for the index page.
+
+    Used by / and /add.
+    Args:
+        request: The request.
+
+    Returns:
+        dict: The context.
+
+    """
+    hooks = create_list_of_webhooks()
+    for hook in hooks:
+        logger.info(f"Webhook name: {hook.name}")
+
+    feed_list = list()
     feeds = reader.get_feeds()
+    for feed in feeds:
+        feed_list.append(feed)
+
     feed_count = reader.get_feed_counts()
     entry_count = reader.get_entry_counts()
     context = {"request": request,
-               "feeds": feeds,
+               "feeds": feed_list,
                "feed_count": feed_count,
-               "entry_count": entry_count}
-    return templates.TemplateResponse("index.html", context)
+               "entry_count": entry_count,
+               "webhooks": hooks}
+    return context
 
 
 @app.post("/remove", response_class=HTMLResponse)
@@ -129,36 +130,53 @@ async def get_feed(request: Request, feed_url: str = Form()):
     return templates.TemplateResponse("feed.html", {"request": request, "feed": feed})
 
 
-@app.post("/global_webhook", response_class=HTMLResponse)
-async def add_global_webhook(request: Request, webhook_url: str = Form()):
-    """
-    Add a global webhook.
+def create_list_of_webhooks():
+    """List with webhooks."""
+    logger.info("Creating list with webhooks.")
+    settings = read_settings_file()
+    list_of_webhooks = dict()
+    for hook in settings["webhooks"]:
+        logger.info(f"Webhook name: {hook} with URL: {settings['webhooks'][hook]}")
+        list_of_webhooks[hook] = settings["webhooks"][hook]
 
-    Args:
-        request: The request.
-        webhook_url: The webhook URL.
+    logger.info(f"List of webhooks: {list_of_webhooks}")
+    return enum.Enum("DiscordWebhooks", list_of_webhooks)
 
-    Returns:
-        HTMLResponse: The HTML response.
-    """
-    logger.info(f"Add global webhook: {webhook_url}")
-    reader.set_tag("webhook", webhook_url)
-    return templates.TemplateResponse("index.html", {"request": request})
+
+def get_hook_by_name(name):
+    """Get a webhook by name."""
+    settings = read_settings_file()
+    logger.debug(f"Webhook name: {name} with URL: {settings['webhooks'][name]}")
+    return settings["webhooks"][name]
 
 
 @app.post("/add")
-async def create_feed(feed_url: str = Form()):
+async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()):
     """
     Add a feed to the database.
 
     Args:
         feed_url: The feed to add.
-        default_webhook: The default webhook to use.
+        webhook_dropdown: The webhook to use.
 
     Returns:
         dict: The feed that was added.
     """
-    reader.add_feed(feed_url)
+    logger.info(f"Add feed: {feed_url}")
+    logger.info(f"Webhook: {webhook_dropdown}")
+    try:
+        reader.add_feed(feed_url)
+    except FeedExistsError as error:
+        logger.error(f"Feed already exists: {error}")
+        return {"error": "Feed already exists."}
     reader.update_feed(feed_url)
+    webhook_url = get_hook_by_name(webhook_dropdown)
+    reader.set_tag(feed_url, "webhook", webhook_url)
 
-    return {"feed_url": str(feed_url), "status": "added"}
+    new_tag = reader.get_tag(feed_url, "webhook")
+    logger.info(f"New tag: {new_tag}")
+    return {"feed_url": str(feed_url), "status": "added", "webhook": webhook_url}
+
+
+if __name__ == "__main__":
+    uvicorn.run("main:app", log_level="debug")
