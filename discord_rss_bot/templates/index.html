@@ -1,73 +1,49 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Index</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body>
-
-<!-- Create a new feed -->
-<form action="/add" method="post">
-    <label>
-        <input type="text" name="feed_url" placeholder="Feed URL">
-    </label>
-    <label for="webhook_dropdown">Choose:</label>
-    <select id="webhook_dropdown" name="webhook_dropdown">
-        {% for hook in webhooks %}
-            <!-- {{ hook.name }} {{ hook.value }} -->
-            <option value="{{ hook.name }}">{{ hook.name }}</option>
-        {% endfor %}
-    </select>
-    <input type="submit" value="Add feed">
-</form>
-
-<!-- List all feeds -->
-{% for tag in tags %}
-
-    {{ tag }}
-
-{% endfor %}
-<ul>
-    <!-- Check if any feeds -->
-    {% if feeds %}
-        {% for feed in feeds %}
-            <form action="/feed" method="post">
-                <button type="submit" name="feed_url" value="{{ feed.url }}">
-                    {{ feed.url }}
-                </button>
-            </form>
-        {% endfor %}
-    {% else %}
-        <p>No feeds yet</p>
-    {% endif %}
-</ul>
+{% extends "base.html" %}
+{% block title %}Index{% endblock %}
+{% block content %}
+    <!-- List all feeds -->
+    {% for tag in tags %}
+        {{ tag }}
+    {% endfor %}
+    <ul>
+        <!-- Check if any feeds -->
+        {% if feeds %}
+            {% for feed in feeds %}
+                <form action="/feed" method="post">
+                    <button type="submit" name="feed_url" value="{{ feed.url }}">
+                        {{ feed.url }}
+                    </button>
+                </form>
+            {% endfor %}
+        {% else %}
+            <p>No feeds yet</p>
+        {% endif %}
+    </ul>
 
 
-<!-- Feed stats -->
-<hr>
-<ul>
-    <li>
-        <p>Feed stats:</p>
-        <p>Total: {{ feed_count.total }} feeds</p>
-        <p>Broken: {{ feed_count.broken }} feeds</p>
-        <p>Enabled: {{ feed_count.updates_enabled }} feeds</p>
-    </li>
-</ul>
-<!-- Feed entries stats -->
-<ul>
-    <li>
-        <p>Feed entries:</p>
-        <p>Total: {{ entry_count.total }} entries</p>
-        <p>Read: {{ entry_count.read }} entries</p>
-        <p>Important: {{ entry_count.important }} entries</p>
-        <p>Has enclosures: {{ entry_count.has_enclosures }} entries</p>
-        <p>1 Month: {{ entry_count.averages[0]|round(2) }} entries per day</p>
-        <p>3 Months: {{ entry_count.averages[1]|round(2) }} entries per day</p>
-        <p>12 Months: {{ entry_count.averages[2]|round(2) }} entries per day</p>
+    <!-- Feed stats -->
+    <hr>
+    <ul>
+        <li>
+            <p>Feed stats:</p>
+            <p>Total: {{ feed_count.total }} feeds</p>
+            <p>Broken: {{ feed_count.broken }} feeds</p>
+            <p>Enabled: {{ feed_count.updates_enabled }} feeds</p>
+        </li>
+    </ul>
+    <!-- Feed entries stats -->
+    <ul>
+        <li>
+            <p>Feed entries:</p>
+            <p>Total: {{ entry_count.total }} entries</p>
+            <p>Read: {{ entry_count.read }} entries</p>
+            <p>Important: {{ entry_count.important }} entries</p>
+            <p>Has enclosures: {{ entry_count.has_enclosures }} entries</p>
+            <p>1 Month: {{ entry_count.averages[0]|round(2) }} entries per day</p>
+            <p>3 Months: {{ entry_count.averages[1]|round(2) }} entries per day</p>
+            <p>12 Months: {{ entry_count.averages[2]|round(2) }} entries per day</p>
 
-    </li>
-</ul>
+        </li>
+    </ul>
 
-</body>
-</html>
+{% endblock %}

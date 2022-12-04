@@ -1,11 +1,11 @@
 import enum
 import sys
+from functools import cache
 
 import uvicorn
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from reader import FeedExistsError
 
@@ -13,8 +13,14 @@ from discord_rss_bot.feeds import _check_feed
 from discord_rss_bot.settings import logger, read_settings_file, reader
 
 app = FastAPI()
-app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+
+
+@cache
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    """Return favicon."""
+    return FileResponse('static/favicon.ico')
 
 
 @app.post("/check", response_class=HTMLResponse)
@@ -176,6 +182,21 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()):
     new_tag = reader.get_tag(feed_url, "webhook")
     logger.info(f"New tag: {new_tag}")
     return {"feed_url": str(feed_url), "status": "added", "webhook": webhook_url}
+
+
+@app.get("/add", response_class=HTMLResponse)
+def get_add(request: Request):
+    """
+    This is the root of the website.
+
+    Args:
+        request:
+
+    Returns:
+        HTMLResponse: The HTML response.
+    """
+    context = make_context_index(request)
+    return templates.TemplateResponse("add.html", context)
 
 
 if __name__ == "__main__":

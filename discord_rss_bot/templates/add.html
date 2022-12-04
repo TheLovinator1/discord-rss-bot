@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Index{% endblock %}
+{% block content %}
+    <form action="/add" method="post">
+        <label>
+            <input type="text" name="feed_url" placeholder="Feed URL" class="form-control" aria-label="Feed url">
+        </label>
+
+        <div class="input-group mb-3">
+            <label for="webhook_dropdown" class="input-group-text">Webhook</label>
+            <select class="form-select" aria-label="Default webhook" id="webhook_dropdown"
+                    name="webhook_dropdown">
+                <option selected>Choose...</option>
+                {% for hook in webhooks %}
+                    <option value="{{ hook.name }}">{{ hook.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="input-group mb-3">
+            <input type="submit" value="Add feed">
+        </div>
+    </form>
+{% endblock %}
