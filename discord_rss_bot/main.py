@@ -28,7 +28,7 @@ def check_feed(request: Request, feed_url: str = Form()):
     """Check all feeds"""
     reader.update_feeds()
     entry = reader.get_entries(feed=feed_url, read=False)
-    _check_feed(entry, feed_url)
+    _check_feed(entry)
 
     logger.info(f"Get feed: {feed_url}")
     feed = reader.get_feed(feed_url)
