@@ -24,14 +24,38 @@ from platformdirs import user_data_dir
 from reader import make_reader
 from tomlkit import TOMLDocument, comment, document, parse, table
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="[%(asctime)s] [%(funcName)s:%(lineno)d] %(message)s",
-)
+logging.basicConfig(level=logging.DEBUG, format="[%(asctime)s] [%(funcName)s:%(lineno)d] %(message)s")
 logger = logging.getLogger(__name__)
 
 # For get_data_dir()
 data_directory = user_data_dir(appname="discord_rss_bot", appauthor="TheLovinator", roaming=True)
+
+
+def create_settings_file(settings_file) -> None:
+    """Create the settings file if it doesn't exist."""
+    logger.debug(f"Settings file: {settings_file}")
+
+    # [webhooks]
+    # Both options are commented out by default.
+    webhooks = table()
+    webhooks.add(comment('"First webhook" = "https://discord.com/api/webhooks/1234567890/abcdefghijklmnopqrstuvwxyz"'))
+    webhooks.add(comment('"Second webhook" = "https://discord.com/api/webhooks/1234567890/abcdefghijklmnopqrstuvwxyz"'))
+
+    # [database]
+    # Option is commented out by default.
+    database = table()
+    database.add(comment('"location" = "/path/to/database/file"'))
+
+    doc = document()
+    doc.add("webhooks", webhooks)
+    doc.add("database", database)
+
+    logger.debug(f"Settings file: {doc}")
+    logger.debug(f"Settings file as TOML: {doc.as_string()}")
+
+    # Write the settings file
+    with open(settings_file, "w") as f:
+        f.write(doc.as_string())
 
 
 def get_data_dir(data_dir: str = data_directory) -> Path:
@@ -79,33 +103,6 @@ def get_db_file(custom_db_name: str = "db.sqlite") -> Path:
     logger.debug(f"Database file: {db_file}")
 
     return Path(db_file)
-
-
-def create_settings_file(settings_file) -> None:
-    """Create the settings file if it doesn't exist."""
-    logger.debug(f"Settings file: {settings_file}")
-
-    # [webhooks]
-    # Both options are commented out by default.
-    webhooks = table()
-    webhooks.add(comment('"First webhook" = "https://discord.com/api/webhooks/1234567890/abcdefghijklmnopqrstuvwxyz"'))
-    webhooks.add(comment('"Second webhook" = "https://discord.com/api/webhooks/1234567890/abcdefghijklmnopqrstuvwxyz"'))
-
-    # [database]
-    # Option is commented out by default.
-    database = table()
-    database.add(comment('"location" = "/path/to/database/file"'))
-
-    doc = document()
-    doc.add("webhooks", webhooks)
-    doc.add("database", database)
-
-    logger.debug(f"Settings file: {doc}")
-    logger.debug(f"Settings file as TOML: {doc.as_string()}")
-
-    # Write the settings file
-    with open(settings_file, "w") as f:
-        f.write(doc.as_string())
 
 
 def read_settings_file(custom_settings_name: str = "settings.toml") -> TOMLDocument:
