@@ -1,10 +1,11 @@
 from fastapi import HTTPException
 from reader import ResourceNotFoundError
+from tomlkit.toml_document import TOMLDocument
 
 from discord_rss_bot.settings import logger, read_settings_file, reader
 
 
-def set_hook_by_name(name: str, feed_url: str) -> None or HTTPException:
+def set_hook_by_name(name: str, feed_url: str) -> HTTPException:
     """Set a webhook by name.
 
     Args:
@@ -14,13 +15,13 @@ def set_hook_by_name(name: str, feed_url: str) -> None or HTTPException:
     Returns:
         HTTPException: The HTTP exception if the webhook was not found, otherwise None.
     """
-    settings = read_settings_file()
+    settings: TOMLDocument = read_settings_file()
     logger.debug(f"Webhook name: {name} with URL: {settings['webhooks'][name]}")
-    webhook_url = settings["webhooks"][name]
+    webhook_url: str = str(settings["webhooks"][name])
     try:
         reader.set_tag(feed_url, "webhook", webhook_url)
 
     except ResourceNotFoundError as e:
-        error_msg = f"ResourceNotFoundError: Could not set webhook: {e}"
+        error_msg: str = f"ResourceNotFoundError: Could not set webhook: {e}"
         logger.error(error_msg, exc_info=True)
         return HTTPException(status_code=500, detail=error_msg)

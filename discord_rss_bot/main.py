@@ -29,37 +29,41 @@ Functions:
 import enum
 import sys
 from functools import cache
+from typing import Iterable
 
 import uvicorn
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from reader import ResourceNotFoundError
+from reader import Entry, EntryCounts, Feed, FeedCounts, ResourceNotFoundError
+from tomlkit.toml_document import TOMLDocument
 
-from discord_rss_bot.feeds import add_feed, send_to_discord, update_feed
+from discord_rss_bot.feeds import IfFeedError, add_feed, send_to_discord, update_feed
 from discord_rss_bot.settings import logger, read_settings_file, reader
 from discord_rss_bot.webhooks import set_hook_by_name
 
-app = FastAPI()
-templates = Jinja2Templates(directory="templates")
+app: FastAPI = FastAPI()
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates: Jinja2Templates = Jinja2Templates(directory="templates")
 
 
 @app.post("/check", response_class=HTMLResponse)
 def check_feed(request: Request, feed_url: str = Form()):
     """Check all feeds"""
     reader.update_feeds()
-    entry = reader.get_entries(feed=feed_url, read=False)
+    entry: Iterable[Entry] = reader.get_entries(feed=feed_url, read=False)
     send_to_discord(entry)
 
     logger.info(f"Get feed: {feed_url}")
-    feed = reader.get_feed(feed_url)
+    feed: Feed = reader.get_feed(feed_url)
 
     return templates.TemplateResponse("feed.html", {"request": request, "feed": feed})
 
 
 @app.post("/add")
-async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()):
+async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) -> HTTPException | dict[str, str]:
     """
     Add a feed to the database.
 
@@ -74,10 +78,10 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()):
     logger.info(f"Webhook: {webhook_dropdown}")
 
     # Update a single feed. The feed will be updated even if updates are disabled for it.
-    updated_feed = update_feed(feed_url, webhook_dropdown)
+    updated_feed: IfFeedError = update_feed(feed_url, webhook_dropdown)
 
     # Add a new feed to the database.
-    added_feed = add_feed(feed_url, webhook_dropdown)
+    added_feed: IfFeedError = add_feed(feed_url, webhook_dropdown)
 
     if updated_feed.error or added_feed.error:
         error_dict = {
@@ -95,7 +99,7 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()):
     ):
         return set_hook_by_name(name=webhook_dropdown, feed_url=feed_url)
 
-    new_tag = reader.get_tag(feed_url, "webhook")
+    new_tag: str = str(reader.get_tag(feed_url, "webhook"))
     logger.info(f"New tag: {new_tag}")
     return {"feed_url": str(feed_url), "status": "added"}
 
@@ -103,7 +107,7 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()):
 def create_list_of_webhooks():
     """List with webhooks."""
     logger.info("Creating list with webhooks.")
-    settings = read_settings_file()
+    settings: TOMLDocument = read_settings_file()
     list_of_webhooks = dict()
     for hook in settings["webhooks"]:
         logger.info(f"Webhook name: {hook} with URL: {settings['webhooks'][hook]}")
@@ -115,7 +119,7 @@ def create_list_of_webhooks():
 
 @cache
 @app.get("/favicon.ico", include_in_schema=False)
-async def favicon():
+async def favicon() -> FileResponse:
     """Return favicon."""
     return FileResponse("static/favicon.ico")
 
@@ -184,12 +188,12 @@ def make_context_index(request) -> dict:
         logger.info(f"Webhook name: {hook.name}")
 
     feed_list = list()
-    feeds = reader.get_feeds()
+    feeds: Iterable[Feed] = reader.get_feeds()
     for feed in feeds:
         feed_list.append(feed)
 
-    feed_count = reader.get_feed_counts()
-    entry_count = reader.get_entry_counts()
+    feed_count: FeedCounts = reader.get_feed_counts()
+    entry_count: EntryCounts = reader.get_entry_counts()
     context = {
         "request": request,
         "feeds": feed_list,
@@ -225,17 +229,18 @@ def startup():
     """This is called when the server starts.
 
     It reads the settings file and starts the scheduler."""
-    settings = read_settings_file()
+    settings: TOMLDocument = read_settings_file()
 
     if not settings["webhooks"]:
         logger.critical("No webhooks found in settings file.")
         sys.exit()
-    for key in settings["webhooks"]:
+    webhooks = settings["webhooks"]
+    for key in webhooks:
         logger.info(f"Webhook name: {key} with URL: {settings['webhooks'][key]}")
 
-    scheduler = BackgroundScheduler()
+    scheduler: BackgroundScheduler = BackgroundScheduler()
     scheduler.start()
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", log_level="debug")
+    uvicorn.run("main:app", log_level="debug", reload=True)
