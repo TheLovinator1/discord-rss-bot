@@ -1,3 +1,21 @@
+"""This module contains functions for reading and writing settings and configuration files.
+
+Functions:
+    create_settings_file:
+        Create the settings file if it doesn't exist.
+    get_data_dir:
+        Path to the data directory. This is where the database file and config file are stored.
+    get_db_file:
+        Where we store the database file.
+    read_settings_file:
+        Read the settings file and return it as a dict.
+
+Variables:
+    data_directory:
+        The application directory, defaults to user_data_dir().
+    logger:
+        The logger for this program.
+"""
 import logging
 import os
 from pathlib import Path
@@ -63,7 +81,7 @@ def get_db_file(custom_db_name: str = "db.sqlite") -> Path:
     return Path(db_file)
 
 
-def _create_settings_file(settings_file) -> None:
+def create_settings_file(settings_file) -> None:
     """Create the settings file if it doesn't exist."""
     logger.debug(f"Settings file: {settings_file}")
 
@@ -112,7 +130,7 @@ def read_settings_file(custom_settings_name: str = "settings.toml") -> TOMLDocum
 
     # Create the settings file if it doesn't exist
     if not os.path.exists(settings_file):
-        _create_settings_file(settings_file)
+        create_settings_file(settings_file)
 
     with open(settings_file, encoding="utf-8") as f:
         data = parse(f.read())

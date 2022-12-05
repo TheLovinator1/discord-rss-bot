@@ -1,3 +1,26 @@
+"""
+Functions:
+    add_feed()
+        Add a feed to the reader. This also updates the feed.
+    check_feed()
+        Check a single feed.
+    check_feeds()
+        Check all feeds.
+    send_to_discord()
+        Send entries to Discord.
+    update_feed()
+        Update a feed.
+
+Classes:
+    IfFeedError
+        Used in add_feed() and update_feed(). If an error, it will return IfFeedError with error=True.
+        If no error, it will return IfFeedError with error=False.
+
+Exceptions:
+    NoWebhookFoundError
+        Used in send_to_discord(). If no webhook found, it will raise NoWebhookFoundError.
+"""
+
 from discord_webhook import DiscordWebhook
 from pydantic import BaseModel
 from reader import FeedExistsError, FeedNotFoundError, InvalidFeedURLError, ParseError, StorageError
