@@ -23,7 +23,13 @@ Exceptions:
 
 from discord_webhook import DiscordWebhook
 from pydantic import BaseModel
-from reader import FeedExistsError, FeedNotFoundError, InvalidFeedURLError, ParseError, StorageError
+from reader import (
+    FeedExistsError,
+    FeedNotFoundError,
+    InvalidFeedURLError,
+    ParseError,
+    StorageError,
+)
 from requests import Response
 
 from discord_rss_bot.settings import logger, reader
@@ -39,6 +45,7 @@ class IfFeedError(BaseModel):
         err_msg: The error message, if any.
         exception: The exception, if any.
     """
+
     feed_url: str
     webhook: str
     error: bool
@@ -75,13 +82,25 @@ def add_feed(feed_url: str, webhook: str, exist_ok=False, allow_invalid_url=Fals
         reader.add_feed(feed=feed_url, exist_ok=exist_ok, allow_invalid_url=allow_invalid_url)
     except FeedExistsError as error:
         error_msg = "Feed already exists"
-        logger.error(f"{error_msg}: {error}")
-        return IfFeedError(error=True, err_msg=error_msg, feed_url=feed_url, webhook=webhook, exception=error.message)
+        logger.error(error_msg, exc_info=True)
+        return IfFeedError(
+            error=True,
+            err_msg=error_msg,
+            feed_url=feed_url,
+            webhook=webhook,
+            exception=error.message,
+        )
 
     except InvalidFeedURLError as error:
         error_msg = "Invalid feed URL"
-        logger.error(f"{error_msg}: {error}")
-        return IfFeedError(error=True, err_msg=error_msg, feed_url=feed_url, webhook=webhook, exception=error.message)
+        logger.error(error_msg, exc_info=True)
+        return IfFeedError(
+            error=True,
+            err_msg=error_msg,
+            feed_url=feed_url,
+            webhook=webhook,
+            exception=error.message,
+        )
 
     return IfFeedError(error=False, feed_url=feed_url, webhook=webhook)
 
@@ -132,14 +151,14 @@ def send_to_discord(entry) -> Response:
     reader.set_entry_read(entry)
     logger.debug(f"New entry: {entry.title}")
 
-    webhook_url = reader.get_tag(entry.feed.url, "webhook")
+    webhook_url = str(reader.get_tag(entry.feed.url, "webhook"))
     if not webhook_url:
         logger.error(f"No webhook found for feed: {entry.feed.url}")
         raise NoWebhookFoundError(f"No webhook found for feed: {entry.feed.url}")
 
     logger.debug(f"Sending to webhook: {webhook_url}")
-    webhook = DiscordWebhook(url=str(webhook_url), content=f":robot: :mega: New entry: {entry.title}\n"
-                                                           f"{entry.link}", rate_limit_retry=True)
+    webhook_message = f":robot: :mega: {entry.title}\n{entry.link}"
+    webhook = DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)
     response = webhook.execute()
     if not response.ok:
         logger.error(f"Error: {response.status_code} {response.reason}")
@@ -164,16 +183,34 @@ def update_feed(feed_url: str, webhook: str) -> IfFeedError:
     except FeedNotFoundError as error:
         error_msg = "Feed not found"
         logger.error(error_msg, exc_info=True)
-        return IfFeedError(error=True, err_msg=error_msg, feed_url=feed_url, webhook=webhook, exception=error.message)
+        return IfFeedError(
+            error=True,
+            err_msg=error_msg,
+            feed_url=feed_url,
+            webhook=webhook,
+            exception=error.message,
+        )
 
     except ParseError as error:
         error_msg = "An error occurred while getting/parsing feed"
         logger.error(error_msg, exc_info=True)
-        return IfFeedError(error=True, err_msg=error_msg, feed_url=feed_url, webhook=webhook, exception=error.message)
+        return IfFeedError(
+            error=True,
+            err_msg=error_msg,
+            feed_url=feed_url,
+            webhook=webhook,
+            exception=error.message,
+        )
 
     except StorageError as error:
         error_msg = "An exception was raised by the underlying storage"
         logger.error(error_msg, exc_info=True)
-        return IfFeedError(error=True, err_msg=error_msg, feed_url=feed_url, webhook=webhook, exception=error.message)
+        return IfFeedError(
+            error=True,
+            err_msg=error_msg,
+            feed_url=feed_url,
+            webhook=webhook,
+            exception=error.message,
+        )
 
     return IfFeedError(error=False, feed_url=feed_url, webhook=webhook)

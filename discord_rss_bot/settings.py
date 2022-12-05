@@ -39,7 +39,9 @@ def create_settings_file(settings_file) -> None:
     # Both options are commented out by default.
     webhooks = table()
     webhooks.add(comment('"First webhook" = "https://discord.com/api/webhooks/1234567890/abcdefghijklmnopqrstuvwxyz"'))
-    webhooks.add(comment('"Second webhook" = "https://discord.com/api/webhooks/1234567890/abcdefghijklmnopqrstuvwxyz"'))
+    webhooks.add(
+        comment('"Second webhook" = "https://discord.com/api/webhooks/1234567890/abcdefghijklmnopqrstuvwxyz"')
+    )
 
     # [database]
     # Option is commented out by default.

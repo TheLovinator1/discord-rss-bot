@@ -80,12 +80,19 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()):
     added_feed = add_feed(feed_url, webhook_dropdown)
 
     if updated_feed.error or added_feed.error:
-        error_dict = {"error": updated_feed.error, "feed": updated_feed.feed_url, "webhook": updated_feed.webhook,
-                      "exception": updated_feed.exception}
+        error_dict = {
+            "error": updated_feed.error,
+            "feed": updated_feed.feed_url,
+            "webhook": updated_feed.webhook,
+            "exception": updated_feed.exception,
+        }
         return HTTPException(status_code=500, detail=error_dict)
 
     # Check if set_hook_by_name() was successful.
-    if isinstance(set_hook_by_name(name=webhook_dropdown, feed_url=feed_url), ResourceNotFoundError):
+    if isinstance(
+        set_hook_by_name(name=webhook_dropdown, feed_url=feed_url),
+        ResourceNotFoundError,
+    ):
         return set_hook_by_name(name=webhook_dropdown, feed_url=feed_url)
 
     new_tag = reader.get_tag(feed_url, "webhook")
@@ -110,7 +117,7 @@ def create_list_of_webhooks():
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
     """Return favicon."""
-    return FileResponse('static/favicon.ico')
+    return FileResponse("static/favicon.ico")
 
 
 @app.get("/add", response_class=HTMLResponse)
@@ -183,11 +190,13 @@ def make_context_index(request) -> dict:
 
     feed_count = reader.get_feed_counts()
     entry_count = reader.get_entry_counts()
-    context = {"request": request,
-               "feeds": feed_list,
-               "feed_count": feed_count,
-               "entry_count": entry_count,
-               "webhooks": hooks}
+    context = {
+        "request": request,
+        "feeds": feed_list,
+        "feed_count": feed_count,
+        "entry_count": entry_count,
+        "webhooks": hooks,
+    }
     return context
 
 
@@ -211,7 +220,7 @@ async def remove_feed(request: Request, feed_url: str = Form()):
     return templates.TemplateResponse("index.html", {"request": request, "feed": feed})
 
 
-@app.on_event('startup')
+@app.on_event("startup")
 def startup():
     """This is called when the server starts.
 

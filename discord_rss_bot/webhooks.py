@@ -19,6 +19,8 @@ def set_hook_by_name(name: str, feed_url: str) -> None or HTTPException:
     webhook_url = settings["webhooks"][name]
     try:
         reader.set_tag(feed_url, "webhook", webhook_url)
+
     except ResourceNotFoundError as e:
-        logger.error(f"ResourceNotFoundError: {e}")
-        return HTTPException(status_code=500, detail=f"ResourceNotFoundError: Could not set webhook: {e}")
+        error_msg = f"ResourceNotFoundError: Could not set webhook: {e}"
+        logger.error(error_msg, exc_info=True)
+        return HTTPException(status_code=500, detail=error_msg)
