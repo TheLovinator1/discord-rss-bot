@@ -4,13 +4,14 @@ from functools import cache
 
 import uvicorn
 from apscheduler.schedulers.background import BackgroundScheduler
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
-from reader import FeedExistsError
+from reader import ResourceNotFoundError
 
-from discord_rss_bot.feeds import _check_feed
+from discord_rss_bot.feeds import add_feed, send_to_discord, update_feed
 from discord_rss_bot.settings import logger, read_settings_file, reader
+from discord_rss_bot.webhooks import set_hook_by_name
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
@@ -28,7 +29,7 @@ def check_feed(request: Request, feed_url: str = Form()):
     """Check all feeds"""
     reader.update_feeds()
     entry = reader.get_entries(feed=feed_url, read=False)
-    _check_feed(entry)
+    send_to_discord(entry)
 
     logger.info(f"Get feed: {feed_url}")
     feed = reader.get_feed(feed_url)
@@ -149,13 +150,6 @@ def create_list_of_webhooks():
     return enum.Enum("DiscordWebhooks", list_of_webhooks)
 
 
-def get_hook_by_name(name):
-    """Get a webhook by name."""
-    settings = read_settings_file()
-    logger.debug(f"Webhook name: {name} with URL: {settings['webhooks'][name]}")
-    return settings["webhooks"][name]
-
-
 @app.post("/add")
 async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()):
     """
@@ -170,18 +164,25 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()):
     """
     logger.info(f"Add feed: {feed_url}")
     logger.info(f"Webhook: {webhook_dropdown}")
-    try:
-        reader.add_feed(feed_url)
-    except FeedExistsError as error:
-        logger.error(f"Feed already exists: {error}")
-        return {"error": "Feed already exists."}
-    reader.update_feed(feed_url)
-    webhook_url = get_hook_by_name(webhook_dropdown)
-    reader.set_tag(feed_url, "webhook", webhook_url)
+
+    # Update a single feed. The feed will be updated even if updates are disabled for it.
+    updated_feed = update_feed(feed_url, webhook_dropdown)
+
+    # Add a new feed to the database.
+    added_feed = add_feed(feed_url, webhook_dropdown)
+
+    if updated_feed.error or added_feed.error:
+        error_dict = {"error": updated_feed.error, "feed": updated_feed.feed_url, "webhook": updated_feed.webhook,
+                      "exception": updated_feed.exception}
+        return HTTPException(status_code=500, detail=error_dict)
+
+    # Check if set_hook_by_name() was successful.
+    if isinstance(set_hook_by_name(name=webhook_dropdown, feed_url=feed_url), ResourceNotFoundError):
+        return set_hook_by_name(name=webhook_dropdown, feed_url=feed_url)
 
     new_tag = reader.get_tag(feed_url, "webhook")
     logger.info(f"New tag: {new_tag}")
-    return {"feed_url": str(feed_url), "status": "added", "webhook": webhook_url}
+    return {"feed_url": str(feed_url), "status": "added"}
 
 
 @app.get("/add", response_class=HTMLResponse)
