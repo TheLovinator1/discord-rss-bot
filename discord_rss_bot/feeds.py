@@ -129,7 +129,7 @@ def send_to_discord(entry) -> Response:
         Response: The response from the webhook.
     """
 
-    reader.mark_entry_as_read(entry)
+    reader.set_entry_read(entry)
     logger.debug(f"New entry: {entry.title}")
 
     webhook_url = reader.get_tag(entry.feed.url, "webhook")
@@ -143,7 +143,7 @@ def send_to_discord(entry) -> Response:
     response = webhook.execute()
     if not response.ok:
         logger.error(f"Error: {response.status_code} {response.reason}")
-        reader.mark_entry_as_unread(entry)
+        reader.set_entry_read(entry, False)
     return response
 
 
