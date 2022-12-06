@@ -29,7 +29,7 @@ Functions:
 import enum
 import sys
 from functools import cache
-from typing import Iterable
+from typing import Any, Iterable
 
 import uvicorn
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -38,6 +38,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from reader import EntryCounts, Feed, FeedCounts, ResourceNotFoundError
+from starlette.templating import _TemplateResponse
 from tomlkit.toml_document import TOMLDocument
 
 from discord_rss_bot.feeds import IfFeedError, add_feed, send_to_discord, update_feed
@@ -50,7 +51,7 @@ templates: Jinja2Templates = Jinja2Templates(directory="templates")
 
 
 @app.post("/check", response_class=HTMLResponse)
-def check_feed(request: Request, feed_url: str = Form()):
+def check_feed(request: Request, feed_url: str = Form()) -> _TemplateResponse:
     """Check all feeds"""
     reader.update_feeds()
     send_to_discord(feed_url)
@@ -83,7 +84,7 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) ->
     updated_feed: IfFeedError = update_feed(feed_url, webhook_dropdown)
 
     if updated_feed.error or added_feed.error:
-        error_dict = {
+        error_dict: dict[str, Any] = {
             "error": updated_feed.error,
             "feed": updated_feed.feed_url,
             "webhook": updated_feed.webhook,
@@ -103,7 +104,7 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) ->
     return {"feed_url": str(feed_url), "status": "added"}
 
 
-def create_list_of_webhooks():
+def create_list_of_webhooks() -> enum.EnumMeta:
     """List with webhooks."""
     logger.info("Creating list with webhooks.")
     settings: TOMLDocument = read_settings_file()
@@ -124,7 +125,7 @@ async def favicon() -> FileResponse:
 
 
 @app.get("/add", response_class=HTMLResponse)
-def get_add(request: Request):
+def get_add(request: Request) -> _TemplateResponse:
     """
     Page for adding a new feed.
 
@@ -139,7 +140,7 @@ def get_add(request: Request):
 
 
 @app.get("/feed/{feed_url:path}", response_class=HTMLResponse)
-async def get_feed(feed_url: str, request: Request):
+async def get_feed(feed_url: str, request: Request) -> _TemplateResponse:
     """
     Get a feed by URL.
 
@@ -153,12 +154,12 @@ async def get_feed(feed_url: str, request: Request):
     # Convert the URL to a valid URL.
     logger.info(f"Got feed: {feed_url}")
 
-    feed = reader.get_feed(feed_url)
+    feed: Feed = reader.get_feed(feed_url)
     return templates.TemplateResponse("feed.html", {"request": request, "feed": feed})
 
 
 @app.get("/", response_class=HTMLResponse)
-def index(request: Request):
+def index(request: Request) -> _TemplateResponse:
     """
     This is the root of the website.
 
@@ -184,18 +185,18 @@ def make_context_index(request) -> dict:
         dict: The context.
 
     """
-    hooks = create_list_of_webhooks()
+    hooks: enum.EnumMeta = create_list_of_webhooks()
     for hook in hooks:
         logger.info(f"Webhook name: {hook.name}")
 
-    feed_list = list()
+    feed_list: list[Feed] = list()
     feeds: Iterable[Feed] = reader.get_feeds()
     for feed in feeds:
         feed_list.append(feed)
 
     feed_count: FeedCounts = reader.get_feed_counts()
     entry_count: EntryCounts = reader.get_entry_counts()
-    context = {
+    context: dict[str, Any] = {
         "request": request,
         "feeds": feed_list,
         "feed_count": feed_count,
@@ -206,7 +207,7 @@ def make_context_index(request) -> dict:
 
 
 @app.post("/remove", response_class=HTMLResponse)
-async def remove_feed(request: Request, feed_url: str = Form()):
+async def remove_feed(request: Request, feed_url: str = Form()) -> _TemplateResponse:
     """
     Get a feed by URL.
 
@@ -219,14 +220,14 @@ async def remove_feed(request: Request, feed_url: str = Form()):
     """
 
     logger.info(f"Get feed: {feed_url}")
-    feed = reader.get_feed(feed_url)
+    feed: Feed = reader.get_feed(feed_url)
 
     reader.delete_feed(feed_url)
     return templates.TemplateResponse("index.html", {"request": request, "feed": feed})
 
 
 @app.on_event("startup")
-def startup():
+def startup() -> None:
     """This is called when the server starts.
 
     It reads the settings file and starts the scheduler."""

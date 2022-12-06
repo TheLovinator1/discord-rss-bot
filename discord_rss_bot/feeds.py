@@ -21,9 +21,12 @@ Exceptions:
         Used in send_to_discord(). If no webhook found, it will raise NoWebhookFoundError.
 """
 
+from typing import Any, Iterable
+
 from discord_webhook import DiscordWebhook
 from pydantic import BaseModel
 from reader import (
+    Entry,
     EntryNotFoundError,
     FeedExistsError,
     FeedNotFoundError,
@@ -60,10 +63,10 @@ class NoWebhookFoundError(Exception):
 
     Used in send_to_discord()."""
 
-    def __init__(self, message):
+    def __init__(self, message) -> None:
         self.message = message
 
-    def __str__(self):
+    def __str__(self) -> Any:
         return self.message
 
 
@@ -122,7 +125,7 @@ def check_feed(feed_url: str) -> None:
         send_to_discord(entry)
 
 
-def check_feeds() -> None:
+def send_to_discord(feed=None) -> None:
     """Update all feeds and send all the entries that are unread to Discord.
 
     We don't need to mark entries as read here, because send_to_discord() does that when sending entries to Discord
@@ -132,7 +135,6 @@ def check_feeds() -> None:
     send_to_discord()
 
 
-def send_to_discord(feed=None):
     """
     Send entries to Discord.
 
@@ -148,9 +150,9 @@ def send_to_discord(feed=None):
         Response: The response from the webhook.
     """
     if feed is None:
-        entries = reader.get_entries(read=False)
+        entries: Iterable[Entry] = reader.get_entries(read=False)
     else:
-        entries = reader.get_entries(feed=feed, read=False)
+        entries: Iterable[Entry] = reader.get_entries(feed=feed, read=False)
 
     if not entries:
         logger.info("No entries to send")
@@ -169,7 +171,7 @@ def send_to_discord(feed=None):
             raise
 
         try:
-            webhook_url = str(reader.get_tag(entry.feed.url, "webhook"))
+            webhook_url: str = str(reader.get_tag(entry.feed.url, "webhook"))
         except TagNotFoundError:
             logger.error("Tag not found", exc_info=True)
             raise
@@ -182,9 +184,9 @@ def send_to_discord(feed=None):
             raise NoWebhookFoundError(f"No webhook found for feed: {entry.feed.url}")
 
         logger.debug(f"Sending to webhook: {webhook_url}")
-        webhook_message = f":robot: :mega: {entry.title}\n{entry.link}"
-        webhook = DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)
-        response = webhook.execute()
+        webhook_message: str = f":robot: :mega: {entry.title}\n{entry.link}"
+        webhook: DiscordWebhook = DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)
+        response: Response = webhook.execute()
         if not response.ok:
             logger.error(f"Error: {response.status_code} {response.reason}")
             reader.set_entry_read(entry, False)
