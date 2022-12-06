@@ -37,7 +37,7 @@ from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from reader import EntryCounts, Feed, FeedCounts, ReaderError, ResourceNotFoundError
+from reader import EntryCounts, Feed, FeedCounts, FeedNotFoundError, ReaderError, ResourceNotFoundError, StorageError
 from starlette.templating import _TemplateResponse
 from tomlkit.toml_document import TOMLDocument
 
@@ -213,7 +213,7 @@ def make_context_index(request) -> dict:
 
 
 @app.post("/remove", response_class=HTMLResponse)
-async def remove_feed(request: Request, feed_url: str = Form()) -> _TemplateResponse:
+async def remove_feed(request: Request, feed_url: str = Form()):
     """
     Get a feed by URL.
 
@@ -224,12 +224,18 @@ async def remove_feed(request: Request, feed_url: str = Form()) -> _TemplateResp
     Returns:
         HTMLResponse: The HTML response.
     """
+    try:
+        reader.delete_feed(feed_url)
+    except FeedNotFoundError:
+        logger.error(f"Feed not found: {feed_url}")
+        return {"error": "Feed not found.", "feed": feed_url}
+    except StorageError:
+        logger.error(f"Storage error: {feed_url}")
+        return {"error": "Storage error.", "feed": feed_url}
 
-    logger.info(f"Get feed: {feed_url}")
-    feed: Feed = reader.get_feed(feed_url)
-
-    reader.delete_feed(feed_url)
-    return templates.TemplateResponse("index.html", {"request": request, "feed": feed})
+    logger.info(f"Deleted feed: {feed_url}")
+    context = make_context_index(request)
+    return templates.TemplateResponse("index.html", context)
 
 
 @app.on_event("startup")
