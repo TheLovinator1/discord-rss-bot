@@ -139,8 +139,8 @@ def get_add(request: Request):
     return templates.TemplateResponse("add.html", context)
 
 
-@app.post("/feed", response_class=HTMLResponse)
-async def get_feed(request: Request, feed_url: str = Form()):
+@app.get("/feed/{feed_url:path}", response_class=HTMLResponse)
+async def get_feed(feed_url: str, request: Request):
     """
     Get a feed by URL.
 
@@ -151,7 +151,9 @@ async def get_feed(request: Request, feed_url: str = Form()):
     Returns:
         HTMLResponse: The HTML response.
     """
-    logger.info(f"Get feed: {feed_url}")
+    # Convert the URL to a valid URL.
+    logger.info(f"Got feed: {feed_url}")
+
     feed = reader.get_feed(feed_url)
     return templates.TemplateResponse("feed.html", {"request": request, "feed": feed})
 

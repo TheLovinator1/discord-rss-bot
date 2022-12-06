@@ -9,11 +9,7 @@
         <!-- Check if any feeds -->
         {% if feeds %}
             {% for feed in feeds %}
-                <form action="/feed" method="post">
-                    <button type="submit" name="feed_url" value="{{ feed.url }}">
-                        {{ feed.url }}
-                    </button>
-                </form>
+                <a href="/feed/{{ feed.url }}">{{ feed.url }}</a>
             {% endfor %}
         {% else %}
             <p>No feeds yet</p>
