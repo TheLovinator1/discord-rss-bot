@@ -93,8 +93,8 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) ->
 
     # Check if set_hook_by_name() was successful.
     if isinstance(
-            set_hook_by_name(name=webhook_dropdown, feed_url=feed_url),
-            ResourceNotFoundError,
+        set_hook_by_name(name=webhook_dropdown, feed_url=feed_url),
+        ResourceNotFoundError,
     ):
         return set_hook_by_name(name=webhook_dropdown, feed_url=feed_url)
 
@@ -245,6 +245,17 @@ def startup() -> None:
     scheduler.add_job(send_to_discord, "interval", minutes=15)
 
     scheduler.start()
+
+
+@app.on_event("shutdown")
+def shutdown() -> None:
+    """This is called when the server shuts down.
+
+    It stops the scheduler."""
+    scheduler: BackgroundScheduler = BackgroundScheduler()
+    scheduler.shutdown()
+
+    reader.close()
 
 
 if __name__ == "__main__":
