@@ -1,26 +1,41 @@
 {% extends "base.html" %}
 {% block title %}Feed{% endblock %}
 {% block content %}
-    URL: {{ feed.url }} <br>
-    Title: {{ feed.title }} <br>
-    Updated: {{ feed.updated }} <br>
-    Link: {{ feed.link }} <br>
-    Author: {{ feed.author }} <br>
-    Subtitle: {{ feed.subtitle }} <br>
-    Version: {{ feed.version }} <br>
-    User title: {{ feed.user_title }} <br>
-    Added on: {{ feed.added }} <br>
-    Last update: {{ feed.last_update }} <br>
-    Last exception: {{ feed.last_exception }} <br>
-    Updates enabled: {{ feed.updates_enabled }} <br>
+    <a href="{{ feed.link }}"><h2>{{ feed.title }}</h2></a>
+    {% if feed.url %} Subtitle: {{ feed.subtitle }} <br> {% endif %}
+    {% if feed.url %} {{ feed.url }} <br> {% endif %}
+    {% if feed.updated %} Updated: {{ feed.updated.strftime('%Y-%m-%d, %T') }} <br> {% endif %}
+    {% if feed.version %} Version: {{ feed.version }} <br>{% endif %}
+    {% if feed.user_title %} User title: {{ feed.user_title }} <br>{% endif %}
+    {% if feed.added %} Added on: {{ feed.added.strftime('%Y-%m-%d, %T') }} <br> {% endif %}
+    {% if feed.last_update %} Last update: {{ feed.last_update }} <br> {% endif %}
+    {% if feed.last_exception %} Last exception: {{ feed.last_exception }} <br> {% endif %}
+    {% if not feed.updates_enabled %} <span style="color: red"> Updates disabled! </span>    <br>{% endif %}
 
-    <form action="/check" method="post">
+    {% for entry in entries %}
+        {% if entry.read %}
+            <span style="color: #868686">
+        {% else %}
+            <span>
+        {% endif %}
+    <hr>
+    <a href="{{ entry.link }}"><h2>{{ entry.title }}</h2></a>
+    By {{ entry.author }} <br>
+    <br>
+    {% if entry.published %} Published: {{ entry.published.strftime('%Y-%m-%d, %T') }} <br> {% endif %}
+    {% if entry.updated %} Updated: {{ entry.updated.strftime('%Y-%m-%d, %T') }} <br> {% endif %}
+    Summary: {{ entry.summary }} <br>
+    {% if entry.read_modified %} Read modified: {{ entry.read_modified.strftime('%Y-%m-%d, %T') }} <br> {% endif %}
+    </span>
+    {% endfor %}
+
+<form action="/check" method="post">
         <button type="submit" name="feed_url" value="{{ feed.url }}">
             Send new entries to Discord.
         </button>
     </form>
 
-    <form action="/remove" method="post">
+<form action="/remove" method="post">
         <button type="submit" name="feed_url" value="{{ feed.url }}">
             Remove feed.
         </button>

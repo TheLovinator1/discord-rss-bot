@@ -93,8 +93,8 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) ->
 
     # Check if set_hook_by_name() was successful.
     if isinstance(
-        set_hook_by_name(name=webhook_dropdown, feed_url=feed_url),
-        ResourceNotFoundError,
+            set_hook_by_name(name=webhook_dropdown, feed_url=feed_url),
+            ResourceNotFoundError,
     ):
         return set_hook_by_name(name=webhook_dropdown, feed_url=feed_url)
 
@@ -154,7 +154,14 @@ async def get_feed(feed_url: str, request: Request) -> _TemplateResponse:
     logger.info(f"Got feed: {feed_url}")
 
     feed: Feed = reader.get_feed(feed_url)
-    return templates.TemplateResponse("feed.html", {"request": request, "feed": feed})
+    # Get entries from the feed.
+    entries: Iterable[EntryCounts] = reader.get_entries(feed=feed_url)
+
+    # Get the entries in the feed.
+    feed_counts: FeedCounts = reader.get_feed_counts(feed=feed_url)
+
+    return templates.TemplateResponse("feed.html", {"request": request, "feed": feed, "entries": entries,
+                                                    "feed_counts": feed_counts})
 
 
 @app.get("/", response_class=HTMLResponse)
