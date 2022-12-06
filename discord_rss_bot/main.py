@@ -37,7 +37,7 @@ from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from reader import Entry, EntryCounts, Feed, FeedCounts, ResourceNotFoundError
+from reader import EntryCounts, Feed, FeedCounts, ResourceNotFoundError
 from tomlkit.toml_document import TOMLDocument
 
 from discord_rss_bot.feeds import IfFeedError, add_feed, send_to_discord, update_feed
@@ -53,8 +53,7 @@ templates: Jinja2Templates = Jinja2Templates(directory="templates")
 def check_feed(request: Request, feed_url: str = Form()):
     """Check all feeds"""
     reader.update_feeds()
-    entry: Iterable[Entry] = reader.get_entries(feed=feed_url, read=False)
-    send_to_discord(entry)
+    send_to_discord(feed_url)
 
     logger.info(f"Get feed: {feed_url}")
     feed: Feed = reader.get_feed(feed_url)
@@ -94,8 +93,8 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) ->
 
     # Check if set_hook_by_name() was successful.
     if isinstance(
-        set_hook_by_name(name=webhook_dropdown, feed_url=feed_url),
-        ResourceNotFoundError,
+            set_hook_by_name(name=webhook_dropdown, feed_url=feed_url),
+            ResourceNotFoundError,
     ):
         return set_hook_by_name(name=webhook_dropdown, feed_url=feed_url)
 

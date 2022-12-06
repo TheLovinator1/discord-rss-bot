@@ -24,12 +24,15 @@ Exceptions:
 from discord_webhook import DiscordWebhook
 from pydantic import BaseModel
 from reader import (
+    EntryNotFoundError,
     FeedExistsError,
     FeedNotFoundError,
     InvalidFeedURLError,
     ParseError,
     StorageError,
+    TagNotFoundError,
 )
+from reader.types import EntryLike
 from requests import Response
 
 from discord_rss_bot.settings import logger, reader
@@ -127,19 +130,17 @@ def check_feeds() -> None:
     if it was successful.
     """
     reader.update_feeds()
-    entries = reader.get_entries(read=False)
-    for entry in entries:
-        send_to_discord(entry)
+    send_to_discord()
 
 
-def send_to_discord(entry) -> Response:
+def send_to_discord(feed=None):
     """
     Send entries to Discord.
 
     If response was not ok, we will log the error and mark the entry as unread, so it will be sent again next time.
 
     Args:
-        entry: The entry to send.
+        feed: The entry to send.
 
     Raises:
         NoWebhookFoundError: If no webhook is found.
@@ -147,23 +148,47 @@ def send_to_discord(entry) -> Response:
     Returns:
         Response: The response from the webhook.
     """
+    if feed is None:
+        entries = reader.get_entries(read=False)
+    else:
+        entries = reader.get_entries(feed=feed, read=False)
 
-    reader.set_entry_read(entry)
-    logger.debug(f"New entry: {entry.title}")
+    if not entries:
+        logger.info("No entries to send")
+        return
 
-    webhook_url = str(reader.get_tag(entry.feed.url, "webhook"))
-    if not webhook_url:
-        logger.error(f"No webhook found for feed: {entry.feed.url}")
-        raise NoWebhookFoundError(f"No webhook found for feed: {entry.feed.url}")
+    for entry in entries:
+        logger.debug(f"Sending entry {entry} to Discord")
+        try:
+            reader.set_entry_read(entry, True)
+            logger.debug(f"New entry: {entry.title}")
+        except EntryNotFoundError:
+            logger.error("Entry not found", exc_info=True)
+            raise
+        except StorageError:
+            logger.error("Storage error", exc_info=True)
+            raise
 
-    logger.debug(f"Sending to webhook: {webhook_url}")
-    webhook_message = f":robot: :mega: {entry.title}\n{entry.link}"
-    webhook = DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)
-    response = webhook.execute()
-    if not response.ok:
-        logger.error(f"Error: {response.status_code} {response.reason}")
-        reader.set_entry_read(entry, False)
-    return response
+        try:
+            webhook_url = str(reader.get_tag(entry.feed.url, "webhook"))
+        except TagNotFoundError:
+            logger.error("Tag not found", exc_info=True)
+            raise
+        except StorageError:
+            logger.error("Storage error", exc_info=True)
+            raise
+
+        if not webhook_url:
+            logger.error(f"No webhook found for feed: {entry.feed.url}")
+            raise NoWebhookFoundError(f"No webhook found for feed: {entry.feed.url}")
+
+        logger.debug(f"Sending to webhook: {webhook_url}")
+        webhook_message = f":robot: :mega: {entry.title}\n{entry.link}"
+        webhook = DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)
+        response = webhook.execute()
+        if not response.ok:
+            logger.error(f"Error: {response.status_code} {response.reason}")
+            reader.set_entry_read(entry, False)
 
 
 def update_feed(feed_url: str, webhook: str) -> IfFeedError:
