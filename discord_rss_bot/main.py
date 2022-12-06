@@ -53,7 +53,6 @@ templates: Jinja2Templates = Jinja2Templates(directory="templates")
 @app.post("/check", response_class=HTMLResponse)
 def check_feed(request: Request, feed_url: str = Form()) -> _TemplateResponse:
     """Check all feeds"""
-    reader.update_feeds()
     send_to_discord(feed_url)
 
     logger.info(f"Get feed: {feed_url}")

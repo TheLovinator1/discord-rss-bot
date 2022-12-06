@@ -119,22 +119,14 @@ def check_feed(feed_url: str) -> None:
     Args:
         feed_url: The feed to check.
     """
-    reader.update_feed(feed_url)
-    entries = reader.get_entries(feed=feed_url, read=False)
-    for entry in entries:
-        send_to_discord(entry)
+    if feed_url is None:
+        logger.error("No feed URL given")
+        send_to_discord(feed_url)
+        return
+    send_to_discord(feed_url)
 
 
 def send_to_discord(feed=None) -> None:
-    """Update all feeds and send all the entries that are unread to Discord.
-
-    We don't need to mark entries as read here, because send_to_discord() does that when sending entries to Discord
-    if it was successful.
-    """
-    reader.update_feeds()
-    send_to_discord()
-
-
     """
     Send entries to Discord.
 
@@ -149,6 +141,8 @@ def send_to_discord(feed=None) -> None:
     Returns:
         Response: The response from the webhook.
     """
+    reader.update_feeds()
+
     if feed is None:
         entries: Iterable[Entry] = reader.get_entries(read=False)
     else:
