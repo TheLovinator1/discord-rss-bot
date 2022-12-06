@@ -10,14 +10,21 @@
         <title>RSS - {% block title %}{% endblock %}</title>
     {% endblock %}
 </head>
-<body>
+<body class="bg-dark text-white">
 {% include "nav.html" %}
-<div id="content">{% block content %}{% endblock %}</div>
-<footer>
-    {% block footer %}
-        <a href="https://github.com/TheLovinator1/discord-rss-bot">RSS Bot</a> by TheLovinator1
-    {% endblock %}
-</footer>
+<div class="container-fluid">
+    {% block content %}{% endblock %}
+    <footer class="d-flex flex-wrap justify-content-between align-items-center py-3 my-4 border-top">
+        <p class="col-md-4 mb-0 text-muted">Made by <a href="https://github.com/TheLovinator1">TheLovinator</a></p>
+        <ul class="nav col-md-4 justify-content-end">
+            <li class="nav-item"><a href="mailto:tlovinator@gmail.com" class="nav-link px-2 text-muted">Email</a></li>
+            <li class="nav-item"><a href="https://github.com/TheLovinator1/discord-rss-bot/issues"
+                                    class="nav-link px-2 text-muted">Send an issue</a></li>
+            <li class="nav-item"><a href="https://github.com/TheLovinator1/discord-rss-bot/issues"
+                                    class="nav-link px-2 text-muted">Feature request</a></li>
+        </ul>
+    </footer>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-kenU1KFdBIe4zVF0s0G1M5b4hcpxyD9F7jL+jjXkk+Q2h455rYXK/7HAuoJl+0I4"
         crossorigin="anonymous">
