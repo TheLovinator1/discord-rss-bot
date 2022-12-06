@@ -76,11 +76,11 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) ->
     logger.info(f"Add feed: {feed_url}")
     logger.info(f"Webhook: {webhook_dropdown}")
 
-    # Update a single feed. The feed will be updated even if updates are disabled for it.
-    updated_feed: IfFeedError = update_feed(feed_url, webhook_dropdown)
-
     # Add a new feed to the database.
     added_feed: IfFeedError = add_feed(feed_url, webhook_dropdown)
+
+    # Update a single feed. The feed will be updated even if updates are disabled for it.
+    updated_feed: IfFeedError = update_feed(feed_url, webhook_dropdown)
 
     if updated_feed.error or added_feed.error:
         error_dict = {

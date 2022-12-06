@@ -32,7 +32,6 @@ from reader import (
     StorageError,
     TagNotFoundError,
 )
-from reader.types import EntryLike
 from requests import Response
 
 from discord_rss_bot.settings import logger, reader
@@ -82,7 +81,7 @@ def add_feed(feed_url: str, webhook: str, exist_ok=False, allow_invalid_url=Fals
         IfFeedError: Error or not.
     """
     try:
-        reader.add_feed(feed=feed_url, exist_ok=exist_ok, allow_invalid_url=allow_invalid_url)
+        reader.add_feed(feed_url, exist_ok=exist_ok, allow_invalid_url=allow_invalid_url)
     except FeedExistsError as error:
         error_msg = "Feed already exists"
         logger.error(error_msg, exc_info=True)
