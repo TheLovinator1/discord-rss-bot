@@ -240,6 +240,10 @@ def startup() -> None:
         logger.info(f"Webhook name: {key} with URL: {settings['webhooks'][key]}")
 
     scheduler: BackgroundScheduler = BackgroundScheduler()
+
+    # Update all feeds every 15 minutes.
+    scheduler.add_job(send_to_discord, "interval", minutes=15)
+
     scheduler.start()
 
 
