@@ -37,7 +37,7 @@ from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from reader import EntryCounts, Feed, FeedCounts, ResourceNotFoundError
+from reader import EntryCounts, Feed, FeedCounts, ReaderError, ResourceNotFoundError
 from starlette.templating import _TemplateResponse
 from tomlkit.toml_document import TOMLDocument
 
@@ -254,8 +254,14 @@ def shutdown() -> None:
     It stops the scheduler."""
     scheduler: BackgroundScheduler = BackgroundScheduler()
     scheduler.shutdown()
+    logger.info("Scheduler stopped.")
 
-    reader.close()
+    try:
+        reader.close()
+    except ReaderError:
+        logger.error("Error closing reader.", exc_info=True)
+        sys.exit()
+    logger.info("Reader closed.")
 
 
 if __name__ == "__main__":

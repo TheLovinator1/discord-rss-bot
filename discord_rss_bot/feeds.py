@@ -165,7 +165,7 @@ def send_to_discord(feed=None) -> None:
             raise
 
         try:
-            webhook_url: str = str(reader.get_tag(entry.feed.url, "webhook"))
+            webhook_url: str = str(reader.get_tag(entry.feed_url, "webhook"))
         except TagNotFoundError:
             logger.error("Tag not found", exc_info=True)
             raise
