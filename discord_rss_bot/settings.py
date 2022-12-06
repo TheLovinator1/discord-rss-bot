@@ -74,14 +74,14 @@ def get_data_dir(data_dir: str = data_directory) -> Path:
         logger.info(f"Using custom data directory: {data_dir}")
 
     # Use the environment variable if it exists instead of the default app dir.
-    data_dir: str = os.getenv("DATA_DIR") or data_dir
+    where_to_store: str = os.getenv("DATA_DIR") or data_dir
 
-    logger.debug(f"Data directory: {data_dir}")
+    logger.debug(f"Data directory: {where_to_store}")
 
     # Create the data directory if it doesn't exist
-    os.makedirs(data_dir, exist_ok=True)
+    os.makedirs(where_to_store, exist_ok=True)
 
-    return Path(data_dir)
+    return Path(where_to_store)
 
 
 def get_db_file(custom_db_name: str = "db.sqlite") -> Path:
