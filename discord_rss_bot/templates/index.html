@@ -9,10 +9,15 @@
         <!-- Check if any feeds -->
         {% if feeds %}
             {% for feed in feeds %}
-                <p><a href="/feed/{{ feed.url }}">{{ feed.url }}</a></p>
+                <p><a class="text-muted" href="/feed/{{ feed.url }}">{{ feed.url }}</a></p>
+                {% if feed.last_exception %}
+                    <li class="text-danger">
+                        Last exception: {{ feed.last_exception.type_name }}: {{ feed.last_exception.value_str }}
+                    </li>
+                {% endif %}
             {% endfor %}
         {% else %}
-            <p>No feeds yet</p>
+            <p>No feeds yet. Add one <a class="text-muted" href="/add">here</a>.</p>
         {% endif %}
     </ul>
 

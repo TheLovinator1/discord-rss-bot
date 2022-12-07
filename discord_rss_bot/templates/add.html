@@ -1,24 +1,36 @@
 {% extends "base.html" %}
 {% block title %}Index{% endblock %}
 {% block content %}
-    <form action="/add" method="post">
-        <label>
-            <input type="text" name="feed_url" placeholder="Feed URL" class="form-control" aria-label="Feed url">
-        </label>
+    <div class="p-2 mb-2 border border-dark rounded">
+        <form action="/add" method="post">
+            {# Feed URL #}
+            <div class="row mb-3">
+                <label for="feed_url" class="col-sm-2 col-form-label">Feed URL</label>
+                <div class="col-sm-10">
+                    <input type="text" class="form-control" id="feed_url"
+                           placeholder="https://www.reddit.com/r/FreeGameFindings.rss">
+                </div>
+            </div>
 
-        <div class="input-group mb-3">
-            <label for="webhook_dropdown" class="input-group-text">Webhook</label>
-            <select class="form-select" aria-label="Default webhook" id="webhook_dropdown"
-                    name="webhook_dropdown">
-                <option selected>Choose...</option>
-                {% for hook in webhooks %}
-                    <option value="{{ hook.name }}">{{ hook.name }}</option>
-                {% endfor %}
-            </select>
-        </div>
+            {# Webhook dropdown #}
+            <div class="row mb-3">
+                <label for="webhook_dropdown" class="col-sm-2">Which webhook should we send entries to?</label>
+                <div class="col-sm-10">
+                    <select class="col-auto form-select" id="webhook_dropdown" name="webhook_dropdown">
+                        <option selected>Choose webhook...</option>
+                        {% for hook in webhooks %}
+                            <option value="{{ hook.name }}">{{ hook.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-text">You can add more feeds in the config file.</div>
+            </div>
 
-        <div class="input-group mb-3">
-            <input type="submit" value="Add feed">
-        </div>
-    </form>
+            {# Submit button #}
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary">Add feed</button>
+            </div>
+
+        </form>
+    </div>
 {% endblock %}
