@@ -83,6 +83,9 @@ def add_feed(feed_url: str, webhook: str, exist_ok=False, allow_invalid_url=Fals
     Returns:
         IfFeedError: Error or not.
     """
+    # Remove spaces from feed_url
+    feed_url = feed_url.strip()
+
     try:
         reader.add_feed(feed_url, exist_ok=exist_ok, allow_invalid_url=allow_invalid_url)
     except FeedExistsError as error:
