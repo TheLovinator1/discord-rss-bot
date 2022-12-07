@@ -83,8 +83,7 @@ def add_feed(feed_url: str, webhook: str, exist_ok=False, allow_invalid_url=Fals
     Returns:
         IfFeedError: Error or not.
     """
-    # Remove spaces from feed_url
-    feed_url = feed_url.strip()
+    logger.debug(f"Adding feed: {feed_url}")
 
     try:
         reader.add_feed(feed_url, exist_ok=exist_ok, allow_invalid_url=allow_invalid_url)
@@ -98,7 +97,6 @@ def add_feed(feed_url: str, webhook: str, exist_ok=False, allow_invalid_url=Fals
             webhook=webhook,
             exception=error.message,
         )
-
     except InvalidFeedURLError as error:
         error_msg = "Invalid feed URL"
         logger.error(error_msg, exc_info=True)
@@ -109,6 +107,7 @@ def add_feed(feed_url: str, webhook: str, exist_ok=False, allow_invalid_url=Fals
             webhook=webhook,
             exception=error.message,
         )
+    logger.debug(f"Successfully added feed: {feed_url}")
 
     return IfFeedError(error=False, feed_url=feed_url, webhook=webhook)
 

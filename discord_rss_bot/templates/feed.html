@@ -13,6 +13,22 @@
         {% if feed.last_exception %} Last exception: {{ feed.last_exception }} <br> {% endif %}
         {% if not feed.updates_enabled %} <span style="color: red"> Updates disabled! </span>    <br>{% endif %}
     </div>
+    <div class="btn-toolbar" role="group">
+        <div class="btn-group me-2" role="group">
+            <form action="/check" method="post">
+                <button class="btn btn-primary" type="submit" name="feed_url" value="{{ feed.url }}">
+                    Send new entries to Discord
+                </button>
+            </form>
+        </div>
+        <div class="btn-group me-2" role="group">
+            <form action="/remove" method="post">
+                <button class="btn btn-danger" type="submit" name="feed_url" value="{{ feed.url }}">
+                    Remove feed
+                </button>
+            </form>
+        </div>
+    </div>
     <div class="p-2 mb-2 border border-dark rounded" style="background:#0F0F0F">
         {% for entry in entries %}
             {# Only add <hr> if the entry is not the first one #}
@@ -65,17 +81,5 @@
             {% if entry.read_modified %} Read modified: {{ entry.read_modified.strftime('%Y-%m-%d, %T') }}
             {% endif %}
         {% endfor %}
-
-        <form action="/check" method="post">
-            <button type="submit" name="feed_url" value="{{ feed.url }}">
-                Send new entries to Discord.
-            </button>
-        </form>
-
-        <form action="/remove" method="post">
-            <button type="submit" name="feed_url" value="{{ feed.url }}">
-                Remove feed.
-            </button>
-        </form>
     </div>
 {% endblock %}

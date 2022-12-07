@@ -1,59 +1,60 @@
 {% extends "base.html" %}
 {% block title %}Index{% endblock %}
+{% block head %}
+<script>
+var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+  return new bootstrap.Tooltip(tooltipTriggerEl)
+})
+</script>
+{% endblock %}
 {% block content %}
+
     <!-- List all feeds -->
-    {% for tag in tags %}
-        {{ tag }}
-    {% endfor %}
     <ul>
         <!-- Check if any feeds -->
         {% if feeds %}
-            {% for feed in feeds %}
-                <p><a class="text-muted" href="/feed/{{ feed.url }}">{{ feed.url }}</a></p>
-                {% if feed.last_exception %}
-                    <li class="text-danger">
-                        Last exception: {{ feed.last_exception.type_name }}: {{ feed.last_exception.value_str }}
-                    </li>
-                {% endif %}
-            {% endfor %}
-        {% else %}
-            <p>No feeds yet. Add one <a class="text-muted" href="/add">here</a>.</p>
-        {% endif %}
-    </ul>
-
-
-    <!-- Feed stats -->
-    <hr>
-    <ul>
-        <li>
             <p>
                 {{ feed_count.total }} feeds
                 {% if feed_count.broken %}
-                    - {{ feed_count.broken }} broken
+                    <span class="text-danger">
+                {% else %}
+                    <span>
                 {% endif %}
+                - {{ feed_count.broken }} broken</span>
                 {% if feed_count.total != feed_count.updates_enabled %}
-                    - {{ feed_count.updates_enabled }} enabled
+                    <span class="text-warning">
+                {% else %}
+                    <span>
                 {% endif %}
+                - {{ feed_count.updates_enabled }} enabled
+                </span>
+                - {{ entry_count.total }} entries
+                <span data-bs-toggle="tooltip" title="Entries per day average for the past 1, 3 and 12 months">
+                    ({{ entry_count.averages[0]|round(1) }},
+                    {{ entry_count.averages[1]|round(1) }},
+                    {{ entry_count.averages[2]|round(1) }})
+                </span>
             </p>
-        </li>
+            {% for hook_from_context in webhooks %}
+                <div class="p-2 mb-2 border border-dark">
+                    <ul class="list-group">{{ hook_from_context.name }}
+                        {% for feed_webhook in feeds %}
+                            {% set feed = feed_webhook["feed"] %}
+                            {% set hook_from_feed = feed_webhook["webhook"] %}
+                            {% if hook_from_context.url == hook_from_feed %}
+                                <li class="list-group-item" style="background:#111111">
+                                    <a class="text-muted" href="/feed/{{ feed.url }}">{{ feed.url }}</a>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>
+                No feeds yet. Add one <a class="text-muted" href="/add">here</a>.
+            </p>
+        {% endif %}
     </ul>
-    <!-- Feed entries stats -->
-    <ul>
-        <li>
-            <p>{{ entry_count.total }} entries total</p>
-            {% if entry_count.read != entry_count.total %}
-                <p>{{ entry_count.total - entry_count.read }} unread entries</p>
-            {% endif %}
-            {% if entry_count.important %}
-                <p>Important: {{ entry_count.important }} entries</p>
-            {% endif %}
-            {% if entry_count.has_enclosures %}
-                <p>Has enclosures: {{ entry_count.has_enclosures }} entries</p>
-            {% endif %}
-            <p>1 Month average: {{ entry_count.averages[0]|round(2) }} entries per day</p>
-            <p>3 Months average: {{ entry_count.averages[1]|round(2) }} entries per day</p>
-            <p>12 Months average: {{ entry_count.averages[2]|round(2) }} entries per day</p>
-        </li>
-    </ul>
-
 {% endblock %}

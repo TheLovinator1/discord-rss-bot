@@ -26,7 +26,6 @@ Functions:
     startup()
         Runs on startup.
 """
-import enum
 import sys
 from functools import cache
 from typing import Any, Iterable
@@ -37,13 +36,13 @@ from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from reader import EntryCounts, Feed, FeedCounts, FeedNotFoundError, ReaderError, ResourceNotFoundError, StorageError
+from reader import EntryCounts, Feed, FeedCounts, FeedNotFoundError, ReaderError, ResourceNotFoundError, StorageError, \
+    TagNotFoundError
 from starlette.templating import _TemplateResponse
 from tomlkit.toml_document import TOMLDocument
 
 from discord_rss_bot.feeds import IfFeedError, add_feed, send_to_discord, update_feed
 from discord_rss_bot.settings import logger, read_settings_file, reader
-from discord_rss_bot.webhooks import set_hook_by_name
 
 app: FastAPI = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -73,6 +72,11 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) ->
     Returns:
         dict: The feed that was added.
     """
+
+    # Remove spaces from feed_url
+    feed_url = feed_url.strip()
+    logger.debug(f"Stripped feed_url: {feed_url}")
+
     logger.info(f"Add feed: {feed_url}")
     logger.info(f"Webhook: {webhook_dropdown}")
 
@@ -91,29 +95,33 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) ->
         }
         return HTTPException(status_code=500, detail=error_dict)
 
-    # Check if set_hook_by_name() was successful.
-    if isinstance(
-            set_hook_by_name(name=webhook_dropdown, feed_url=feed_url),
-            ResourceNotFoundError,
-    ):
-        return set_hook_by_name(name=webhook_dropdown, feed_url=feed_url)
+    settings: TOMLDocument = read_settings_file()
 
-    new_tag: str = str(reader.get_tag(feed_url, "webhook"))
+    logger.debug(f"Webhook name: {webhook_dropdown} with URL: {settings['webhooks'][webhook_dropdown]}")
+    webhook_url: str = str(settings["webhooks"][webhook_dropdown])
+    try:
+        reader.set_tag(feed_url, "webhook", webhook_url)
+    except ResourceNotFoundError as e:
+        error_msg: str = f"ResourceNotFoundError: Could not set webhook: {e}"
+        logger.error(error_msg, exc_info=True)
+        return HTTPException(status_code=500, detail=error_msg)
+
+    new_tag = reader.get_tag(feed_url, "webhook")
     logger.info(f"New tag: {new_tag}")
     return {"feed_url": str(feed_url), "status": "added"}
 
 
-def create_list_of_webhooks() -> enum.EnumMeta:
+def create_list_of_webhooks() -> list[dict[str, str]]:
     """List with webhooks."""
     logger.info("Creating list with webhooks.")
     settings: TOMLDocument = read_settings_file()
-    list_of_webhooks = dict()
+    list_of_webhooks = []
     for hook in settings["webhooks"]:
         logger.info(f"Webhook name: {hook} with URL: {settings['webhooks'][hook]}")
-        list_of_webhooks[hook] = settings["webhooks"][hook]
-
+        list_of_webhooks.append({"name": hook, "url": settings['webhooks'][hook]})
+        logger.debug(f"Hook: {hook}, URL: {settings['webhooks'][hook]}")
     logger.info(f"List of webhooks: {list_of_webhooks}")
-    return enum.Enum("DiscordWebhooks", list_of_webhooks)
+    return list_of_webhooks
 
 
 @cache
@@ -154,6 +162,7 @@ async def get_feed(feed_url: str, request: Request) -> _TemplateResponse:
     logger.info(f"Got feed: {feed_url}")
 
     feed: Feed = reader.get_feed(feed_url)
+
     # Get entries from the feed.
     entries: Iterable[EntryCounts] = reader.get_entries(feed=feed_url)
 
@@ -191,14 +200,16 @@ def make_context_index(request) -> dict:
         dict: The context.
 
     """
-    hooks: enum.EnumMeta = create_list_of_webhooks()
-    for hook in hooks:
-        logger.info(f"Webhook name: {hook.name}")
-
-    feed_list: list[Feed] = list()
+    hooks = create_list_of_webhooks()
+    feed_list = []
     feeds: Iterable[Feed] = reader.get_feeds()
     for feed in feeds:
-        feed_list.append(feed)
+        logger.debug(f"Feed: {feed}")
+        try:
+            hook = reader.get_tag(feed.url, "webhook")
+        except TagNotFoundError:
+            hook = "None"
+        feed_list.append({"feed": feed, "webhook": hook})
 
     feed_count: FeedCounts = reader.get_feed_counts()
     entry_count: EntryCounts = reader.get_entry_counts()
