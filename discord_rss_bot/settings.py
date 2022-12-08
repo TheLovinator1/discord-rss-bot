@@ -60,30 +60,6 @@ def create_settings_file(settings_file) -> None:
         f.write(doc.as_string())
 
 
-def get_data_dir(data_dir: str = data_directory) -> Path:
-    """
-    Get the data directory. This is where the database file and config file are stored.
-
-    Args:
-        data_dir: The application directory, defaults to user_data_dir().
-
-    Returns:
-        Path: The application directory.
-    """
-    if data_dir != user_data_dir("discord_rss_bot"):
-        logger.info(f"Using custom data directory: {data_dir}")
-
-    # Use the environment variable if it exists instead of the default app dir.
-    where_to_store: str = os.getenv("DATA_DIR") or data_dir
-
-    logger.debug(f"Data directory: {where_to_store}")
-
-    # Create the data directory if it doesn't exist
-    os.makedirs(where_to_store, exist_ok=True)
-
-    return Path(where_to_store)
-
-
 def get_db_file(custom_db_name: str = "db.sqlite") -> Path:
     """Where we store the database file
 
@@ -97,14 +73,14 @@ def get_db_file(custom_db_name: str = "db.sqlite") -> Path:
         logger.info(f"Using custom database file: {custom_db_name}")
 
     # Store the database file in the data directory
-    data_dir: Path = get_data_dir()
+    data_dir = user_data_dir(appname="discord_rss_bot", appauthor="TheLovinator", roaming=True)
+    os.makedirs(data_dir, exist_ok=True)
+
     db_location: Path = Path(os.path.join(data_dir, custom_db_name))
 
-    # Use the environment variable if it exists instead of the default db name.
-    db_file: str | Path = os.getenv("DATABASE_LOCATION") or db_location
-    logger.debug(f"Database file: {db_file}")
+    logger.debug(f"Database file: {db_location}")
 
-    return Path(db_file)
+    return Path(db_location)
 
 
 def read_settings_file(custom_settings_name: str = "settings.toml") -> TOMLDocument:
@@ -119,19 +95,17 @@ def read_settings_file(custom_settings_name: str = "settings.toml") -> TOMLDocum
     if custom_settings_name != "settings.toml":
         logger.info(f"Using custom name for settings file: {custom_settings_name}")
 
-    # Store the database file in the data directory
-    data_dir: Path = get_data_dir()
+    # Store the database file in the data directory.
+    data_dir = user_data_dir(appname="discord_rss_bot", appauthor="TheLovinator", roaming=True)
+    os.makedirs(data_dir, exist_ok=True)
+
     settings_file_location: Path = Path(os.path.join(data_dir, custom_settings_name))
 
-    # Use the environment variable if it exists instead of the default db name.
-    settings_file: str | Path = os.getenv("SETTINGS_FILE_LOCATION") or settings_file_location
-    logger.debug(f"Settings file: {settings_file}")
-
     # Create the settings file if it doesn't exist
-    if not os.path.exists(settings_file):
-        create_settings_file(settings_file)
+    if not os.path.exists(settings_file_location):
+        create_settings_file(settings_file_location)
 
-    with open(settings_file, encoding="utf-8") as f:
+    with open(settings_file_location, encoding="utf-8") as f:
         data: TOMLDocument = parse(f.read())
         logger.debug(f"Contents of settings file: {data}")
 
