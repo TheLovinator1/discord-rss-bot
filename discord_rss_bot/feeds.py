@@ -29,7 +29,7 @@ from reader import (
 )
 from requests import Response
 
-from discord_rss_bot.settings import logger, reader
+from discord_rss_bot.settings import reader
 
 
 def send_to_discord(feed=None) -> None:
@@ -54,23 +54,12 @@ def send_to_discord(feed=None) -> None:
         reader.update_feed(feed)
         entries: Iterable[Entry] = reader.get_entries(feed=feed, read=False)
 
-    if not entries:
-        logger.info("No entries to send")
-        return
-
     for entry in entries:
-        logger.debug(f"Sending entry {entry} to Discord")
-
         reader.set_entry_read(entry, True)
-        logger.debug(f"Entry {entry.title} marked as read")
-
         webhook_url: str = str(reader.get_tag(entry.feed_url, "webhook"))
-
-        logger.debug(f"Sending to webhook: {webhook_url}")
         webhook_message: str = f":robot: :mega: {entry.title}\n{entry.link}"
         webhook: DiscordWebhook = DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)
+
         response: Response = webhook.execute()
         if not response.ok:
-            logger.error(f"Error: {response.status_code} {response.reason}")
             reader.set_entry_read(entry, False)
-            logger.debug(f"Entry {entry.title} marked as unread")

@@ -36,16 +36,12 @@ from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from reader import (
-    EntryCounts,
-    Feed,
-    FeedCounts,
-)
+from reader import Entry, EntryCounts, Feed, FeedCounts
 from starlette.templating import _TemplateResponse
 from tomlkit.toml_document import TOMLDocument
 
 from discord_rss_bot.feeds import send_to_discord
-from discord_rss_bot.settings import logger, read_settings_file, reader
+from discord_rss_bot.settings import read_settings_file, reader
 
 app: FastAPI = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -56,8 +52,6 @@ templates: Jinja2Templates = Jinja2Templates(directory="templates")
 def check_feed(request: Request, feed_url: str = Form()) -> _TemplateResponse:
     """Check all feeds"""
     send_to_discord(feed_url)
-
-    logger.info(f"Get feed: {feed_url}")
     feed: Feed = reader.get_feed(feed_url)
 
     return templates.TemplateResponse("feed.html", {"request": request, "feed": feed})
@@ -75,26 +69,20 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) ->
     Returns:
         dict: The feed that was added.
     """
-
-    # Remove spaces from feed_url
     feed_url = feed_url.strip()
-    logger.debug(f"Stripped feed_url: {feed_url}")
 
-    logger.info(f"Adding feed {feed_url} for {webhook_dropdown}")
     reader.add_feed(feed_url)
     reader.update_feed(feed_url)
 
     # Mark every entry as read, so we don't send all the old entries to Discord.
     entries = reader.get_entries(feed=feed_url, read=False)
     for entry in entries:
-        logger.debug(f"Marking {entry.title} as read")
         reader.set_entry_read(entry, True)
 
     settings: TOMLDocument = read_settings_file()
-
-    logger.debug(f"Webhook name: {webhook_dropdown} with URL: {settings['webhooks'][webhook_dropdown]}")
     webhook_url: str = str(settings["webhooks"][webhook_dropdown])
     reader.set_tag(feed_url, "webhook", webhook_url)
+    reader.get_tag(feed_url, "webhook")
 
     # TODO: Go to the feed page.
     return {"feed_url": str(feed_url), "status": "added"}
@@ -102,14 +90,11 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) ->
 
 def create_list_of_webhooks() -> list[dict[str, str]]:
     """List with webhooks."""
-    logger.info("Creating list with webhooks.")
     settings: TOMLDocument = read_settings_file()
     list_of_webhooks = []
     for hook in settings["webhooks"]:
-        logger.info(f"Webhook name: {hook} with URL: {settings['webhooks'][hook]}")
         list_of_webhooks.append({"name": hook, "url": settings["webhooks"][hook]})
-        logger.debug(f"Hook: {hook}, URL: {settings['webhooks'][hook]}")
-    logger.info(f"List of webhooks: {list_of_webhooks}")
+
     return list_of_webhooks
 
 
@@ -147,13 +132,10 @@ async def get_feed(feed_url: str, request: Request) -> _TemplateResponse:
     Returns:
         HTMLResponse: The HTML response.
     """
-    # Convert the URL to a valid URL.
-    logger.info(f"Got feed: {feed_url}")
-
     feed: Feed = reader.get_feed(feed_url)
 
     # Get entries from the feed.
-    entries: Iterable[EntryCounts] = reader.get_entries(feed=feed_url)
+    entries: Iterable[Entry] = reader.get_entries(feed=feed_url)
 
     # Get the entries in the feed.
     feed_counts: FeedCounts = reader.get_feed_counts(feed=feed_url)
@@ -194,7 +176,6 @@ def make_context_index(request) -> dict:
     feed_list = []
     feeds: Iterable[Feed] = reader.get_feeds()
     for feed in feeds:
-        logger.debug(f"Feed: {feed}")
         hook = reader.get_tag(feed.url, "webhook")
         feed_list.append({"feed": feed, "webhook": hook})
 
@@ -225,7 +206,6 @@ async def remove_feed(request: Request, feed_url: str = Form()):
 
     reader.delete_feed(feed_url)
 
-    logger.info(f"Deleted feed: {feed_url}")
     context = make_context_index(request)
     return templates.TemplateResponse("index.html", context)
 
@@ -238,11 +218,7 @@ def startup() -> None:
     settings: TOMLDocument = read_settings_file()
 
     if not settings["webhooks"]:
-        logger.critical("No webhooks found in settings file.")
-        sys.exit()
-    webhooks = settings["webhooks"]
-    for key in webhooks:
-        logger.info(f"Webhook name: {key} with URL: {settings['webhooks'][key]}")
+        sys.exit("No webhooks found in settings file.")
 
     scheduler: BackgroundScheduler = BackgroundScheduler()
 

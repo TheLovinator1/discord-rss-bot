@@ -11,8 +11,6 @@ Functions:
 Variables:
     data_dir:
         Where we store the database and settings file.
-    logger:
-        The logger for this program.
 """
 import logging
 import os
@@ -24,8 +22,6 @@ from tomlkit.items import Table
 from tomlkit.toml_document import TOMLDocument
 
 logging.basicConfig(level=logging.DEBUG, format="[%(asctime)s] [%(funcName)s:%(lineno)d] %(message)s")
-logger: logging.Logger = logging.getLogger(__name__)
-
 data_dir: str = user_data_dir(appname="discord_rss_bot", appauthor="TheLovinator", roaming=True)
 os.makedirs(data_dir, exist_ok=True)
 
@@ -39,8 +35,6 @@ def create_settings_file(settings_file_location) -> None:
     Returns:
         None
     """
-    logger.debug(f"{settings_file_location=}")
-
     webhooks: Table = table()
     webhooks.add(comment('"First webhook" = "https://discord.com/api/webhooks/1234567890/abcdefghijklmnopqrstuvwxyz"'))
     webhooks.add(comment('"Second webhook" = "https://discord.com/api/webhooks/1234567890/abcdefghijklmnopqrstuvwxyz"'))
@@ -66,10 +60,7 @@ def get_db_location(custom_name: str = "db.sqlite") -> str:
     Returns:
         The database location.
     """
-    db_name = os.path.join(data_dir, custom_name)
-    logger.debug(f"{db_name=}{f', with custom db name {custom_name!r}' if custom_name != 'db.sqlite' else ''}")
-
-    return db_name
+    return os.path.join(data_dir, custom_name)
 
 
 def read_settings_file(custom_name: str = "settings.toml") -> TOMLDocument:
@@ -81,15 +72,9 @@ def read_settings_file(custom_name: str = "settings.toml") -> TOMLDocument:
     Returns:
         dict: The settings file as a dict.
     """
-
     settings_file = os.path.join(data_dir, custom_name)
-    logger.debug(f"{settings_file=}{f', with custom db name {custom_name!r}' if custom_name != 'db.sqlite' else ''}")
-
     with open(settings_file, encoding="utf-8") as f:
-        contents: TOMLDocument = parse(f.read())
-        logger.debug(f"{contents=}")
-
-        return contents
+        return parse(f.read())
 
 
 db_location: str = get_db_location()
