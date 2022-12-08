@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Feed{% endblock %}
+{% block title %} | {{ feed.title }}{% endblock %}
 {% block content %}
     <div class="p-2 mb-2">
         <a class="text-muted" href="{{ feed.link }}"><h2>{{ feed.title }}</h2></a>
