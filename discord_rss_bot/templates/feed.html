@@ -1,27 +1,39 @@
 {% extends "base.html" %}
 {% block title %} | {{ feed.title }}{% endblock %}
 {% block content %}
-    <div class="p-2 mb-2">
-        <a class="text-muted" href="{{ feed.link }}"><h2>{{ feed.title }}</h2></a>
-        {% if feed.url %} Subtitle: {{ feed.subtitle }} <br> {% endif %}
-        {% if feed.url %} {{ feed.url }} <br> {% endif %}
-        {% if feed.updated %} Updated: {{ feed.updated.strftime('%Y-%m-%d, %T') }} <br> {% endif %}
-        {% if feed.version %} Version: {{ feed.version }} <br>{% endif %}
-        {% if feed.user_title %} User title: {{ feed.user_title }} <br>{% endif %}
-        {% if feed.added %} Added on: {{ feed.added.strftime('%Y-%m-%d, %T') }} <br> {% endif %}
-        {% if feed.last_update %} Last update: {{ feed.last_update }} <br> {% endif %}
-        {% if feed.last_exception %} Last exception: {{ feed.last_exception }} <br> {% endif %}
-        {% if not feed.updates_enabled %} <span style="color: red"> Updates disabled! </span>    <br>{% endif %}
-    </div>
+    <a class="text-muted" href="{{ feed.link }}">
+        <h2>{{ feed.title }}
+            {% if not feed.updates_enabled %}
+                - <span style="color: red">disabled</span>
+            {% endif %}
+        </h2>
+
+    </a>
+    {% if feed.url %}
+        {{ feed.url }}
+    {% endif %}
+    {% if feed.subtitle %}
+        <small class="text-muted">{{ feed.subtitle }}</small>
+    {% endif %}
+
+    {% if feed.added %}
+        Added: {{ feed.added.strftime('%Y-%m-%d, %T') }}
+    {% endif %}
+
+    {% if feed.last_exception %}
+        Last exception: {{ feed.last_exception }}
+    {% endif %}
+
+
     <div class="btn-toolbar" role="group">
-        <div class="btn-group me-2" role="group">
+        <div class="btn-group me-1" role="group">
             <form action="/check" method="post">
                 <button class="btn btn-primary" type="submit" name="feed_url" value="{{ feed.url }}">
                     Send new entries to Discord
                 </button>
             </form>
         </div>
-        <div class="btn-group me-2" role="group">
+        <div class="btn-group" role="group">
             <form action="/remove" method="post">
                 <button class="btn btn-danger" type="submit" name="feed_url" value="{{ feed.url }}">
                     Remove feed
@@ -29,40 +41,37 @@
             </form>
         </div>
     </div>
-    <div class="p-2 mb-2 border border-dark rounded" style="background:#0F0F0F">
+    <div class="p-2 border border-dark" style="background:#0F0F0F">
         {% for entry in entries %}
-            {# Only add <hr> if the entry is not the first one #}
             {% if loop.index > 1 %}
                 <hr>
             {% endif %}
 
-            <a class="text-muted" href="{{ entry.link }}"><h2>{{ entry.title }}</h2></a>
-            By {{ entry.author }} <br>
-            <br>
+            <a class="text-muted" href="{{ entry.link }}">
+                <h2>{{ entry.title }}</h2>
+            </a>
 
+            By {{ entry.author }}
             {% if entry.published %}
-                {# Published: 2022-12-07, 08:10:22 #}
-                Published: {{ entry.published.strftime('%Y-%m-%d, %T') }} <br>
+                @ {{ entry.published.strftime('%Y-%m-%d, %T') }}
             {% endif %}
 
-            {% if entry.updated %}
-                {# Updated: 2022-12-07, 08:10:22 #}
-                Updated: {{ entry.updated.strftime('%Y-%m-%d, %T') }} <br>
-            {% endif %}
 
-            {# Add a button to get the summary #}
             <p>
+                {# Add a button to get the summary #}
                 {% if entry.summary %}
                     <a class="btn btn-primary" data-bs-toggle="collapse" href="#collapse_summary_{{ loop.index }}"
                        role="button">Summary</a>
                 {% endif %}
+
+                {# Add a button to get the content #}
                 {% if entry.content %}
                     <a class="btn btn-primary" data-bs-toggle="collapse" href="#collapse_content_{{ loop.index }}"
                        role="button">Content</a>
                 {% endif %}
             </p>
+
             {% if entry.summary %}
-                {# This is hidden by default, it is only visible if we click the button from above #}
                 <div class="collapse" id="collapse_summary_{{ loop.index }}">
                     <div class="card card-body text-muted border border-dark" style="background: #111111;">
                         {{ entry.summary | safe }}
@@ -70,16 +79,13 @@
                 </div>
             {% endif %}
             {% if entry.content %}
-                {# This is hidden by default, it is only visible if we click the button from above #}
                 <div class="collapse" id="collapse_content_{{ loop.index }}">
                     <div class="card card-body text-muted border border-dark" style="background: #111111;">
                         {{ entry.content[0].value | safe }}
                     </div>
                 </div>
             {% endif %}
-            {# Read modified: 2022-12-07, 08:25:25 #}
-            {% if entry.read_modified %} Read modified: {{ entry.read_modified.strftime('%Y-%m-%d, %T') }}
-            {% endif %}
+
         {% endfor %}
     </div>
 {% endblock %}
