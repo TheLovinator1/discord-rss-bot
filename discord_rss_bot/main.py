@@ -27,6 +27,7 @@ Functions:
         Runs on startup.
 """
 import sys
+import urllib.parse
 from functools import cache
 from typing import Any, Iterable
 
@@ -46,6 +47,21 @@ from discord_rss_bot.settings import read_settings_file, reader
 app: FastAPI = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates: Jinja2Templates = Jinja2Templates(directory="templates")
+
+
+def encode_url(url_to_quote: str) -> str:
+    """%-escape the URL so it can be used in a URL. If we didn't do this, the URL could contain a ?
+
+    Args:
+        url_to_quote: The url to encode.
+
+    Returns:
+        The encoded url.
+    """
+    return urllib.parse.quote(url_to_quote)
+
+
+templates.env.filters["encode_url"] = encode_url
 
 
 @app.post("/check", response_class=HTMLResponse)
@@ -120,7 +136,7 @@ def get_add(request: Request) -> _TemplateResponse:
     return templates.TemplateResponse("add.html", context)
 
 
-@app.get("/feed/{feed_url:path}", response_class=HTMLResponse)
+@app.get("/feed/", response_class=HTMLResponse)
 async def get_feed(feed_url: str, request: Request) -> _TemplateResponse:
     """
     Get a feed by URL.
@@ -132,6 +148,9 @@ async def get_feed(feed_url: str, request: Request) -> _TemplateResponse:
     Returns:
         HTMLResponse: The HTML response.
     """
+    # Make feed_url a valid URL.
+    feed_url = urllib.parse.unquote(feed_url)
+
     feed: Feed = reader.get_feed(feed_url)
 
     # Get entries from the feed.

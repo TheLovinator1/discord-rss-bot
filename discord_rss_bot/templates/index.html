@@ -34,7 +34,8 @@
                             {% set hook_from_feed = feed_webhook["webhook"] %}
                             {% if hook_from_context.url == hook_from_feed %}
                                 <li class="list-group-item" style="background:#111111">
-                                    <a class="text-muted" href="/feed/{{ feed.url }}">{{ feed.url }}</a>
+                                    <a class="text-muted"
+                                       href="/feed?feed_url={{ feed.url|encode_url }}">{{ feed.url }}</a>
                                 </li>
                             {% endif %}
                         {% endfor %}
