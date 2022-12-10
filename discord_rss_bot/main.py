@@ -274,7 +274,7 @@ async def search(request: Request, query: str) -> _TemplateResponse:
             feed_url = encode_url(feed.url)
 
             html += f"""
-            <a class="text-muted" href="/feed?feed_url={feed_url}">
+            <a class="text-muted text-decoration-none" href="/feed?feed_url={feed_url}">
                 <h2>{result.metadata[".title"]}</h2>
             </a>
             <blockquote>
