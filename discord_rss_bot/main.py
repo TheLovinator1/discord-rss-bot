@@ -221,8 +221,7 @@ async def remove_feed(request: Request, feed_url: str = Form()):
     reader.delete_feed(feed_url)
     reader.update_search()
 
-    context = make_context_index(request)
-    return templates.TemplateResponse("index.html", context)
+    return RedirectResponse(url=f"/", status_code=303)
 
 
 @app.get("/search", response_class=HTMLResponse)
