@@ -33,8 +33,8 @@ from typing import Any, Iterable
 
 import uvicorn
 from apscheduler.schedulers.background import BackgroundScheduler
-from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import FastAPI, Form, Request
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from reader import Entry, EntryCounts, Feed, FeedCounts
@@ -66,7 +66,7 @@ templates.env.filters["encode_url"] = encode_url
 
 
 @app.post("/add")
-async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) -> HTTPException | dict[str, str]:
+async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()):
     """
     Add a feed to the database.
 
@@ -94,8 +94,7 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) ->
 
     reader.update_search()
 
-    # TODO: Go to the feed page.
-    return {"feed_url": str(feed_url), "status": "added"}
+    return RedirectResponse(url=f"/feed/?feed_url={feed_url}", status_code=303)
 
 
 def create_list_of_webhooks() -> list[dict[str, str]]:
