@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %} | {{ feed.title }}{% endblock %}
 {% block content %}
-    <a class="text-muted" href="{{ feed.link }}">
+    <a class="text-muted text-decoration-none" href="{{ feed.link }}">
         <h2>{{ feed.title }}
             {% if not feed.updates_enabled %}
                 - <span style="color: red">disabled</span>
@@ -9,11 +9,8 @@
         </h2>
 
     </a>
-    {% if feed.url %}
-        {{ feed.url }}
-    {% endif %}
     {% if feed.subtitle %}
-        <small class="text-muted">{{ feed.subtitle }}</small>
+        <small class="text-muted text-decoration-none">{{ feed.subtitle }}</small>
     {% endif %}
 
     {% if feed.added %}
@@ -47,7 +44,7 @@
                 <hr>
             {% endif %}
 
-            <a class="text-muted" href="{{ entry.link }}">
+            <a class="text-muted text-decoration-none" href="{{ entry.link }}">
                 <h2>{{ entry.title }}</h2>
             </a>
 
