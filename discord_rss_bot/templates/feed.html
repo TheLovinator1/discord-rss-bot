@@ -1,14 +1,16 @@
 {% extends "base.html" %}
 {% block title %} | {{ feed.title }}{% endblock %}
 {% block content %}
-    <a class="text-muted text-decoration-none" href="{{ feed.link }}">
-        <h2>{{ feed.title }}
+    <h2>
+        <a class="text-muted text-decoration-none" href="{{ feed.link }}">
+            {{ feed.title }}
             {% if not feed.updates_enabled %}
                 - <span style="color: red">disabled</span>
             {% endif %}
-        </h2>
+        </a>
+    </h2>
 
-    </a>
+
     {% if feed.subtitle %}
         <small class="text-muted text-decoration-none">{{ feed.subtitle }}</small>
     {% endif %}
@@ -53,34 +55,21 @@
                 @ {{ entry.published.strftime('%Y-%m-%d, %T') }}
             {% endif %}
 
-
-            <p>
-                {# Add a button to get the summary #}
-                {% if entry.summary %}
-                    <a class="btn btn-primary" data-bs-toggle="collapse" href="#collapse_summary_{{ loop.index }}"
-                       role="button">Summary</a>
-                {% endif %}
-
-                {# Add a button to get the content #}
-                {% if entry.content %}
-                    <a class="btn btn-primary" data-bs-toggle="collapse" href="#collapse_content_{{ loop.index }}"
-                       role="button">Content</a>
-                {% endif %}
-            </p>
-
             {% if entry.summary %}
-                <div class="collapse" id="collapse_summary_{{ loop.index }}">
-                    <div class="card card-body text-muted border border-dark" style="background: #111111;">
+                <details>
+                    <summary>Summary</summary>
+                    <div class="text-muted text-wrap" style="max-height:450px; overflow-y: auto;">
                         {{ entry.summary | safe }}
                     </div>
-                </div>
+                </details>
             {% endif %}
             {% if entry.content %}
-                <div class="collapse" id="collapse_content_{{ loop.index }}">
-                    <div class="card card-body text-muted border border-dark" style="background: #111111;">
+                <details>
+                    <summary>Content</summary>
+                    <div class="text-muted" style="max-height:450px; overflow-y: auto;">
                         {{ entry.content[0].value | safe }}
                     </div>
-                </div>
+                </details>
             {% endif %}
         {% endfor %}
     </div>
