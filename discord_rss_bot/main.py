@@ -192,8 +192,8 @@ def make_context_index(request) -> dict:
         hook = reader.get_tag(feed.url, "webhook")
         feed_list.append({"feed": feed, "webhook": hook})
 
-    # Sort feed_list by feed url
-    feed_list.sort(key=lambda x: x["feed"].url)
+    # Sort feed_list by when the feed was added.
+    feed_list.sort(key=lambda x: x["feed"].added)
 
     feed_count: FeedCounts = reader.get_feed_counts()
     entry_count: EntryCounts = reader.get_entry_counts()
