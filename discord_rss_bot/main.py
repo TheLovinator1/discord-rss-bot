@@ -65,15 +65,6 @@ def encode_url(url_to_quote: str) -> str:
 templates.env.filters["encode_url"] = encode_url
 
 
-@app.post("/check", response_class=HTMLResponse)
-def check_feed(request: Request, feed_url: str = Form()) -> _TemplateResponse:
-    """Check all feeds"""
-    send_to_discord(feed_url)
-    feed: Feed = reader.get_feed(feed_url)
-
-    return templates.TemplateResponse("feed.html", {"request": request, "feed": feed})
-
-
 @app.post("/add")
 async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) -> HTTPException | dict[str, str]:
     """

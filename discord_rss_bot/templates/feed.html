@@ -23,23 +23,14 @@
         Last exception: {{ feed.last_exception }}
     {% endif %}
 
-
-    <div class="btn-toolbar" role="group">
-        <div class="btn-group me-1" role="group">
-            <form action="/check" method="post">
-                <button class="btn btn-primary" type="submit" name="feed_url" value="{{ feed.url }}">
-                    Send new entries to Discord
-                </button>
-            </form>
-        </div>
-        <div class="btn-group" role="group">
-            <form action="/remove" method="post">
-                <button class="btn btn-danger" type="submit" name="feed_url" value="{{ feed.url }}">
-                    Remove feed
-                </button>
-            </form>
-        </div>
+    <div class="btn-group" role="group">
+        <form action="/remove" method="post">
+            <button class="btn btn-danger" type="submit" name="feed_url" value="{{ feed.url }}">
+                Remove feed
+            </button>
+        </form>
     </div>
+
     <div class="p-2 border border-dark" style="background:#0F0F0F">
         {% for entry in entries %}
             {% if loop.index > 1 %}
