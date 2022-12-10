@@ -51,7 +51,9 @@ templates: Jinja2Templates = Jinja2Templates(directory="templates")
 
 
 def encode_url(url_to_quote: str) -> str:
-    """%-escape the URL so it can be used in a URL. If we didn't do this, the URL could contain a ?
+    """%-escape the URL so it can be used in a URL. If we didn't do this, we couldn't go to feeds with a ? in the URL.
+
+    You can use this in templates with {{ url | encode_url }}.
 
     Args:
         url_to_quote: The url to encode.
