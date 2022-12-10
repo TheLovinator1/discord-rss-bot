@@ -63,3 +63,5 @@ def send_to_discord(feed=None) -> None:
         response: Response = webhook.execute()
         if not response.ok:
             reader.set_entry_read(entry, False)
+
+    reader.update_search()

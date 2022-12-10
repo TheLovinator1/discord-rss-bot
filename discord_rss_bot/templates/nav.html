@@ -13,6 +13,14 @@
                     <a class="nav-link" href="/add">Add new feed</a>
                 </li>
             </ul>
+
+            {# Search #}
+            <form action="/search" method="get" class="d-flex col-sm-7 ms-auto">
+                <input name="query" class="form-control me-1" type="search" placeholder="Search">
+                <button class="btn btn-outline-warning" type="submit">Search</button>
+            </form>
+
+            {# Donate button #}
             <ul class="navbar-nav ms-auto">
                 <li class="nav-item">
                     <a class="nav-link" href="https://github.com/sponsors/TheLovinator1">Donate ❤️</a>

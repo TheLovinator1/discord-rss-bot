@@ -37,7 +37,7 @@ from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from reader import Entry, EntryCounts, Feed, FeedCounts
+from reader import Entry, EntryCounts, EntrySearchResult, Feed, FeedCounts, HighlightedString
 from starlette.templating import _TemplateResponse
 from tomlkit.toml_document import TOMLDocument
 
@@ -99,6 +99,8 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) ->
     webhook_url: str = str(settings["webhooks"][webhook_dropdown])
     reader.set_tag(feed_url, "webhook", webhook_url)
     reader.get_tag(feed_url, "webhook")
+
+    reader.update_search()
 
     # TODO: Go to the feed page.
     return {"feed_url": str(feed_url), "status": "added"}
@@ -224,9 +226,68 @@ async def remove_feed(request: Request, feed_url: str = Form()):
     """
 
     reader.delete_feed(feed_url)
+    reader.update_search()
 
     context = make_context_index(request)
     return templates.TemplateResponse("index.html", context)
+
+
+@app.get("/search", response_class=HTMLResponse)
+async def search(request: Request, query: str) -> _TemplateResponse:
+    """
+    Get entries matching a full-text search query.
+
+    Args:
+        request: The request.
+        query: The query to search for.
+
+    Returns:
+        HTMLResponse: The HTML response.
+    """
+    reader.update_search()
+    search_results = reader.search_entries(query)
+    search_amount = reader.search_entry_counts(query)
+
+    def add_span_with_slice(highlighted_string: HighlightedString):
+        """Add a span with the highlighted string."""
+
+        for txt_slice in highlighted_string.highlights:
+            first = f"{highlighted_string.value[: txt_slice.start]}"
+            second = f"<span class='bg-warning'>{highlighted_string.value[txt_slice.start: txt_slice.stop]}</span>"
+            third = f"{highlighted_string.value[txt_slice.stop:]}"
+            return f"{first}{second}{third}"
+
+    def create_html_for_search_results(search_results: Iterable[EntrySearchResult]) -> str:
+        """Create HTML for the search results.
+
+        Args:
+            search_results: The search results.
+
+        Returns:
+            str: The HTML.
+        """
+        html = ""
+        for result in search_results:
+            if ".summary" in result.content:
+                result_summary = add_span_with_slice(result.content[".summary"])
+            feed = reader.get_feed(result.feed_url)
+            feed_url = encode_url(feed.url)
+
+            html += f"""
+            <a class="text-muted" href="/feed?feed_url={feed_url}">
+                <h2>{result.metadata[".title"]}</h2>
+            </a>
+            <blockquote>
+            {result_summary}
+            </blockquote>
+            <hr>
+            """
+        return html
+
+    search_html = create_html_for_search_results(search_results)
+    return templates.TemplateResponse(
+        "search.html", {"request": request, "search_html": search_html, "query": query, "search_amount": search_amount}
+    )
 
 
 @app.on_event("startup")
