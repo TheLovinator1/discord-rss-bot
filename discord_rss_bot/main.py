@@ -152,9 +152,8 @@ async def get_feed(feed_url: str, request: Request) -> _TemplateResponse:
     # Get the entries in the feed.
     feed_counts: FeedCounts = reader.get_feed_counts(feed=feed_url)
 
-    return templates.TemplateResponse(
-        "feed.html", {"request": request, "feed": feed, "entries": entries, "feed_counts": feed_counts}
-    )
+    context = {"request": request, "feed": feed, "entries": entries, "feed_counts": feed_counts}
+    return templates.TemplateResponse("feed.html", context)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -243,9 +242,9 @@ async def search(request: Request, query: str) -> _TemplateResponse:
     search_amount = reader.search_entry_counts(query)
 
     search_html = create_html_for_search_results(search_results)
-    return templates.TemplateResponse(
-        "search.html", {"request": request, "search_html": search_html, "query": query, "search_amount": search_amount}
-    )
+
+    context = {"request": request, "search_html": search_html, "query": query, "search_amount": search_amount}
+    return templates.TemplateResponse("search.html", context)
 
 
 @app.on_event("startup")
