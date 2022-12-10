@@ -24,9 +24,7 @@ Exceptions:
 from typing import Iterable
 
 from discord_webhook import DiscordWebhook
-from reader import (
-    Entry,
-)
+from reader import Entry
 from requests import Response
 
 from discord_rss_bot.settings import reader

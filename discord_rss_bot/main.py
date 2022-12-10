@@ -37,11 +37,12 @@ from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from reader import Entry, EntryCounts, EntrySearchResult, Feed, FeedCounts, HighlightedString
+from reader import Entry, EntryCounts, Feed, FeedCounts
 from starlette.templating import _TemplateResponse
 from tomlkit.toml_document import TOMLDocument
 
 from discord_rss_bot.feeds import send_to_discord
+from discord_rss_bot.search import create_html_for_search_results
 from discord_rss_bot.settings import read_settings_file, reader
 
 app: FastAPI = FastAPI()
@@ -250,42 +251,6 @@ async def search(request: Request, query: str) -> _TemplateResponse:
     reader.update_search()
     search_results = reader.search_entries(query)
     search_amount = reader.search_entry_counts(query)
-
-    def add_span_with_slice(highlighted_string: HighlightedString):
-        """Add a span with the highlighted string."""
-
-        for txt_slice in highlighted_string.highlights:
-            first = f"{highlighted_string.value[: txt_slice.start]}"
-            second = f"<span class='bg-warning'>{highlighted_string.value[txt_slice.start: txt_slice.stop]}</span>"
-            third = f"{highlighted_string.value[txt_slice.stop:]}"
-            return f"{first}{second}{third}"
-
-    def create_html_for_search_results(search_results: Iterable[EntrySearchResult]) -> str:
-        """Create HTML for the search results.
-
-        Args:
-            search_results: The search results.
-
-        Returns:
-            str: The HTML.
-        """
-        html = ""
-        for result in search_results:
-            if ".summary" in result.content:
-                result_summary = add_span_with_slice(result.content[".summary"])
-            feed = reader.get_feed(result.feed_url)
-            feed_url = encode_url(feed.url)
-
-            html += f"""
-            <a class="text-muted text-decoration-none" href="/feed?feed_url={feed_url}">
-                <h2>{result.metadata[".title"]}</h2>
-            </a>
-            <blockquote>
-            {result_summary}
-            </blockquote>
-            <hr>
-            """
-        return html
 
     search_html = create_html_for_search_results(search_results)
     return templates.TemplateResponse(
