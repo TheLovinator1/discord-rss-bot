@@ -27,7 +27,7 @@
                 </span>
             </p>
             {% for hook_from_context in webhooks %}
-                <div class="p-2 mb-2 border border-dark">
+                <div class="p-2 mb-2 border border-dark" style="background: #161616;">
                     <ul class="list-group">{{ hook_from_context.name }}
                         {% for feed_webhook in feeds %}
                             {% set feed = feed_webhook["feed"] %}
