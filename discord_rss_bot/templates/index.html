@@ -20,11 +20,11 @@
                 - {{ feed_count.updates_enabled }} enabled
                 </span>
                 - {{ entry_count.total }} entries
-                <span data-bs-toggle="tooltip" title="Entries per day average for the past 1, 3 and 12 months">
+                <abbr title="Entries per day average for the past 1, 3 and 12 months">
                     ({{ entry_count.averages[0]|round(1) }},
                     {{ entry_count.averages[1]|round(1) }},
                     {{ entry_count.averages[2]|round(1) }})
-                </span>
+                </abbr>
             </p>
             {% for hook_from_context in webhooks %}
                 <div class="p-2 mb-2 border border-dark" style="background: #161616;">
