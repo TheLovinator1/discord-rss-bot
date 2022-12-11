@@ -1,0 +1,12 @@
+body {
+    background: #111111;
+}
+
+.summary {
+    max-height: 450px;
+    overflow-y: auto
+}
+
+.border {
+    background: #161616;
+}

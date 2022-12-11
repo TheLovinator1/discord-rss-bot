@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% block title %} | {{ feed.title }}{% endblock %}
 {% block content %}
-    <div class="p-2 mb-2 border border-dark" style="background: #161616;">
+    <div class="p-2 mb-2 border border-dark">
 
         {# The feed title.#}
         <h2>
             <a class="text-muted text-decoration-none" href="{{ feed.link }}">
                 {{ feed.title }}
-                {% if not feed.updates_enabled %}
-                    - <span style="color: red">disabled</span>
+                {% if feed.updates_enabled %}
+                    - <span class="text-danger">disabled</span>
                 {% endif %}
             </a>
         </h2>
@@ -44,7 +44,7 @@
 
     </div>
     {% for entry in entries %}
-        <div class="p-2 mb-2 border border-dark" style="background: #161616;">
+        <div class="p-2 mb-2 border border-dark">
             <h2>
                 <a class="text-muted text-decoration-none" href="{{ entry.link }}">
                     {{ entry.title }}
@@ -58,7 +58,7 @@
             {% if entry.summary %}
                 <details>
                     <summary>Summary</summary>
-                    <div class="text-muted text-wrap" style="max-height: 450px; overflow-y: auto">
+                    <div class="text-muted text-wrap summary">
                         {{ entry.summary | safe }}
                     </div>
                 </details>
@@ -66,7 +66,7 @@
             {% if entry.content %}
                 <details>
                     <summary>Content</summary>
-                    <div class="text-muted" style="max-height: 450px; overflow-y: auto">
+                    <div class="text-muted summary">
                         {{ entry.content[0].value | safe }}
                     </div>
                 </details>
