@@ -1,47 +1,55 @@
 {% extends "base.html" %}
 {% block title %} | {{ feed.title }}{% endblock %}
 {% block content %}
-    <h2>
-        <a class="text-muted text-decoration-none" href="{{ feed.link }}">
-            {{ feed.title }}
-            {% if not feed.updates_enabled %}
-                - <span style="color: red">disabled</span>
-            {% endif %}
-        </a>
-    </h2>
+    <div class="p-2 mb-2 border border-dark" style="background: #161616;">
 
-
-    {% if feed.subtitle %}
-        <small class="text-muted text-decoration-none">{{ feed.subtitle }}</small>
-    {% endif %}
-
-    {% if feed.added %}
-        Added: {{ feed.added.strftime('%Y-%m-%d, %T') }}
-    {% endif %}
-
-    {% if feed.last_exception %}
-        Last exception: {{ feed.last_exception }}
-    {% endif %}
-
-    <div class="btn-group" role="group">
-        <form action="/remove" method="post">
-            <button class="btn btn-danger" type="submit" name="feed_url" value="{{ feed.url }}"
-                    onclick="return confirm('Are you sure you want to delete this feed?')">
-                Remove feed
-            </button>
-        </form>
-    </div>
-
-    <div class="p-2 border border-dark" style="background: #0f0f0f">
-        {% for entry in entries %}
-            {% if loop.index > 1 %}
-                <hr>
-            {% endif %}
-
-            <a class="text-muted text-decoration-none" href="{{ entry.link }}">
-                <h2>{{ entry.title }}</h2>
+        {# The feed title.#}
+        <h2>
+            <a class="text-muted text-decoration-none" href="{{ feed.link }}">
+                {{ feed.title }}
+                {% if not feed.updates_enabled %}
+                    - <span style="color: red">disabled</span>
+                {% endif %}
             </a>
+        </h2>
 
+        {# Feed subtitle, probably description. #}
+        {% if feed.subtitle %}
+            <small class="text-muted text-decoration-none">{{ feed.subtitle }}</small>
+            <br>
+        {% endif %}
+
+        {# When this feed was added.#}
+        {% if feed.added %}
+            Added: {{ feed.added.strftime('%Y-%m-%d, %T') }}
+            <br>
+        {% endif %}
+
+        {# If this feed has had an error. #}
+        {% if feed.last_exception %}
+            Last exception: {{ feed.last_exception }}
+            <br>
+        {% endif %}
+
+        {# Remove feed button. #}
+        <div class="btn-group" role="group">
+            <form action="/remove" method="post">
+                <button class="btn btn-danger" type="submit" name="feed_url" value="{{ feed.url }}"
+                        onclick="return confirm('Are you sure you want to delete this feed?')">
+                    Remove feed
+                </button>
+            </form>
+        </div>
+
+
+    </div>
+    {% for entry in entries %}
+        <div class="p-2 mb-2 border border-dark" style="background: #161616;">
+            <h2>
+                <a class="text-muted text-decoration-none" href="{{ entry.link }}">
+                    {{ entry.title }}
+                </a>
+            </h2>
             By {{ entry.author }}
             {% if entry.published %}
                 @ {{ entry.published.strftime('%Y-%m-%d, %T') }}
@@ -63,6 +71,6 @@
                     </div>
                 </details>
             {% endif %}
-        {% endfor %}
-    </div>
+        </div>
+    {% endfor %}
 {% endblock %}
