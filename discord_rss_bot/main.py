@@ -28,7 +28,6 @@ Functions:
 """
 import sys
 import urllib.parse
-from functools import cache
 from typing import Any, Iterable
 
 import uvicorn
@@ -37,7 +36,14 @@ from fastapi import FastAPI, Form, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from reader import Entry, EntryCounts, Feed, FeedCounts
+from reader import (
+    Entry,
+    EntryCounts,
+    EntrySearchCounts,
+    EntrySearchResult,
+    Feed,
+    FeedCounts,
+)
 from starlette.templating import _TemplateResponse
 from tomlkit.toml_document import TOMLDocument
 
@@ -68,7 +74,7 @@ templates.env.filters["encode_url"] = encode_url
 
 
 @app.post("/add")
-async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()):
+async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) -> RedirectResponse:
     """
     Add a feed to the database.
 
@@ -79,20 +85,20 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()):
     Returns:
         dict: The feed that was added.
     """
-    feed_url = feed_url.strip()
+    clean_feed_url: str = feed_url.strip()
 
-    reader.add_feed(feed_url)
-    reader.update_feed(feed_url)
+    reader.add_feed(clean_feed_url)
+    reader.update_feed(clean_feed_url)
 
     # Mark every entry as read, so we don't send all the old entries to Discord.
-    entries = reader.get_entries(feed=feed_url, read=False)
+    entries: Iterable[Entry] = reader.get_entries(feed=clean_feed_url, read=False)
     for entry in entries:
         reader.set_entry_read(entry, True)
 
     settings: TOMLDocument = read_settings_file()
     webhook_url: str = str(settings["webhooks"][webhook_dropdown])
-    reader.set_tag(feed_url, "webhook", webhook_url)
-    reader.get_tag(feed_url, "webhook")
+    reader.set_tag(clean_feed_url, "webhook", webhook_url)
+    reader.get_tag(clean_feed_url, "webhook")
 
     reader.update_search()
 
@@ -102,14 +108,13 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()):
 def create_list_of_webhooks() -> list[dict[str, str]]:
     """List with webhooks."""
     settings: TOMLDocument = read_settings_file()
-    list_of_webhooks = []
+    list_of_webhooks: list[dict[str, str]] = []
     for hook in settings["webhooks"]:
         list_of_webhooks.append({"name": hook, "url": settings["webhooks"][hook]})
 
     return list_of_webhooks
 
 
-@cache
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon() -> FileResponse:
     """Return favicon."""
@@ -144,15 +149,15 @@ async def get_feed(feed_url: str, request: Request) -> _TemplateResponse:
         HTMLResponse: The HTML response.
     """
     # Make feed_url a valid URL.
-    feed_url = urllib.parse.unquote(feed_url)
+    url: str = urllib.parse.unquote(feed_url)
 
-    feed: Feed = reader.get_feed(feed_url)
+    feed: Feed = reader.get_feed(url)
 
     # Get entries from the feed.
-    entries: Iterable[Entry] = reader.get_entries(feed=feed_url)
+    entries: Iterable[Entry] = reader.get_entries(feed=url)
 
     # Get the entries in the feed.
-    feed_counts: FeedCounts = reader.get_feed_counts(feed=feed_url)
+    feed_counts: FeedCounts = reader.get_feed_counts(feed=url)
 
     context = {"request": request, "feed": feed, "entries": entries, "feed_counts": feed_counts}
     return templates.TemplateResponse("feed.html", context)
@@ -185,7 +190,7 @@ def make_context_index(request) -> dict:
         dict: The context.
 
     """
-    hooks = create_list_of_webhooks()
+    hooks: list[dict[str, str]] = create_list_of_webhooks()
     feed_list = []
     feeds: Iterable[Feed] = reader.get_feeds()
     for feed in feeds:
@@ -208,7 +213,7 @@ def make_context_index(request) -> dict:
 
 
 @app.post("/remove", response_class=HTMLResponse)
-async def remove_feed(request: Request, feed_url: str = Form()):
+async def remove_feed(request: Request, feed_url: str = Form()) -> RedirectResponse:
     """
     Get a feed by URL.
 
@@ -239,12 +244,17 @@ async def search(request: Request, query: str) -> _TemplateResponse:
         HTMLResponse: The HTML response.
     """
     reader.update_search()
-    search_results = reader.search_entries(query)
-    search_amount = reader.search_entry_counts(query)
+    search_results: Iterable[EntrySearchResult] = reader.search_entries(query)
+    search_amount: EntrySearchCounts = reader.search_entry_counts(query)
 
-    search_html = create_html_for_search_results(search_results)
+    search_html: str = create_html_for_search_results(search_results)
 
-    context = {"request": request, "search_html": search_html, "query": query, "search_amount": search_amount}
+    context: dict[str, Request | str | EntrySearchCounts] = {
+        "request": request,
+        "search_html": search_html,
+        "query": query,
+        "search_amount": search_amount,
+    }
     return templates.TemplateResponse("search.html", context)
 
 

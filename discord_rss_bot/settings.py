@@ -72,7 +72,7 @@ def read_settings_file(custom_name: str = "settings.toml") -> TOMLDocument:
     Returns:
         dict: The settings file as a dict.
     """
-    settings_file = os.path.join(data_dir, custom_name)
+    settings_file: str = os.path.join(data_dir, custom_name)
     with open(settings_file, encoding="utf-8") as f:
         return parse(f.read())
 
