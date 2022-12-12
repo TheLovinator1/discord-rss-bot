@@ -1,15 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Index{% endblock %}
-{% block head %}
-<script>
-var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-  return new bootstrap.Tooltip(tooltipTriggerEl)
-})
-</script>
-{% endblock %}
 {% block content %}
-
     <!-- List all feeds -->
     <ul>
         <!-- Check if any feeds -->
@@ -30,11 +20,11 @@ var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
                 - {{ feed_count.updates_enabled }} enabled
                 </span>
                 - {{ entry_count.total }} entries
-                <span data-bs-toggle="tooltip" title="Entries per day average for the past 1, 3 and 12 months">
+                <abbr title="Entries per day average for the past 1, 3 and 12 months">
                     ({{ entry_count.averages[0]|round(1) }},
                     {{ entry_count.averages[1]|round(1) }},
                     {{ entry_count.averages[2]|round(1) }})
-                </span>
+                </abbr>
             </p>
             {% for hook_from_context in webhooks %}
                 <div class="p-2 mb-2 border border-dark">
@@ -43,9 +33,8 @@ var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
                             {% set feed = feed_webhook["feed"] %}
                             {% set hook_from_feed = feed_webhook["webhook"] %}
                             {% if hook_from_context.url == hook_from_feed %}
-                                <li class="list-group-item" style="background:#111111">
-                                    <a class="text-muted" href="/feed/{{ feed.url }}">{{ feed.url }}</a>
-                                </li>
+                                <a class="text-muted"
+                                   href="/feed?feed_url={{ feed.url|encode_url }}">{{ feed.url }}</a>
                             {% endif %}
                         {% endfor %}
                     </ul>
@@ -53,7 +42,7 @@ var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
             {% endfor %}
         {% else %}
             <p>
-                No feeds yet. Add one <a class="text-muted" href="/add">here</a>.
+                No feeds yet. Add one <a class="text-muted" href="{{ url_for("get_add") }}">here</a>.
             </p>
         {% endif %}
     </ul>

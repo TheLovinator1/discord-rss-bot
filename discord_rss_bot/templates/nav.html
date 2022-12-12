@@ -1,4 +1,4 @@
-<nav class="navbar navbar-expand-md navbar-dark p-2 mb-3 border-bottom border-warning" style="background: #0F0F0F">
+<nav class="navbar navbar-expand-md navbar-dark p-2 mb-3 border-bottom border-warning">
     <div class="container-fluid">
         <button class="navbar-toggler ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#collapseNavbar">
             <span class="navbar-toggler-icon"></span>
@@ -8,13 +8,21 @@
                 <li class="nav-item">
                     <a class="nav-link" href="/">Feeds</a>
                 </li>
-                <li class="nav-item nav-link">|</li>
+                <li class="nav-item nav-link d-none d-md-block">|</li>
                 <li class="nav-item">
-                    <a class="nav-link" href="/add">Add new feed</a>
+                    <a class="nav-link" href="{{ url_for("get_add") }}">Add new feed</a>
                 </li>
             </ul>
+
+            {# Search #}
+            <form action="{{ url_for("search") }}" method="get" class="d-flex col-sm-7 ms-auto">
+                <input name="query" class="form-control me-1" type="search" placeholder="Search">
+                <button class="btn btn-outline-warning" type="submit">Search</button>
+            </form>
+
+            {# Donate button #}
             <ul class="navbar-nav ms-auto">
-                <li class="nav-item">
+                <li class="nav-item d-none d-md-block">
                     <a class="nav-link" href="https://github.com/sponsors/TheLovinator1">Donate ❤️</a>
                 </li>
             </ul>

@@ -27,41 +27,54 @@ Functions:
         Runs on startup.
 """
 import sys
-from functools import cache
+import urllib.parse
 from typing import Any, Iterable
 
 import uvicorn
 from apscheduler.schedulers.background import BackgroundScheduler
-from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import FastAPI, Form, Request
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from reader import EntryCounts, Feed, FeedCounts, FeedNotFoundError, ReaderError, ResourceNotFoundError, StorageError, \
-    TagNotFoundError
+from reader import (
+    Entry,
+    EntryCounts,
+    EntrySearchCounts,
+    EntrySearchResult,
+    Feed,
+    FeedCounts,
+)
 from starlette.templating import _TemplateResponse
 from tomlkit.toml_document import TOMLDocument
 
-from discord_rss_bot.feeds import IfFeedError, add_feed, send_to_discord, update_feed
-from discord_rss_bot.settings import logger, read_settings_file, reader
+from discord_rss_bot.feeds import send_to_discord
+from discord_rss_bot.search import create_html_for_search_results
+from discord_rss_bot.settings import read_settings_file, reader
 
 app: FastAPI = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates: Jinja2Templates = Jinja2Templates(directory="templates")
 
 
-@app.post("/check", response_class=HTMLResponse)
-def check_feed(request: Request, feed_url: str = Form()) -> _TemplateResponse:
-    """Check all feeds"""
-    send_to_discord(feed_url)
+def encode_url(url_to_quote: str) -> str:
+    """%-escape the URL so it can be used in a URL. If we didn't do this, we couldn't go to feeds with a ? in the URL.
 
-    logger.info(f"Get feed: {feed_url}")
-    feed: Feed = reader.get_feed(feed_url)
+    You can use this in templates with {{ url | encode_url }}.
 
-    return templates.TemplateResponse("feed.html", {"request": request, "feed": feed})
+    Args:
+        url_to_quote: The url to encode.
+
+    Returns:
+        The encoded url.
+    """
+    return urllib.parse.quote(url_to_quote)
+
+
+templates.env.filters["encode_url"] = encode_url
 
 
 @app.post("/add")
-async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) -> HTTPException | dict[str, str]:
+async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) -> RedirectResponse:
     """
     Add a feed to the database.
 
@@ -72,59 +85,36 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) ->
     Returns:
         dict: The feed that was added.
     """
+    clean_feed_url: str = feed_url.strip()
 
-    # Remove spaces from feed_url
-    feed_url = feed_url.strip()
-    logger.debug(f"Stripped feed_url: {feed_url}")
+    reader.add_feed(clean_feed_url)
+    reader.update_feed(clean_feed_url)
 
-    logger.info(f"Add feed: {feed_url}")
-    logger.info(f"Webhook: {webhook_dropdown}")
-
-    # Add a new feed to the database.
-    added_feed: IfFeedError = add_feed(feed_url, webhook_dropdown)
-
-    # Update a single feed. The feed will be updated even if updates are disabled for it.
-    updated_feed: IfFeedError = update_feed(feed_url, webhook_dropdown)
-
-    if updated_feed.error or added_feed.error:
-        error_dict: dict[str, Any] = {
-            "error": updated_feed.error,
-            "feed": updated_feed.feed_url,
-            "webhook": updated_feed.webhook,
-            "exception": updated_feed.exception,
-        }
-        return HTTPException(status_code=500, detail=error_dict)
+    # Mark every entry as read, so we don't send all the old entries to Discord.
+    entries: Iterable[Entry] = reader.get_entries(feed=clean_feed_url, read=False)
+    for entry in entries:
+        reader.set_entry_read(entry, True)
 
     settings: TOMLDocument = read_settings_file()
-
-    logger.debug(f"Webhook name: {webhook_dropdown} with URL: {settings['webhooks'][webhook_dropdown]}")
     webhook_url: str = str(settings["webhooks"][webhook_dropdown])
-    try:
-        reader.set_tag(feed_url, "webhook", webhook_url)
-    except ResourceNotFoundError as e:
-        error_msg: str = f"ResourceNotFoundError: Could not set webhook: {e}"
-        logger.error(error_msg, exc_info=True)
-        return HTTPException(status_code=500, detail=error_msg)
+    reader.set_tag(clean_feed_url, "webhook", webhook_url)
+    reader.get_tag(clean_feed_url, "webhook")
 
-    new_tag = reader.get_tag(feed_url, "webhook")
-    logger.info(f"New tag: {new_tag}")
-    return {"feed_url": str(feed_url), "status": "added"}
+    reader.update_search()
+
+    return RedirectResponse(url=f"/feed/?feed_url={feed_url}", status_code=303)
 
 
 def create_list_of_webhooks() -> list[dict[str, str]]:
     """List with webhooks."""
-    logger.info("Creating list with webhooks.")
     settings: TOMLDocument = read_settings_file()
-    list_of_webhooks = []
+    list_of_webhooks: list[dict[str, str]] = []
     for hook in settings["webhooks"]:
-        logger.info(f"Webhook name: {hook} with URL: {settings['webhooks'][hook]}")
-        list_of_webhooks.append({"name": hook, "url": settings['webhooks'][hook]})
-        logger.debug(f"Hook: {hook}, URL: {settings['webhooks'][hook]}")
-    logger.info(f"List of webhooks: {list_of_webhooks}")
+        list_of_webhooks.append({"name": hook, "url": settings["webhooks"][hook]})
+
     return list_of_webhooks
 
 
-@cache
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon() -> FileResponse:
     """Return favicon."""
@@ -146,7 +136,7 @@ def get_add(request: Request) -> _TemplateResponse:
     return templates.TemplateResponse("add.html", context)
 
 
-@app.get("/feed/{feed_url:path}", response_class=HTMLResponse)
+@app.get("/feed/", response_class=HTMLResponse)
 async def get_feed(feed_url: str, request: Request) -> _TemplateResponse:
     """
     Get a feed by URL.
@@ -158,19 +148,19 @@ async def get_feed(feed_url: str, request: Request) -> _TemplateResponse:
     Returns:
         HTMLResponse: The HTML response.
     """
-    # Convert the URL to a valid URL.
-    logger.info(f"Got feed: {feed_url}")
+    # Make feed_url a valid URL.
+    url: str = urllib.parse.unquote(feed_url)
 
-    feed: Feed = reader.get_feed(feed_url)
+    feed: Feed = reader.get_feed(url)
 
     # Get entries from the feed.
-    entries: Iterable[EntryCounts] = reader.get_entries(feed=feed_url)
+    entries: Iterable[Entry] = reader.get_entries(feed=url)
 
     # Get the entries in the feed.
-    feed_counts: FeedCounts = reader.get_feed_counts(feed=feed_url)
+    feed_counts: FeedCounts = reader.get_feed_counts(feed=url)
 
-    return templates.TemplateResponse("feed.html", {"request": request, "feed": feed, "entries": entries,
-                                                    "feed_counts": feed_counts})
+    context = {"request": request, "feed": feed, "entries": entries, "feed_counts": feed_counts}
+    return templates.TemplateResponse("feed.html", context)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -200,16 +190,15 @@ def make_context_index(request) -> dict:
         dict: The context.
 
     """
-    hooks = create_list_of_webhooks()
+    hooks: list[dict[str, str]] = create_list_of_webhooks()
     feed_list = []
     feeds: Iterable[Feed] = reader.get_feeds()
     for feed in feeds:
-        logger.debug(f"Feed: {feed}")
-        try:
-            hook = reader.get_tag(feed.url, "webhook")
-        except TagNotFoundError:
-            hook = "None"
+        hook = reader.get_tag(feed.url, "webhook")
         feed_list.append({"feed": feed, "webhook": hook})
+
+    # Sort feed_list by when the feed was added.
+    feed_list.sort(key=lambda x: x["feed"].added)
 
     feed_count: FeedCounts = reader.get_feed_counts()
     entry_count: EntryCounts = reader.get_entry_counts()
@@ -224,29 +213,48 @@ def make_context_index(request) -> dict:
 
 
 @app.post("/remove", response_class=HTMLResponse)
-async def remove_feed(request: Request, feed_url: str = Form()):
+async def remove_feed(feed_url: str = Form()) -> RedirectResponse:
     """
     Get a feed by URL.
 
     Args:
-        request: The request.
         feed_url: The feed to add.
 
     Returns:
         HTMLResponse: The HTML response.
     """
-    try:
-        reader.delete_feed(feed_url)
-    except FeedNotFoundError:
-        logger.error(f"Feed not found: {feed_url}")
-        return {"error": "Feed not found.", "feed": feed_url}
-    except StorageError:
-        logger.error(f"Storage error: {feed_url}")
-        return {"error": "Storage error.", "feed": feed_url}
 
-    logger.info(f"Deleted feed: {feed_url}")
-    context = make_context_index(request)
-    return templates.TemplateResponse("index.html", context)
+    reader.delete_feed(feed_url)
+    reader.update_search()
+
+    return RedirectResponse(url=f"/", status_code=303)
+
+
+@app.get("/search", response_class=HTMLResponse)
+async def search(request: Request, query: str) -> _TemplateResponse:
+    """
+    Get entries matching a full-text search query.
+
+    Args:
+        request: The request.
+        query: The query to search for.
+
+    Returns:
+        HTMLResponse: The HTML response.
+    """
+    reader.update_search()
+    search_results: Iterable[EntrySearchResult] = reader.search_entries(query)
+    search_amount: EntrySearchCounts = reader.search_entry_counts(query)
+
+    search_html: str = create_html_for_search_results(search_results)
+
+    context: dict[str, Request | str | EntrySearchCounts] = {
+        "request": request,
+        "search_html": search_html,
+        "query": query,
+        "search_amount": search_amount,
+    }
+    return templates.TemplateResponse("search.html", context)
 
 
 @app.on_event("startup")
@@ -257,11 +265,7 @@ def startup() -> None:
     settings: TOMLDocument = read_settings_file()
 
     if not settings["webhooks"]:
-        logger.critical("No webhooks found in settings file.")
-        sys.exit()
-    webhooks = settings["webhooks"]
-    for key in webhooks:
-        logger.info(f"Webhook name: {key} with URL: {settings['webhooks'][key]}")
+        sys.exit("No webhooks found in settings file.")
 
     scheduler: BackgroundScheduler = BackgroundScheduler()
 
@@ -278,14 +282,7 @@ def shutdown() -> None:
     It stops the scheduler."""
     scheduler: BackgroundScheduler = BackgroundScheduler()
     scheduler.shutdown()
-    logger.info("Scheduler stopped.")
-
-    try:
-        reader.close()
-    except ReaderError:
-        logger.error("Error closing reader.", exc_info=True)
-        sys.exit()
-    logger.info("Reader closed.")
+    reader.close()
 
 
 if __name__ == "__main__":
