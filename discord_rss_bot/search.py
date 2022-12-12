@@ -44,7 +44,7 @@ def add_span_with_slice(highlighted_string: HighlightedString) -> str:
         str: The string with added <span> tags.
     """
     # TODO: We are looping through the highlights and only using the last one. We should use all of them.
-    before_span, span_part, after_span = ""
+    before_span, span_part, after_span = "", "", ""
 
     for txt_slice in highlighted_string.highlights:
         before_span: str = f"{highlighted_string.value[: txt_slice.start]}"
