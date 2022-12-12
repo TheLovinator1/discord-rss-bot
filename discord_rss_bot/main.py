@@ -213,12 +213,11 @@ def make_context_index(request) -> dict:
 
 
 @app.post("/remove", response_class=HTMLResponse)
-async def remove_feed(request: Request, feed_url: str = Form()) -> RedirectResponse:
+async def remove_feed(feed_url: str = Form()) -> RedirectResponse:
     """
     Get a feed by URL.
 
     Args:
-        request: The request.
         feed_url: The feed to add.
 
     Returns:
