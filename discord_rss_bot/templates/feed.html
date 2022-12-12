@@ -7,7 +7,7 @@
         <h2>
             <a class="text-muted text-decoration-none" href="{{ feed.link }}">
                 {{ feed.title }}
-                {% if feed.updates_enabled %}
+                {% if not feed.updates_enabled %}
                     - <span class="text-danger">disabled</span>
                 {% endif %}
             </a>
