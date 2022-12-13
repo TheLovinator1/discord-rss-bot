@@ -5,7 +5,7 @@ description = "RSS bot for Discord"
 authors = ["Joakim Hellsén <tlovinator@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.11"
 reader = "^3.2"
 discord-webhook = "^1.0.0"
 platformdirs = "^2.6.0"
