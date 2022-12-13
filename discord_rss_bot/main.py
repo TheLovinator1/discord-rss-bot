@@ -49,11 +49,13 @@ from tomlkit.toml_document import TOMLDocument
 
 from discord_rss_bot.feeds import send_to_discord
 from discord_rss_bot.search import create_html_for_search_results
-from discord_rss_bot.settings import read_settings_file, reader
+from discord_rss_bot.settings import get_reader, read_settings_file
 
 app: FastAPI = FastAPI()
-app.mount("/static", StaticFiles(directory="static"), name="static")
-templates: Jinja2Templates = Jinja2Templates(directory="templates")
+app.mount("/static", StaticFiles(directory="discord_rss_bot/static"), name="static")
+templates: Jinja2Templates = Jinja2Templates(directory="discord_rss_bot/templates")
+
+reader = get_reader()
 
 
 def encode_url(url_to_quote: str) -> str:

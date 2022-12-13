@@ -1,22 +1,28 @@
 import urllib.parse
 from typing import Iterable
 
-from reader import EntrySearchResult, Feed, HighlightedString
+from reader import EntrySearchResult, Feed, HighlightedString, Reader
 
-from discord_rss_bot.settings import reader
+from discord_rss_bot.settings import get_reader
 
 
-def create_html_for_search_results(search_results: Iterable[EntrySearchResult]) -> str:
+def create_html_for_search_results(search_results: Iterable[EntrySearchResult], reader: Reader = None) -> str:
     """Create HTML for the search results.
 
     Args:
         search_results: The search results.
+        reader: The reader. If None, we will get the reader from the settings.
 
     Returns:
         str: The HTML.
     """
     # TODO: There is a .content that also contains text, we should use that if .summary is not available.
     # TODO: We should also add <span> tags to the title.
+
+    # Get the default reader if we didn't get a custom one.
+    if reader is None:
+        reader = get_reader()
+
     html: str = ""
     for result in search_results:
         if ".summary" in result.content:
