@@ -51,31 +51,52 @@ def create_settings_file(settings_file_location) -> None:
         f.write(doc.as_string())
 
 
-def get_db_location(custom_name: str = "db.sqlite") -> str:
+def get_db_location(custom_location: str = "") -> str:
     """Where we store the database file.
 
     Args:
-        custom_name: The name of the database file, defaults to db.sqlite.
+        custom_location: Where the database file should be stored. This should be with the file name.
 
     Returns:
         The database location.
     """
-    return os.path.join(data_dir, custom_name)
+    # Use the custom location if it is provided.
+    if custom_location:
+        return custom_location
+    else:
+        return os.path.join(data_dir, "db.sqlite")
 
 
-def read_settings_file(custom_name: str = "settings.toml") -> TOMLDocument:
+def read_settings_file(custom_location: str = "") -> TOMLDocument:
     """Read the settings file and return the settings as a dict.
 
     Args:
-        custom_name: The name of the settings file, defaults to settings.toml.
+        custom_location: The name of the settings file, defaults to settings.toml.
 
     Returns:
         dict: The settings file as a dict.
     """
-    settings_file: str = os.path.join(data_dir, custom_name)
-    with open(settings_file, encoding="utf-8") as f:
+    # Use the custom location if it is provided.
+    if custom_location:
+        settings_location = custom_location
+    else:
+        settings_location = os.path.join(data_dir, "settings.toml")
+
+    # Create the settings file if it doesn't exist.
+    if not os.path.exists(settings_location):
+        create_settings_file(settings_location)
+
+    # Read the settings file and return it as a dict.
+    with open(settings_location, encoding="utf-8") as f:
         return parse(f.read())
 
 
-db_location: str = get_db_location()
-reader: Reader = make_reader(db_location)
+def get_reader(custom_location: str = "") -> Reader:
+    """Get the reader.
+
+    Args:
+        custom_location: The location of the database file.
+
+    """
+    db_location: str = get_db_location(custom_location)
+    return make_reader(url=db_location)
