@@ -47,7 +47,7 @@ def create_settings_file(settings_file_location) -> None:
     doc.add("database", database)
 
     # Write the settings file
-    with open(settings_file_location, "w") as f:
+    with open(settings_file_location, "w", encoding="utf-8") as f:
         f.write(doc.as_string())
 
 
@@ -61,10 +61,7 @@ def get_db_location(custom_location: str = "") -> str:
         The database location.
     """
     # Use the custom location if it is provided.
-    if custom_location:
-        return custom_location
-    else:
-        return os.path.join(data_dir, "db.sqlite")
+    return custom_location or os.path.join(data_dir, "db.sqlite")
 
 
 def read_settings_file(custom_location: str = "") -> TOMLDocument:
@@ -77,10 +74,7 @@ def read_settings_file(custom_location: str = "") -> TOMLDocument:
         dict: The settings file as a dict.
     """
     # Use the custom location if it is provided.
-    if custom_location:
-        settings_location = custom_location
-    else:
-        settings_location = os.path.join(data_dir, "settings.toml")
+    settings_location: str = custom_location or os.path.join(data_dir, "settings.toml")
 
     # Create the settings file if it doesn't exist.
     if not os.path.exists(settings_location):

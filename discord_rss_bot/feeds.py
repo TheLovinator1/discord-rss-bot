@@ -30,7 +30,7 @@ from requests import Response
 from discord_rss_bot.settings import get_reader
 
 
-def send_to_discord(reader: Reader = None, feed=None, do_once=False) -> None:
+def send_to_discord(custom_reader: Reader | None = None, feed=None, do_once=False) -> None:
     """
     Send entries to Discord.
 
@@ -45,8 +45,7 @@ def send_to_discord(reader: Reader = None, feed=None, do_once=False) -> None:
         Response: The response from the webhook.
     """
     # Get the default reader if we didn't get a custom one.
-    if reader is None:
-        reader = get_reader()
+    reader: Reader = get_reader() if custom_reader is None else custom_reader
 
     # If we should get all entries, or just the entries from a specific feed.
     if feed is None:

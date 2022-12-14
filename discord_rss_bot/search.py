@@ -6,7 +6,9 @@ from reader import EntrySearchResult, Feed, HighlightedString, Reader
 from discord_rss_bot.settings import get_reader
 
 
-def create_html_for_search_results(search_results: Iterable[EntrySearchResult], reader: Reader = None) -> str:
+def create_html_for_search_results(
+    search_results: Iterable[EntrySearchResult], custom_reader: Reader | None = None
+) -> str:
     """Create HTML for the search results.
 
     Args:
@@ -20,8 +22,7 @@ def create_html_for_search_results(search_results: Iterable[EntrySearchResult], 
     # TODO: We should also add <span> tags to the title.
 
     # Get the default reader if we didn't get a custom one.
-    if reader is None:
-        reader = get_reader()
+    reader: Reader = get_reader() if custom_reader is None else custom_reader
 
     html: str = ""
     for result in search_results:

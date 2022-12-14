@@ -6,13 +6,19 @@ from platformdirs import user_data_dir
 from reader import Reader
 from tomlkit import TOMLDocument
 
-from discord_rss_bot.settings import create_settings_file, data_dir, get_db_location, get_reader, read_settings_file
+from discord_rss_bot.settings import (
+    create_settings_file,
+    data_dir,
+    get_db_location,
+    get_reader,
+    read_settings_file,
+)
 
 
-def test_read_settings_file():
+def test_read_settings_file() -> None:
     """Test reading the settings file."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        custom_loc = os.path.join(temp_dir, "test_settings.toml")
+        custom_loc: str = os.path.join(temp_dir, "test_settings.toml")
 
         # File should not exist yet should this should fail.
         assert not os.path.exists(custom_loc)
@@ -31,10 +37,10 @@ def test_read_settings_file():
         assert settings["database"] == {}
 
 
-def test_get_db_location():
+def test_get_db_location() -> None:
     """Test getting the database location."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        custom_loc = os.path.join(temp_dir, "test_db.sqlite")
+        custom_loc: str = os.path.join(temp_dir, "test_db.sqlite")
 
         # File should not exist yet.
         assert not os.path.exists(custom_loc)
@@ -43,13 +49,13 @@ def test_get_db_location():
         assert get_db_location(custom_location=custom_loc) == os.path.join(temp_dir, "test_db.sqlite")
 
         # Test with the default location
-        loc = user_data_dir(appname="discord_rss_bot", appauthor="TheLovinator", roaming=True)
+        loc: str = user_data_dir(appname="discord_rss_bot", appauthor="TheLovinator", roaming=True)
         assert get_db_location() == os.path.join(loc, "db.sqlite")
 
 
-def test_reader():
+def test_reader() -> None:
     """Test the reader."""
-    reader = get_reader()
+    reader: Reader = get_reader()
     assert isinstance(reader, Reader)
 
     # Test the reader with a custom location.
@@ -57,15 +63,15 @@ def test_reader():
         # Create the temp directory
         os.makedirs(temp_dir, exist_ok=True)
 
-        custom_loc = pathlib.Path(temp_dir, "custom_loc_db.sqlite")
-        custom_reader = get_reader(custom_location=str(custom_loc))
+        custom_loc: pathlib.Path = pathlib.Path(temp_dir, "custom_loc_db.sqlite")
+        custom_reader: Reader = get_reader(custom_location=str(custom_loc))
         assert isinstance(custom_reader, Reader)
 
         # Close the reader, so we can delete the directory.
         custom_reader.close()
 
 
-def test_create_settings_file():
+def test_create_settings_file() -> None:
     """Test creating the settings file."""
     with tempfile.TemporaryDirectory() as temp_dir:
         settings_file_location: str = os.path.join(temp_dir, "settings.toml")
@@ -78,6 +84,6 @@ def test_create_settings_file():
         assert os.path.exists(settings_file_location)
 
 
-def test_data_dir():
+def test_data_dir() -> None:
     """Test the data directory."""
     assert os.path.exists(data_dir)

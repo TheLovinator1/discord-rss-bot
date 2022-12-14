@@ -44,6 +44,7 @@ from reader import (
     EntrySearchResult,
     Feed,
     FeedCounts,
+    Reader,
 )
 from starlette.templating import _TemplateResponse
 from tomlkit.toml_document import TOMLDocument
@@ -56,7 +57,7 @@ app: FastAPI = FastAPI()
 app.mount("/static", StaticFiles(directory="discord_rss_bot/static"), name="static")
 templates: Jinja2Templates = Jinja2Templates(directory="discord_rss_bot/templates")
 
-reader = get_reader()
+reader: Reader = get_reader()
 
 
 def encode_url(url_to_quote: str) -> str:
@@ -99,8 +100,8 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) ->
         reader.set_entry_read(entry, True)
 
     settings: TOMLDocument = read_settings_file()
-    webhook_url: str = str(settings["webhooks"][webhook_dropdown])
-    reader.set_tag(clean_feed_url, "webhook", webhook_url)
+    webhook_url: str = str(settings["webhooks"][webhook_dropdown])  # type: ignore
+    reader.set_tag(clean_feed_url, "webhook", webhook_url)  # type: ignore
     reader.get_tag(clean_feed_url, "webhook")
 
     reader.update_search()
@@ -112,8 +113,9 @@ def create_list_of_webhooks() -> list[dict[str, str]]:
     """List with webhooks."""
     settings: TOMLDocument = read_settings_file()
     list_of_webhooks: list[dict[str, str]] = []
-    for hook in settings["webhooks"]:
-        list_of_webhooks.append({"name": hook, "url": settings["webhooks"][hook]})
+
+    for hook in settings["webhooks"]:  # type: ignore
+        list_of_webhooks.append({"name": hook, "url": settings["webhooks"][hook]})  # type: ignore
 
     return list_of_webhooks
 
@@ -230,7 +232,7 @@ async def remove_feed(feed_url: str = Form()) -> RedirectResponse:
     reader.delete_feed(feed_url)
     reader.update_search()
 
-    return RedirectResponse(url=f"/", status_code=303)
+    return RedirectResponse(url="/", status_code=303)
 
 
 @app.get("/search", response_class=HTMLResponse)
