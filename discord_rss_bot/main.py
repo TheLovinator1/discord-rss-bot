@@ -28,6 +28,7 @@ Functions:
 """
 import sys
 import urllib.parse
+from datetime import datetime
 from typing import Any, Iterable
 
 import uvicorn
@@ -272,7 +273,7 @@ def startup() -> None:
     scheduler: BackgroundScheduler = BackgroundScheduler()
 
     # Update all feeds every 15 minutes.
-    scheduler.add_job(send_to_discord, "interval", minutes=15)
+    scheduler.add_job(send_to_discord, "interval", minutes=15, next_run_time=datetime.now())
 
     scheduler.start()
 
