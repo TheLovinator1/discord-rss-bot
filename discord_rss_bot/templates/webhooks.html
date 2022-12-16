@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %} | Webhooks{% endblock %}
+{% block content %}
+    {# Home / Add #}
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/">Home</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Webhooks</li>
+        </ol>
+    </nav>
+
+    <div class="p-2 border border-dark">
+        <form action="{{ url_for("add_webhook") }}" method="post">
+            {# Webhook name #}
+            <div class="row mb-6">
+                <label for="webhook_name" class="col-sm-2 col-form-label">Webhook Name</label>
+                <div class="col-sm-10">
+                    <input name="webhook_name" type="text" class="form-control" id="webhook_name"
+                           placeholder="TheLovinator #RSS">
+                </div>
+            </div>
+
+            {# Webhook URL #}
+            <div class="row mb-6">
+                <label for="webhook_url" class="col-sm-2 col-form-label">Webhook URL</label>
+                <div class="col-sm-10">
+                    <input name="webhook_url" type="text" class="form-control" id="webhook_url"
+                           placeholder="https://discord.com/api/webhooks/1011224189471124054/CQMa4hJN4gz...">
+                </div>
+            </div>
+
+            {# Submit button #}
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary">Add webhook</button>
+            </div>
+
+        </form>
+    </div>
+    <div class="p-2 border border-dark">
+        {% if webhooks %}
+            {% for webhook in webhooks %}
+                <div class="row">
+                    <div class="col-10">
+                        <a href="{{ webhook.url }}">{{ webhook.name }}</a>
+                    </div>
+                    <div class="col-2">
+                        <form action="" method="post">
+                            <button type="submit" class="btn btn-danger">Delete</button>
+                        </form>
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>No webhooks found.</p>
+        {% endif %}
+    </div>
+
+{% endblock %}

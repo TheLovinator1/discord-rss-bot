@@ -37,7 +37,7 @@ def send_to_discord(custom_reader: Reader | None = None, feed=None, do_once=Fals
     If response was not ok, we will log the error and mark the entry as unread, so it will be sent again next time.
 
     Args:
-        reader: If we should use a custom reader instead of the default one.
+        custom_reader: If we should use a custom reader instead of the default one.
         feed: The entry to send.
         do_once: If we should only send one entry. This is used in the test.
 

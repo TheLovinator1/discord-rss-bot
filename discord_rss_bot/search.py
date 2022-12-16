@@ -13,7 +13,7 @@ def create_html_for_search_results(
 
     Args:
         search_results: The search results.
-        reader: The reader. If None, we will get the reader from the settings.
+        custom_reader: The reader. If None, we will get the reader from the settings.
 
     Returns:
         str: The HTML.
