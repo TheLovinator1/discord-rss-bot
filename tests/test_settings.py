@@ -4,37 +4,12 @@ import tempfile
 
 from platformdirs import user_data_dir
 from reader import Reader
-from tomlkit import TOMLDocument
 
 from discord_rss_bot.settings import (
-    create_settings_file,
     data_dir,
     get_db_location,
     get_reader,
-    read_settings_file,
 )
-
-
-def test_read_settings_file() -> None:
-    """Test reading the settings file."""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        custom_loc: str = os.path.join(temp_dir, "test_settings.toml")
-
-        # File should not exist yet should this should fail.
-        assert not os.path.exists(custom_loc)
-
-        # Create the file.
-        settings: TOMLDocument = read_settings_file(custom_location=custom_loc)
-
-        # Check if the settings file is a toml document.
-        assert isinstance(settings, TOMLDocument)
-
-        # Check if file exists
-        assert os.path.exists(os.path.join(temp_dir, "test_settings.toml"))
-
-        # Check if the file has the correct contents
-        assert settings["webhooks"] == {}
-        assert settings["database"] == {}
 
 
 def test_get_db_location() -> None:
@@ -69,19 +44,6 @@ def test_reader() -> None:
 
         # Close the reader, so we can delete the directory.
         custom_reader.close()
-
-
-def test_create_settings_file() -> None:
-    """Test creating the settings file."""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        settings_file_location: str = os.path.join(temp_dir, "settings.toml")
-
-        # File should not exist yet.
-        assert not os.path.exists(settings_file_location)
-
-        # Create the file and check if it exists.
-        create_settings_file(settings_file_location)
-        assert os.path.exists(settings_file_location)
 
 
 def test_data_dir() -> None:

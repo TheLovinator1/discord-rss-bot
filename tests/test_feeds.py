@@ -32,7 +32,7 @@ def test_send_to_discord() -> None:
         webhook_url: str | None = os.environ.get("TEST_WEBHOOK_URL")
         assert webhook_url is not None
 
-        # Add tag to the feed and check if it's there.
+        # Add tag to the feed and check if it is there.
         reader.set_tag(feed, "webhook", webhook_url)  # type: ignore
         assert reader.get_tag(feed, "webhook") == webhook_url
 
