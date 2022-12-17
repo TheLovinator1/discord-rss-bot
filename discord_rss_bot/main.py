@@ -27,6 +27,7 @@ Functions:
         Runs on startup.
 """
 import urllib.parse
+from datetime import datetime
 from typing import Any, Iterable
 
 import uvicorn
@@ -48,6 +49,7 @@ from reader import (
 from starlette.responses import RedirectResponse
 from starlette.templating import _TemplateResponse
 
+from discord_rss_bot.feeds import send_to_discord
 from discord_rss_bot.search import create_html_for_search_results
 from discord_rss_bot.settings import get_reader
 
@@ -368,7 +370,7 @@ def startup() -> None:
     scheduler: BackgroundScheduler = BackgroundScheduler()
 
     # Update all feeds every 15 minutes.
-    # scheduler.add_job(send_to_discord, "interval", minutes=15, next_run_time=datetime.now())
+    scheduler.add_job(send_to_discord, "interval", minutes=15, next_run_time=datetime.now())
 
     scheduler.start()
 
