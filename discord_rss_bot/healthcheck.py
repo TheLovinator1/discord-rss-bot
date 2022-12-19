@@ -17,7 +17,7 @@ def healthcheck():
         if r.ok:
             sys.exit(0)
     except requests.exceptions.RequestException as e:
-        print(f"ERROR: {e}")
+        print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(1)
 
 
