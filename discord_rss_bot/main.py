@@ -250,12 +250,7 @@ async def get_webhooks(request: Request) -> _TemplateResponse:
     Returns:
         HTMLResponse: The HTML response.
     """
-    try:
-        webhooks = reader.get_tag((), "webhooks")
-    except TagNotFoundError:
-        webhooks = []
-    context = {"request": request, "webhooks": webhooks}
-    return templates.TemplateResponse("webhooks.html", context)
+    return templates.TemplateResponse("webhooks.html", {"request": request})
 
 
 @app.get("/", response_class=HTMLResponse)

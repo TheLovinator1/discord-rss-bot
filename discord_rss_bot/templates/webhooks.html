@@ -28,23 +28,5 @@
 
         </form>
     </div>
-    <div class="p-2 border border-dark">
-        {% if webhooks %}
-            {% for webhook in webhooks %}
-                <div class="row">
-                    <div class="col-10">
-                        <a href="{{ webhook.url }}">{{ webhook.name }}</a>
-                    </div>
-                    <div class="col-2">
-                        <form action="" method="post">
-                            <button type="submit" class="btn btn-danger">Delete</button>
-                        </form>
-                    </div>
-                </div>
-            {% endfor %}
-        {% else %}
-            <p>No webhooks found.</p>
-        {% endif %}
-    </div>
 
 {% endblock %}
