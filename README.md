@@ -4,7 +4,7 @@ Subscribe to RSS feeds and get updates to a Discord webhook. Built with [reader]
 
 ## Installation
 
-You have two choices, using [Docker](https://github.com/TheLovinator1/discord-rss-bot)
+You have two choices, using [Docker](#docker)
 or [install directly on your computer](#Install-directly-on-your-computer).
 
 ### Docker
