@@ -10,16 +10,16 @@
                 </li>
                 <li class="nav-item nav-link d-none d-md-block">|</li>
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for("get_add") }}">Add new feed</a>
+                    <a class="nav-link" href="/add">Add new feed</a>
                 </li>
                 <li class="nav-item nav-link d-none d-md-block">|</li>
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for("get_webhooks") }}">Add new webhook</a>
+                    <a class="nav-link" href="/webhooks">Add new webhook</a>
                 </li>
             </ul>
 
             {# Search #}
-            <form action="{{ url_for("search") }}" method="get" class="d-flex col-sm-7 ms-auto">
+            <form action="/search" method="get" class="d-flex col-sm-7 ms-auto">
                 <input name="query" class="form-control me-1" type="search" placeholder="Search">
                 <button class="btn btn-outline-warning" type="submit">Search</button>
             </form>
