@@ -47,7 +47,7 @@ from reader import (
     TagNotFoundError,
 )
 from starlette.responses import RedirectResponse
-from starlette.templating import _TemplateResponse
+from starlette.templating import _TemplateResponse  # noqa
 
 from discord_rss_bot.feeds import send_to_discord
 from discord_rss_bot.search import create_html_for_search_results
@@ -119,7 +119,6 @@ async def delete_webhook(webhook_url: str = Form()) -> RedirectResponse | dict[s
     Delete a webhook from the database.
 
     Args:
-        webhook_name: The name of the webhook.
         webhook_url: The url of the webhook.
 
     Returns:
@@ -168,13 +167,14 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) ->
     # Mark every entry as read, so we don't send all the old entries to Discord.
     entries: Iterable[Entry] = reader.get_entries(feed=clean_feed_url, read=False)
     for entry in entries:
-        reader.set_entry_read(entry, True)
+        reader.set_entry_read(entry, True)  # type: ignore
 
     try:
         hooks = reader.get_tag((), "webhooks")
     except TagNotFoundError:
         hooks = []
 
+    webhook_url = None
     if len(hooks) > 0:
         # Get the webhook URL from the dropdown.
         for hook in hooks:
@@ -182,7 +182,12 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) ->
                 webhook_url = hook["url"]
                 break
             else:
+                # TODO: Show this error on the page.
                 return {"error": "Webhook not found."}
+
+    if webhook_url is None:
+        # TODO: Show this error on the page.
+        return {"error": "No webhook URL found."}
 
     reader.set_tag(clean_feed_url, "webhook", webhook_url)  # type: ignore
     reader.get_tag(clean_feed_url, "webhook")

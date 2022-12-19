@@ -34,7 +34,7 @@ def test_send_to_discord() -> None:
 
         # Add tag to the feed and check if it is there.
         reader.set_tag(feed, "webhook", webhook_url)  # type: ignore
-        assert reader.get_tag(feed, "webhook") == webhook_url
+        assert reader.get_tag(feed, "webhook") == webhook_url  # type: ignore
 
         # Send the feed to Discord.
         send_to_discord(custom_reader=reader, feed=feed, do_once=True)

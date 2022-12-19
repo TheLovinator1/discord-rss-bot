@@ -35,7 +35,7 @@ def test_create_html_for_search_results() -> None:
         reader.update_search()
 
         # Get the HTML for the search results.
-        search_results: Iterable[EntrySearchResult] = reader.search_entries("a", feed=feed)
+        search_results: Iterable[EntrySearchResult] = reader.search_entries("a", feed=feed)  # type: ignore
 
         # Create the HTML and check if it is not empty.
         search_html: str = create_html_for_search_results(search_results, reader)
