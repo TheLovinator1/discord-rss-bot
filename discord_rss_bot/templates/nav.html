@@ -10,18 +10,18 @@
                 </li>
                 <li class="nav-item nav-link d-none d-md-block">|</li>
                 <li class="nav-item">
-                    <a class="nav-link" href="/add">Add new feed</a>
+                    <a class="nav-link" href="/add">Add feed</a>
                 </li>
                 <li class="nav-item nav-link d-none d-md-block">|</li>
                 <li class="nav-item">
-                    <a class="nav-link" href="/webhooks">Add new webhook</a>
+                    <a class="nav-link" href="/webhooks">Add webhook</a>
                 </li>
             </ul>
 
             {# Search #}
-            <form action="/search" method="get" class="d-flex col-sm-7 ms-auto">
-                <input name="query" class="form-control me-1" type="search" placeholder="Search">
-                <button class="btn btn-outline-warning" type="submit">Search</button>
+            <form action="/search" method="get" class="ms-auto w-50 input-group">
+                <input name="query" class="form-control bg-dark border-dark text-muted" type="search"
+                       placeholder="Search">
             </form>
 
             {# Donate button #}
