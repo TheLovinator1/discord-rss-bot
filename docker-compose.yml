@@ -1,0 +1,15 @@
+services:
+  discord-rss-bot:
+    image: ghcr.io/thelovinator1/discord-rss-bot:latest
+    container_name: discord-rss-bot
+    expose:
+      - "5000:5000"
+    volumes:
+      - /Docker/Bots/discord-rss-bot:/home/botuser/.local/share/discord_rss_bot/
+    healthcheck:
+      test: [ "CMD", "poetry", "run", "python", "discord_rss_bot/healthcheck.py" ]
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
