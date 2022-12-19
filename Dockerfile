@@ -35,4 +35,4 @@ ADD --chown=botuser:botuser discord_rss_bot /home/botuser/discord-rss-bot/discor
 EXPOSE 5000
 VOLUME /home/botuser/.local/share/discord_rss_bot/
 
-CMD ["poetry", "run", "uvicorn", "discord_rss_bot.main:app", "--host", "0.0.0.0", "--port", "5000"]
+CMD ["poetry", "run", "uvicorn", "discord_rss_bot.main:app", "--host", "0.0.0.0", "--port", "5000", "--proxy-headers"]
