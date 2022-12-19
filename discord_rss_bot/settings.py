@@ -45,3 +45,22 @@ def get_reader(custom_location: str = "") -> Reader:
     """
     db_location: str = get_db_location(custom_location)
     return make_reader(url=db_location)
+
+
+def get_webhooks(reader: Reader) -> list[dict[str, str]]:
+    """
+    Get current webhooks from the database if they exist otherwise use an empty list.
+
+    Args:
+        reader: The reader to use.
+
+    Returns:
+        list[dict[str, str]]: The webhooks.
+    """
+    webhooks: list[dict[str, str]] = []
+    if reader.get_tags(()) is not None:
+        for tag in reader.get_tag_keys(()):
+            if tag == "webhooks":
+                webhooks = reader.get_tag((), "webhooks")
+            break
+    return webhooks
