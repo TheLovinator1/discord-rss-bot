@@ -375,15 +375,5 @@ def startup() -> None:
     scheduler.start()
 
 
-@app.on_event("shutdown")
-def shutdown() -> None:
-    """This is called when the server shuts down.
-
-    It stops the scheduler."""
-    scheduler: BackgroundScheduler = BackgroundScheduler()
-    scheduler.shutdown()
-    reader.close()
-
-
 if __name__ == "__main__":
     uvicorn.run("main:app", log_level="debug", reload=True)
