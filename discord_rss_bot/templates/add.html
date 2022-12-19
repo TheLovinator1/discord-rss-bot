@@ -3,7 +3,7 @@
 {% block content %}
     <div class="p-2 border border-dark">
         <form action="/add" method="post">
-            {# Feed URL #}
+            <!-- Feed URL -->
             <div class="row pb-2">
                 <label for="feed_url" class="col-sm-2 col-form-label">Feed URL</label>
                 <div class="col-sm-10">
@@ -12,7 +12,7 @@
                 </div>
             </div>
 
-            {# Webhook dropdown #}
+            <!-- Webhook dropdown -->
             <div class="row pb-2">
                 <label for="webhook_dropdown"
                        class="col-sm-2 col-form-label">Which webhook should we send entries to?</label>
@@ -27,9 +27,9 @@
                 </div>
             </div>
 
-            {# Submit button #}
+            <!-- Submit button -->
             <div class="d-md-flex">
-                <a type="submit" class="btn btn-dark btn-sm">Add feed</a>
+                <button type="submit" class="btn btn-dark btn-sm">Add feed</button>
             </div>
         </form>
     </div>
