@@ -11,9 +11,9 @@ def healthcheck():
     try:
         r = requests.get("http://localhost:5000")
         if r.ok:
-            sys.exit(1)
+            sys.exit(0)
     except requests.exceptions.RequestException:
-        sys.exit(0)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
