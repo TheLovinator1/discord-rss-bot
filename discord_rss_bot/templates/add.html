@@ -1,14 +1,6 @@
 {% extends "base.html" %}
 {% block title %} | Add new feed{% endblock %}
 {% block content %}
-    {# Home / Add #}
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="/">Home</a></li>
-            <li class="breadcrumb-item active" aria-current="page">Add</li>
-        </ol>
-    </nav>
-
     <div class="p-2 border border-dark">
         <form action="/add" method="post">
             {# Feed URL #}

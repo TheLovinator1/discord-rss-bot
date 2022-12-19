@@ -1,14 +1,6 @@
 {% extends "base.html" %}
 {% block title %} | Webhooks{% endblock %}
 {% block content %}
-    {# Home / Add #}
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="/">Home</a></li>
-            <li class="breadcrumb-item active" aria-current="page">Webhooks</li>
-        </ol>
-    </nav>
-
     <div class="p-2 border border-dark">
         <form action="/add_webhook" method="post">
             {# Webhook name #}
