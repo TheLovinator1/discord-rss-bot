@@ -286,8 +286,13 @@ def make_context_index(request) -> dict:
     feed_list = []
     feeds: Iterable[Feed] = reader.get_feeds()
     for feed in feeds:
-        hook = reader.get_tag(feed.url, "webhook")
-        feed_list.append({"feed": feed, "webhook": hook})
+        try:
+            hook = reader.get_tag(feed.url, "webhook")
+            feed_list.append({"feed": feed, "webhook": hook})
+        except TagNotFoundError:
+            # TODO: Show this error on the page.
+            # Don't crash if a feed doesn't have a webhook for some reason.
+            continue
 
     # Sort feed_list by when the feed was added.
     feed_list.sort(key=lambda x: x["feed"].added)
