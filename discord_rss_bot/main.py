@@ -193,6 +193,26 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) ->
     return RedirectResponse(url=f"/feed/?feed_url={feed_url}", status_code=303)
 
 
+@app.post("/pause")
+async def pause_feed(feed_url: str = Form()) -> dict[str, str] | RedirectResponse:
+    clean_url: str = urllib.parse.quote(feed_url)
+
+    # Disable/pause the feed.
+    reader.disable_feed_updates(feed_url)
+
+    return RedirectResponse(url=f"/feed/?feed_url={clean_url}", status_code=303)
+
+
+@app.post("/unpause")
+async def unpause_feed(feed_url: str = Form()) -> dict[str, str] | RedirectResponse:
+    clean_url: str = urllib.parse.quote(feed_url)
+
+    # Enable/unpause the feed.
+    reader.enable_feed_updates(feed_url)
+
+    return RedirectResponse(url=f"/feed/?feed_url={clean_url}", status_code=303)
+
+
 @app.get("/add", response_class=HTMLResponse)
 def get_add(request: Request) -> _TemplateResponse:
     """

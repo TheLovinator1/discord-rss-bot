@@ -39,6 +39,15 @@
             </form>
         </div>
 
+        {% if not feed.updates_enabled %}
+            <form action="/unpause" method="post">
+                <button class="btn btn-dark btn-sm" name="feed_url" value="{{ feed.url }}">Unpause</button>
+            </form>
+        {% else %}
+            <form action="/pause" method="post">
+                <button class="btn btn-danger btn-sm" name="feed_url" value="{{ feed.url }}">Pause</button>
+            </form>
+        {% endif %}
 
     </div>
     {% for entry in entries %}
