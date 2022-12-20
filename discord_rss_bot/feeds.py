@@ -27,10 +27,12 @@ from discord_webhook import DiscordWebhook
 from reader import Entry, Reader, TagNotFoundError
 from requests import Response
 
+from discord_rss_bot.blacklist import if_in_blacklist
 from discord_rss_bot.settings import get_reader
+from discord_rss_bot.whitelist import has_white_tags, if_in_whitelist
 
 
-def send_to_discord(custom_reader: Reader | None = None, feed=None, do_once=False) -> None:
+def send_to_discord(custom_reader: Reader | None = None, do_once=False) -> None:
     """
     Send entries to Discord.
 
@@ -38,7 +40,6 @@ def send_to_discord(custom_reader: Reader | None = None, feed=None, do_once=Fals
 
     Args:
         custom_reader: If we should use a custom reader instead of the default one.
-        feed: The entry to send.
         do_once: If we should only send one entry. This is used in the test.
 
     Returns:
@@ -47,13 +48,11 @@ def send_to_discord(custom_reader: Reader | None = None, feed=None, do_once=Fals
     # Get the default reader if we didn't get a custom one.
     reader: Reader = get_reader() if custom_reader is None else custom_reader
 
-    # If we should get all entries, or just the entries from a specific feed.
-    if feed is None:
-        reader.update_feeds()
-        entries: Iterable[Entry] = reader.get_entries(read=False)
-    else:
-        reader.update_feed(feed)
-        entries: Iterable[Entry] = reader.get_entries(feed=feed, read=False)
+    # Update the feeds.
+    reader.update_feeds()
+
+    # Get all the entries, we will loop through them and check if they should be sent.
+    entries: Iterable[Entry] = reader.get_entries(read=False)
 
     for entry in entries:
         # Set the webhook to read, so we don't send it again.
@@ -69,86 +68,39 @@ def send_to_discord(custom_reader: Reader | None = None, feed=None, do_once=Fals
         webhook_message: str = f":robot: :mega: {entry.title}\n{entry.link}"
         webhook: DiscordWebhook = DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)
 
-        try:
-            whitelist_title = reader.get_tag(feed, "whitelist_title")
-        except TagNotFoundError:
-            whitelist_title = ""
-        except ValueError:
-            whitelist_title = ""
+        blacklisted = if_in_blacklist(reader, entry)
+        whitelisted = if_in_whitelist(reader, entry)
 
-        try:
-            whitelist_summary = reader.get_tag(feed, "whitelist_summary")
-        except TagNotFoundError:
-            whitelist_summary = ""
-        except ValueError:
-            whitelist_summary = ""
+        if_whitelist_tags = has_white_tags(reader, feed)
 
-        try:
-            whitelist_content = reader.get_tag(feed, "whitelist_content")
-        except TagNotFoundError:
-            whitelist_content = ""
-        except ValueError:
-            whitelist_content = ""
-
-        try:
-            blacklist_title = reader.get_tag(feed, "blacklist_title")
-        except TagNotFoundError:
-            blacklist_title = ""
-        except ValueError:
-            blacklist_title = ""
-
-        try:
-            blacklist_summary = reader.get_tag(feed, "blacklist_summary")
-        except TagNotFoundError:
-            blacklist_summary = ""
-        except ValueError:
-            blacklist_summary = ""
-
-        try:
-            blacklist_content = reader.get_tag(feed, "blacklist_content")
-        except TagNotFoundError:
-            blacklist_content = ""
-        except ValueError:
-            blacklist_content = ""
-
-        # Check if the entry should be sent. If on the blacklist, mark as read and continue.
-        if whitelist_title:
-            if whitelist_title.lower() in entry.title.lower():
-                print(f"Whitelisted because of title: {entry.title}")
+        # Check if the entry has a whitelist
+        if if_whitelist_tags:
+            # Only send the entry if it is whitelisted, otherwise, mark it as read and continue.
+            if whitelisted:
                 response: Response = webhook.execute()
-
-                if not response.ok:
-                    print(f"Error: {response.status_code} {response.reason}")
-                    reader.set_entry_read(entry, False)  # type: ignore
-        if whitelist_summary:
-            if whitelist_summary.lower() in entry.summary.lower():
-                print(f"Whitelisted because of summary: {entry.title}")
-                response: Response = webhook.execute()
-
-                if not response.ok:
-                    print(f"Error: {response.status_code} {response.reason}")
-                    reader.set_entry_read(entry, False)  # type: ignore
-        # if whitelist_content.lower() in entry.content.lower():
-
-        if blacklist_title:
-            if blacklist_title.lower() in entry.title.lower():
-                print(f"Blacklisted because of title: {entry.title}")
                 reader.set_entry_read(entry, True)  # type: ignore
-        if blacklist_summary:
-            if blacklist_summary.lower() in entry.summary.lower():
-                print(f"Blacklisted because of summary: {entry.title}")
+                if not response.ok:
+                    print(f"Error sending to Discord: {response.text}")
+                    reader.set_entry_read(entry, False)  # type: ignore
+            else:
                 reader.set_entry_read(entry, True)  # type: ignore
-        # if blacklist_content.lower() in entry.content.lower():
+                continue
 
-        else:
-            response: Response = webhook.execute()
+        # Check if the entry is blacklisted, if it is, mark it as read and continue.
+        if blacklisted:
+            print(f"Blacklisted entry: {entry.title}, not sending to Discord.")
+            reader.set_entry_read(entry, True)  # type: ignore
+            continue
 
-            if not response.ok:
-                print(f"Error: {response.status_code} {response.reason}")
-                reader.set_entry_read(entry, False)  # type: ignore
+        # It was not blacklisted, and not forced through whitelist, so we will send it to Discord.
+        response: Response = webhook.execute()
+        if not response.ok:
+            print(f"Error sending to Discord: {response.text}")
+            reader.set_entry_read(entry, False)  # type: ignore
 
         # If we only want to send one entry, we will break the loop. This is used when testing this function.
         if do_once:
             break
 
+    # Update the search index.
     reader.update_search()
