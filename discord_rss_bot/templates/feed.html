@@ -33,9 +33,8 @@
         {# Remove feed button. #}
         <div class="btn-group" role="group">
             <form action="/remove" method="post">
-                <button class="btn btn-danger" type="submit" name="feed_url" value="{{ feed.url }}"
-                        onclick="return confirm('Are you sure you want to delete this feed?')">
-                    Remove feed
+            <button class="btn btn-danger btn-sm" name="feed_url" value="{{ feed.url }}"
+                    onclick="return confirm('Are you sure you want to delete this feed?')">Remove
                 </button>
             </form>
         </div>

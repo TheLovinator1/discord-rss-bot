@@ -319,7 +319,6 @@ async def remove_feed(feed_url: str = Form()) -> RedirectResponse:
     Returns:
         HTMLResponse: The HTML response.
     """
-
     reader.delete_feed(feed_url)
     reader.update_search()
 
