@@ -2,42 +2,18 @@
 {% block title %} | {{ feed.title }}{% endblock %}
 {% block content %}
     <div class="p-2 mb-2 border border-dark">
-        {# The feed title.#}
-        <h2>
-            <a class="text-muted text-decoration-none" href="{{ feed.link }}">
-                {{ feed.title }}
-                {% if not feed.updates_enabled %}
-                    - <span class="text-danger">disabled</span>
-                {% endif %}
-            </a>
-        </h2>
+        <!-- The feed title. -->
+        <h2><a class="text-muted text-decoration-none" href="{{ feed.link }}">{{ feed.title }}</a></h2>
 
-        {# Feed subtitle, probably description. #}
-        {% if feed.subtitle %}
-            <small class="text-muted text-decoration-none">{{ feed.subtitle }}</small>
-            <br>
-        {% endif %}
+        {% if not feed.updates_enabled %}<span class="text-danger">Disabled</span>{% endif %}
 
-        {# When this feed was added.#}
-        {% if feed.added %}
-            Added: {{ feed.added.strftime('%Y-%m-%d, %T') }}
-            <br>
-        {% endif %}
+        {% if feed.last_exception %}Last exception: {{ feed.last_exception }}{% endif %}
 
-        {# If this feed has had an error. #}
-        {% if feed.last_exception %}
-            Last exception: {{ feed.last_exception }}
-            <br>
-        {% endif %}
-
-        {# Remove feed button. #}
-        <div class="btn-group" role="group">
-            <form action="/remove" method="post">
+        <form action="/remove" method="post">
             <button class="btn btn-danger btn-sm" name="feed_url" value="{{ feed.url }}"
                     onclick="return confirm('Are you sure you want to delete this feed?')">Remove
-                </button>
-            </form>
-        </div>
+            </button>
+        </form>
 
         {% if not feed.updates_enabled %}
             <form action="/unpause" method="post">
