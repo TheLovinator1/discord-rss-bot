@@ -24,6 +24,8 @@
                 <button class="btn btn-danger btn-sm" name="feed_url" value="{{ feed.url }}">Pause</button>
             </form>
         {% endif %}
+        <a class="text-muted" href="/whitelist?feed_url={{ feed.url|encode_url }}">Whitelist</a>
+        <a class="text-muted" href="/blacklist?feed_url={{ feed.url|encode_url }}">Blacklist</a>
 
     </div>
     {% for entry in entries %}

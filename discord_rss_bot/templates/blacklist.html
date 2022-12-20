@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %} | Blacklist{% endblock %}
+{% block content %}
+    <div class="p-2 border border-dark">
+        <form action="/blacklist" method="post">
+            <!-- Feed URL -->
+            <div class="row pb-2">
+
+                <div class="col-sm-12">
+                    <div class="form-text">Comma separated list of words to blacklist. If a word is found in the
+                        corresponding blacklists, the feed will not be sent. Whitelist always takes precedence over
+                        blacklist. Leave empty to disable. Words are case-insensitive.
+                    </div>
+                    <label for="blacklist_title" class="col-sm-6 col-form-label">Blacklist - Title</label>
+                    <input name="blacklist_title" type="text" class="form-control bg-dark border-dark text-muted"
+                           id="blacklist_title" placeholder="primogem, events, gameplay preview, special program">
+
+                    <label for="blacklist_summary" class="col-sm-6 col-form-label">Blacklist - Summary</label>
+                    <input name="blacklist_summary" type="text" class="form-control bg-dark border-dark text-muted"
+                           id="blacklist_summary" placeholder="primogem, events, gameplay preview, special program">
+
+                    <label for="blacklist_content" class="col-sm-6 col-form-label">Blacklist - Content</label>
+                    <input name="blacklist_content" type="text" class="form-control bg-dark border-dark text-muted"
+                           id="blacklist_content" placeholder="primogem, events, gameplay preview, special program">
+
+                </div>
+            </div>
+
+            <!-- Submit button -->
+            <div class="d-md-flex">
+                <button class="btn btn-dark btn-sm">Update blacklist</button>
+            </div>
+        </form>
+    </div>
+{% endblock %}

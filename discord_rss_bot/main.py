@@ -27,6 +27,8 @@ Functions:
         Runs on startup.
 """
 import urllib.parse
+from datetime import datetime
+from enum import Enum
 from typing import Any, Iterable
 
 import uvicorn
@@ -195,22 +197,88 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) ->
 
 @app.post("/pause")
 async def pause_feed(feed_url: str = Form()) -> dict[str, str] | RedirectResponse:
-    clean_url: str = urllib.parse.quote(feed_url)
-
     # Disable/pause the feed.
     reader.disable_feed_updates(feed_url)
+
+    # Clean URL is used to redirect to the feed page.
+    clean_url: str = urllib.parse.quote(feed_url)
 
     return RedirectResponse(url=f"/feed/?feed_url={clean_url}", status_code=303)
 
 
 @app.post("/unpause")
 async def unpause_feed(feed_url: str = Form()) -> dict[str, str] | RedirectResponse:
-    clean_url: str = urllib.parse.quote(feed_url)
-
     # Enable/unpause the feed.
     reader.enable_feed_updates(feed_url)
 
+    # Clean URL is used to redirect to the feed page.
+    clean_url: str = urllib.parse.quote(feed_url)
+
     return RedirectResponse(url=f"/feed/?feed_url={clean_url}", status_code=303)
+
+
+@app.post("/whitelist")
+async def set_whitelist(whitelist_title: str, whitelist_summary: str, whitelist_content: str, feed_url: str = Form()):
+    # Add the whitelist to the feed.
+
+    if whitelist_title:
+        reader.set_tag(feed_url, "whitelist_title", whitelist)  # type: ignore
+    if whitelist_summary:
+        reader.set_tag(feed_url, "whitelist_summary", whitelist)  # type: ignore
+    if whitelist_content:
+        reader.set_tag(feed_url, "whitelist_content", whitelist)  # type: ignore
+
+    # Clean URL is used to redirect to the feed page.
+    clean_url: str = urllib.parse.quote(feed_url)
+
+    return RedirectResponse(url=f"/feed/?feed_url={clean_url}", status_code=303)
+
+
+@app.get("/whitelist", response_class=HTMLResponse)
+async def get_whitelist(feed_url: str, request: Request) -> _TemplateResponse:
+    # Make feed_url a valid URL.
+    url: str = urllib.parse.unquote(feed_url)
+
+    feed: Feed = reader.get_feed(url)
+    try:
+        whitelist = reader.get_tag(url, "whitelist")
+    except TagNotFoundError:
+        whitelist = ""
+
+    context = {"request": request, "feed": feed, "whitelist": whitelist}
+    return templates.TemplateResponse("whitelist.html", context)
+
+
+@app.post("/blacklist")
+async def set_blacklist(blacklist_title: str, blacklist_summary: str, blacklist_content: str, feed_url: str = Form()):
+    # Add the blacklist to the feed.
+
+    if blacklist_title:
+        reader.set_tag(feed_url, "blacklist_title", blacklist)  # type: ignore
+    if blacklist_summary:
+        reader.set_tag(feed_url, "blacklist_summary", blacklist)  # type: ignore
+    if blacklist_content:
+        reader.set_tag(feed_url, "blacklist_content", blacklist)  # type: ignore
+
+    # Clean URL is used to redirect to the feed page.
+    clean_url: str = urllib.parse.quote(feed_url)
+
+    return RedirectResponse(url=f"/feed/?feed_url={clean_url}", status_code=303)
+
+
+@app.get("/blacklist", response_class=HTMLResponse)
+async def get_blacklist(feed_url: str, request: Request) -> _TemplateResponse:
+    # Make feed_url a valid URL.
+    url: str = urllib.parse.unquote(feed_url)
+
+    feed: Feed = reader.get_feed(url)
+    try:
+        blacklist = reader.get_tag(url, "blacklist")
+    except TagNotFoundError:
+        blacklist = ""
+
+    context = {"request": request, "feed": feed, "blacklist": blacklist}
+    return templates.TemplateResponse("blacklist.html", context)
 
 
 @app.get("/add", response_class=HTMLResponse)

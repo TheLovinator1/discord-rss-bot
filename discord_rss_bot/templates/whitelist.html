@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %} | Blacklist{% endblock %}
+{% block content %}
+    <div class="p-2 border border-dark">
+        <form action="/whitelist" method="post">
+            <!-- Feed URL -->
+            <div class="row pb-2">
+
+                <div class="col-sm-12">
+                    <div class="form-text">Comma separated list of words to whitelist. Only send message to
+                        Discord if one of these words are present in the corresponding fields.
+                        Whitelist always takes precedence over blacklist. Leave empty to disable.
+                        Words are case-insensitive.
+                    </div>
+                    <label for="whitelist_title" class="col-sm-6 col-form-label">Whitelist - Title</label>
+                    <input name="whitelist_title" type="text" class="form-control bg-dark border-dark text-muted"
+                           id="whitelist_title" placeholder="primogem, events, gameplay preview, special program">
+
+                    <label for="whitelist_summary" class="col-sm-6 col-form-label">Whitelist - Summary</label>
+                    <input name="whitelist_summary" type="text" class="form-control bg-dark border-dark text-muted"
+                           id="whitelist_summary" placeholder="primogem, events, gameplay preview, special program">
+
+                    <label for="whitelist_content" class="col-sm-6 col-form-label">Whitelist - Content</label>
+                    <input name="whitelist_content" type="text" class="form-control bg-dark border-dark text-muted"
+                           id="whitelist_content" placeholder="primogem, events, gameplay preview, special program">
+                </div>
+            </div>
+
+            <!-- Submit button -->
+            <div class="d-md-flex">
+                <button class="btn btn-dark btn-sm">Update whitelist</button>
+            </div>
+        </form>
+    </div>
+{% endblock %}
