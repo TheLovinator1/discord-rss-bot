@@ -181,9 +181,6 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) ->
             if hook["name"] == webhook_dropdown:
                 webhook_url = hook["url"]
                 break
-            else:
-                # TODO: Show this error on the page.
-                return {"error": "Webhook not found."}
 
     if webhook_url is None:
         # TODO: Show this error on the page.
