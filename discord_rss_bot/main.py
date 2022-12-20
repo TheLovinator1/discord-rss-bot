@@ -27,7 +27,6 @@ Functions:
         Runs on startup.
 """
 import urllib.parse
-from datetime import datetime
 from typing import Any, Iterable
 
 import uvicorn
@@ -51,7 +50,7 @@ from starlette.templating import _TemplateResponse  # noqa
 
 from discord_rss_bot.feeds import send_to_discord
 from discord_rss_bot.search import create_html_for_search_results
-from discord_rss_bot.settings import get_reader, get_webhooks
+from discord_rss_bot.settings import get_reader, list_webhooks
 
 app: FastAPI = FastAPI()
 app.mount("/static", StaticFiles(directory="discord_rss_bot/static"), name="static")
@@ -94,7 +93,7 @@ async def add_webhook(webhook_name: str = Form(), webhook_url: str = Form()) -> 
     clean_webhook_url: str = webhook_url.strip()
 
     # Get current webhooks from the database if they exist otherwise use an empty list.
-    webhooks = get_webhooks(reader)
+    webhooks = list_webhooks(reader)
 
     # Only add the webhook if it doesn't already exist.
     if not any(webhook["name"] == clean_webhook_name for webhook in webhooks):
@@ -128,7 +127,7 @@ async def delete_webhook(webhook_url: str = Form()) -> RedirectResponse | dict[s
     clean_webhook_url: str = webhook_url.strip()
 
     # Get current webhooks from the database if they exist otherwise use an empty list.
-    webhooks = get_webhooks(reader)
+    webhooks = list_webhooks(reader)
 
     # Only add the webhook if it doesn't already exist.
     for webhook in webhooks:

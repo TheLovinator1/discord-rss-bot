@@ -47,7 +47,7 @@ def get_reader(custom_location: str = "") -> Reader:
     return make_reader(url=db_location)
 
 
-def get_webhooks(reader: Reader) -> list[dict[str, str]]:
+def list_webhooks(reader: Reader) -> list[dict[str, str]]:
     """
     Get current webhooks from the database if they exist otherwise use an empty list.
 
