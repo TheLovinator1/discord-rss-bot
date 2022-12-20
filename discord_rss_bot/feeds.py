@@ -73,26 +73,42 @@ def send_to_discord(custom_reader: Reader | None = None, feed=None, do_once=Fals
             whitelist_title = reader.get_tag(feed, "whitelist_title")
         except TagNotFoundError:
             whitelist_title = ""
+        except ValueError:
+            whitelist_title = ""
+
         try:
             whitelist_summary = reader.get_tag(feed, "whitelist_summary")
         except TagNotFoundError:
             whitelist_summary = ""
+        except ValueError:
+            whitelist_summary = ""
+
         try:
             whitelist_content = reader.get_tag(feed, "whitelist_content")
         except TagNotFoundError:
+            whitelist_content = ""
+        except ValueError:
             whitelist_content = ""
 
         try:
             blacklist_title = reader.get_tag(feed, "blacklist_title")
         except TagNotFoundError:
             blacklist_title = ""
+        except ValueError:
+            blacklist_title = ""
+
         try:
             blacklist_summary = reader.get_tag(feed, "blacklist_summary")
         except TagNotFoundError:
             blacklist_summary = ""
+        except ValueError:
+            blacklist_summary = ""
+
         try:
             blacklist_content = reader.get_tag(feed, "blacklist_content")
         except TagNotFoundError:
+            blacklist_content = ""
+        except ValueError:
             blacklist_content = ""
 
         # Check if the entry should be sent. If on the blacklist, mark as read and continue.
