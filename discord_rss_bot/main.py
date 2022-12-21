@@ -71,7 +71,9 @@ def encode_url(url_to_quote: str) -> str:
     Returns:
         The encoded url.
     """
-    return urllib.parse.quote(url_to_quote)
+    if url_to_quote:
+        return urllib.parse.quote(url_to_quote)
+    print("url_to_quote is None")  # TODO: Send error to Discord.
 
 
 templates.env.filters["encode_url"] = encode_url
