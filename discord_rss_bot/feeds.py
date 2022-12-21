@@ -32,7 +32,7 @@ from discord_rss_bot.settings import get_reader
 from discord_rss_bot.whitelist import has_white_tags, if_in_whitelist
 
 
-def send_to_discord(custom_reader: Reader | None = None, do_once=False) -> None:
+def send_to_discord(custom_reader: Reader | None = None, feed=None, do_once=False) -> None:
     """
     Send entries to Discord.
 
@@ -40,6 +40,7 @@ def send_to_discord(custom_reader: Reader | None = None, do_once=False) -> None:
 
     Args:
         custom_reader: If we should use a custom reader instead of the default one.
+        feed: The feed to send to Discord.
         do_once: If we should only send one entry. This is used in the test.
 
     Returns:
@@ -48,11 +49,16 @@ def send_to_discord(custom_reader: Reader | None = None, do_once=False) -> None:
     # Get the default reader if we didn't get a custom one.
     reader: Reader = get_reader() if custom_reader is None else custom_reader
 
-    # Update the feeds.
+    # Check for new entries for every feed.
     reader.update_feeds()
 
-    # Get all the entries, we will loop through them and check if they should be sent.
-    entries: Iterable[Entry] = reader.get_entries(read=False)
+    # If feed is not None we will only get the entries for that feed.
+    if feed is None:
+        # Get all the entries, we will loop through them and check if they should be sent.
+        entries: Iterable[Entry] = reader.get_entries(read=False)
+    else:
+        # Get all the entries, we will loop through them and check if they should be sent.
+        entries: Iterable[Entry] = reader.get_entries(feed=feed, read=False)
 
     for entry in entries:
         # Set the webhook to read, so we don't send it again.
