@@ -45,5 +45,17 @@
                 No feeds yet. Add one <a class="text-muted" href="/add">here</a>.
             </p>
         {% endif %}
+
+        <!-- Show feeds without webhooks -->
+        {% if broken_feeds %}
+            <div class="p-2 mb-2 border border-dark">
+                <ul class="list-group text-danger">Feeds without webhook:
+                    {% for broken_feed in broken_feeds %}
+                        <a class="text-muted"
+                           href="/feed?feed_url={{ broken_feed.url|encode_url }}">{{ broken_feed.url }}</a>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
     </ul>
 {% endblock %}

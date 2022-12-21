@@ -379,7 +379,7 @@ def make_context_index(request) -> dict:
             hook = reader.get_tag(feed.url, "webhook")
             feed_list.append({"feed": feed, "webhook": hook})
         except TagNotFoundError:
-            broken_feeds.append({"feed": feed, "webhook": None})
+            broken_feeds.append(feed)
             continue
 
     # Sort feed_list by when the feed was added.
