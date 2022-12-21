@@ -372,14 +372,14 @@ def make_context_index(request) -> dict:
         hooks = []
 
     feed_list = []
-    broken_feed = []
+    broken_feeds = []
     feeds: Iterable[Feed] = reader.get_feeds()
     for feed in feeds:
         try:
             hook = reader.get_tag(feed.url, "webhook")
             feed_list.append({"feed": feed, "webhook": hook})
         except TagNotFoundError:
-            broken_feed.append({"feed": feed, "webhook": None})
+            broken_feeds.append({"feed": feed, "webhook": None})
             continue
 
     # Sort feed_list by when the feed was added.
@@ -393,7 +393,7 @@ def make_context_index(request) -> dict:
         "feed_count": feed_count,
         "entry_count": entry_count,
         "webhooks": hooks,
-        "broken_feed": broken_feed,
+        "broken_feeds": broken_feeds,
     }
     return context
 
