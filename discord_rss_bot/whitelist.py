@@ -3,19 +3,26 @@ import re
 from reader import Entry, Feed, Reader, TagNotFoundError
 
 
-def is_word_in_text(word: str, text: str) -> bool:
+def is_word_in_text(words: str, text: str) -> bool:
     """
     Args:
-        word: The word to search for.
+        words: The words to search for.
         text: The text to search in.
 
     Returns:
         bool: If the word is in the text.
     """
-    pattern = rf"(^|[^\w]){word}([^\w]|$)"
-    pattern = re.compile(pattern, re.IGNORECASE)
-    matches = re.search(pattern, text)
-    return bool(matches)
+    # Split the word list into a list of words.
+    word_list = words.split(",")
+
+    # Check if each word is in the text.
+    for word in word_list:
+        pattern = rf"(^|[^\w]){word}([^\w]|$)"
+        pattern = re.compile(pattern, re.IGNORECASE)
+        matches = re.search(pattern, text)
+        if matches:
+            return True
+    return False
 
 
 def has_white_tags(custom_reader: Reader, feed: Feed) -> bool:
