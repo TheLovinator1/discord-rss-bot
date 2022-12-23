@@ -219,15 +219,20 @@ async def unpause_feed(feed_url: str = Form()) -> dict[str, str] | RedirectRespo
 
 
 @app.post("/whitelist")
-async def set_whitelist(whitelist_title: str, whitelist_summary: str, whitelist_content: str, feed_url: str = Form()):
+async def set_whitelist(
+    whitelist_title: str = Form(None),
+    whitelist_summary: str = Form(None),
+    whitelist_content: str = Form(None),
+    feed_url: str = Form(),
+):
     # Add the whitelist to the feed.
 
     if whitelist_title:
-        reader.set_tag(feed_url, "whitelist_title", whitelist)  # type: ignore
+        reader.set_tag(feed_url, "whitelist_title", whitelist_title)  # type: ignore
     if whitelist_summary:
-        reader.set_tag(feed_url, "whitelist_summary", whitelist)  # type: ignore
+        reader.set_tag(feed_url, "whitelist_summary", whitelist_summary)  # type: ignore
     if whitelist_content:
-        reader.set_tag(feed_url, "whitelist_content", whitelist)  # type: ignore
+        reader.set_tag(feed_url, "whitelist_content", whitelist_content)  # type: ignore
 
     # Clean URL is used to redirect to the feed page.
     clean_url: str = urllib.parse.quote(feed_url)
@@ -251,15 +256,20 @@ async def get_whitelist(feed_url: str, request: Request) -> _TemplateResponse:
 
 
 @app.post("/blacklist")
-async def set_blacklist(blacklist_title: str, blacklist_summary: str, blacklist_content: str, feed_url: str = Form()):
+async def set_blacklist(
+    blacklist_title: str = Form(None),
+    blacklist_summary: str = Form(None),
+    blacklist_content: str = Form(None),
+    feed_url: str = Form(),
+):
     # Add the blacklist to the feed.
 
     if blacklist_title:
-        reader.set_tag(feed_url, "blacklist_title", blacklist)  # type: ignore
+        reader.set_tag(feed_url, "blacklist_title", blacklist_title)  # type: ignore
     if blacklist_summary:
-        reader.set_tag(feed_url, "blacklist_summary", blacklist)  # type: ignore
+        reader.set_tag(feed_url, "blacklist_summary", blacklist_summary)  # type: ignore
     if blacklist_content:
-        reader.set_tag(feed_url, "blacklist_content", blacklist)  # type: ignore
+        reader.set_tag(feed_url, "blacklist_content", blacklist_content)  # type: ignore
 
     # Clean URL is used to redirect to the feed page.
     clean_url: str = urllib.parse.quote(feed_url)
