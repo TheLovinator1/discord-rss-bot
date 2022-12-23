@@ -27,9 +27,9 @@ from discord_webhook import DiscordWebhook
 from reader import Entry, Reader, TagNotFoundError
 from requests import Response
 
-from discord_rss_bot.blacklist import if_in_blacklist
+from discord_rss_bot.blacklist import should_be_skipped
 from discord_rss_bot.settings import get_reader
-from discord_rss_bot.whitelist import has_white_tags, if_in_whitelist
+from discord_rss_bot.whitelist import has_white_tags, should_be_sent
 
 
 def send_to_discord(custom_reader: Reader | None = None, feed=None, do_once=False) -> None:
@@ -74,8 +74,8 @@ def send_to_discord(custom_reader: Reader | None = None, feed=None, do_once=Fals
         webhook_message: str = f":robot: :mega: {entry.title}\n{entry.link}"
         webhook: DiscordWebhook = DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)
 
-        blacklisted = if_in_blacklist(reader, entry)
-        whitelisted = if_in_whitelist(reader, entry)
+        blacklisted = should_be_skipped(reader, entry)
+        whitelisted = should_be_sent(reader, entry)
 
         if_whitelist_tags = has_white_tags(reader, feed)
 
