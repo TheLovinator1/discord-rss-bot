@@ -49,9 +49,11 @@ from reader import (
 from starlette.responses import RedirectResponse
 from starlette.templating import _TemplateResponse  # noqa
 
+from discord_rss_bot.blacklist import has_black_tags, should_be_skipped
 from discord_rss_bot.feeds import send_to_discord
 from discord_rss_bot.search import create_html_for_search_results
 from discord_rss_bot.settings import get_reader, list_webhooks
+from discord_rss_bot.whitelist import has_white_tags, should_be_sent
 
 app: FastAPI = FastAPI()
 app.mount("/static", StaticFiles(directory="discord_rss_bot/static"), name="static")
@@ -76,7 +78,41 @@ def encode_url(url_to_quote: str) -> str:
     print("url_to_quote is None")  # TODO: Send error to Discord.
 
 
+def entry_is_whitelisted(entry_to_check: Entry) -> bool:
+    """
+    Check if the entry is whitelisted.
+
+    Args:
+        entry_to_check: The feed to check.
+
+    Returns:
+        bool: True if the feed is whitelisted, False otherwise.
+
+    """
+    if has_white_tags(reader, entry_to_check.feed):
+        if should_be_sent(reader, entry_to_check):
+            return True
+
+
+def entry_is_blacklisted(entry_to_check: Entry) -> bool:
+    """
+    Check if the entry is blacklisted.
+
+    Args:
+        entry_to_check: The feed to check.
+
+    Returns:
+        bool: True if the feed is blacklisted, False otherwise.
+
+    """
+    if has_black_tags(reader, entry_to_check.feed):
+        if should_be_skipped(reader, entry_to_check):
+            return True
+
+
 templates.env.filters["encode_url"] = encode_url
+templates.env.filters["entry_is_whitelisted"] = entry_is_whitelisted
+templates.env.filters["entry_is_blacklisted"] = entry_is_blacklisted
 
 
 @app.post("/add_webhook")

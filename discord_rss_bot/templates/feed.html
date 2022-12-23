@@ -30,6 +30,13 @@
     </div>
     {% for entry in entries %}
         <div class="p-2 mb-2 border border-dark">
+            {% if entry|entry_is_blacklisted %}
+                <span class="text-danger">Blacklisted</span>
+            {% endif %}
+            {% if entry|entry_is_whitelisted %}
+                <span class="text-success">Whitelisted</span>
+            {% endif %}
+
             <h2>
                 <a class="text-muted text-decoration-none" href="{{ entry.link }}">
                     {{ entry.title }}
