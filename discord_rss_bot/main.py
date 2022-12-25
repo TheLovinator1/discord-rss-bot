@@ -63,8 +63,9 @@ reader: Reader = get_reader()
 
 
 def encode_url(url_to_quote: str) -> str:
-    """%-escape the URL so it can be used in a URL. If we didn't do this, we couldn't go to feeds with a ? in the URL.
+    """%-escape the URL so it can be used in a URL.
 
+    If we didn't do this, we couldn't go to feeds with a ? in the URL.
     You can use this in templates with {{ url | encode_url }}.
 
     Args:
@@ -73,10 +74,8 @@ def encode_url(url_to_quote: str) -> str:
     Returns:
         The encoded url.
     """
-    if url_to_quote:
-        return urllib.parse.quote(url_to_quote)
-    return "None"
     # TODO: Send error to Discord.
+    return urllib.parse.quote(url_to_quote) if url_to_quote else "None"
 
 
 def entry_is_whitelisted(entry_to_check: Entry) -> bool:
@@ -90,10 +89,7 @@ def entry_is_whitelisted(entry_to_check: Entry) -> bool:
         bool: True if the feed is whitelisted, False otherwise.
 
     """
-    if has_white_tags(reader, entry_to_check.feed):
-        if should_be_sent(reader, entry_to_check):
-            return True
-    return False
+    return bool(has_white_tags(reader, entry_to_check.feed) and should_be_sent(reader, entry_to_check))
 
 
 def entry_is_blacklisted(entry_to_check: Entry) -> bool:
@@ -107,10 +103,7 @@ def entry_is_blacklisted(entry_to_check: Entry) -> bool:
         bool: True if the feed is blacklisted, False otherwise.
 
     """
-    if has_black_tags(reader, entry_to_check.feed):
-        if should_be_skipped(reader, entry_to_check):
-            return True
-    return False
+    return bool(has_black_tags(reader, entry_to_check.feed) and should_be_skipped(reader, entry_to_check))
 
 
 templates.env.filters["encode_url"] = encode_url
@@ -135,10 +128,10 @@ async def add_webhook(webhook_name: str = Form(), webhook_url: str = Form()) -> 
     clean_webhook_url: str = webhook_url.strip()
 
     # Get current webhooks from the database if they exist otherwise use an empty list.
-    webhooks = list_webhooks(reader)
+    webhooks: list[dict[str, str]] = list_webhooks(reader)
 
     # Only add the webhook if it doesn't already exist.
-    if not any(webhook["name"] == clean_webhook_name for webhook in webhooks):
+    if all(webhook["name"] != clean_webhook_name for webhook in webhooks):
         # Create a dict with webhook name and URL.
         new_webhook: dict[str, str] = {"name": clean_webhook_name, "url": clean_webhook_url}
 
@@ -216,7 +209,7 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) ->
         hooks = []
 
     webhook_url = ""
-    if len(hooks) > 0:
+    if hooks:
         # Get the webhook URL from the dropdown.
         for hook in hooks:
             if hook["name"] == webhook_dropdown:
@@ -237,6 +230,14 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) ->
 
 @app.post("/pause")
 async def pause_feed(feed_url: str = Form()) -> dict[str, str] | RedirectResponse:
+    """Pause a feed.
+
+    Args:
+        feed_url: The feed to pause. Defaults to Form().
+
+    Returns:
+        Redirect the URL to the feed we paused.
+    """
     # Disable/pause the feed.
     reader.disable_feed_updates(feed_url)
 
@@ -248,6 +249,14 @@ async def pause_feed(feed_url: str = Form()) -> dict[str, str] | RedirectRespons
 
 @app.post("/unpause")
 async def unpause_feed(feed_url: str = Form()) -> dict[str, str] | RedirectResponse:
+    """Unpause a feed.
+
+    Args:
+        feed_url: The feed to unpause. Defaults to Form().
+
+    Returns:
+        Redirect to the feed we unpaused.
+    """
     # Enable/unpause the feed.
     reader.enable_feed_updates(feed_url)
 
@@ -264,6 +273,17 @@ async def set_whitelist(
     whitelist_content: str = Form(None),
     feed_url: str = Form(),
 ) -> RedirectResponse:
+    """Set what the whitelist should be sent, if you have this set only words in the whitelist will be sent.
+
+    Args:
+        whitelist_title: Whitelisted words for when checking the title.
+        whitelist_summary: Whitelisted words for when checking the title.
+        whitelist_content: Whitelisted words for when checking the title.
+        feed_url: The feed we should set the whitelist for.
+
+    Returns:
+        Redirect back to the feed page.
+    """
     # Add the whitelist to the feed.
 
     if whitelist_title:
@@ -281,12 +301,21 @@ async def set_whitelist(
 
 @app.get("/whitelist", response_class=HTMLResponse)
 async def get_whitelist(feed_url: str, request: Request) -> _TemplateResponse:
+    """Get the whitelist.
+
+    Args:
+        feed_url: What feed we should get the whitelist for.
+        request: The HTTP request.
+
+    Returns:
+        _description_
+    """
     # Make feed_url a valid URL.
     url: str = urllib.parse.unquote(feed_url)
 
     feed: Feed = reader.get_feed(url)
     try:
-        whitelist: str = reader.get_tag(url, "whitelist")
+        whitelist: str = reader.get_tag(url, "whitelist")  # type: ignore
     except TagNotFoundError:
         whitelist: str = ""
 
@@ -301,6 +330,17 @@ async def set_blacklist(
     blacklist_content: str = Form(None),
     feed_url: str = Form(),
 ) -> RedirectResponse:
+    """Set the blacklist, if this is set we will check if words are in the title, summary or content and then don't send that entry.
+
+    Args:
+        blacklist_title: Blacklisted words for when checking the title.
+        blacklist_summary: Blacklisted words for when checking the summary.
+        blacklist_content: Blacklisted words for when checking the content.
+        feed_url: What feed we should set the blacklist for.
+
+    Returns:
+        Redirect to the feed.
+    """
     # Add the blacklist to the feed.
 
     if blacklist_title:
@@ -323,7 +363,7 @@ async def get_blacklist(feed_url: str, request: Request) -> _TemplateResponse:
 
     feed: Feed = reader.get_feed(url)
     try:
-        blacklist: str = reader.get_tag(url, "blacklist")
+        blacklist: str = reader.get_tag(url, "blacklist")  # type: ignore
     except TagNotFoundError:
         blacklist: str = ""
 
