@@ -74,10 +74,10 @@ def send_to_discord(custom_reader: Reader | None = None, feed=None, do_once=Fals
         webhook_message: str = f":robot: :mega: {entry.title}\n{entry.link}"
         webhook: DiscordWebhook = DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)
 
-        blacklisted = should_be_skipped(reader, entry)
-        whitelisted = should_be_sent(reader, entry)
+        blacklisted: bool = should_be_skipped(reader, entry)
+        whitelisted: bool = should_be_sent(reader, entry)
 
-        if_whitelist_tags = has_white_tags(reader, feed)
+        if_whitelist_tags: bool = has_white_tags(reader, feed)
 
         # Check if the entry has a whitelist
         if if_whitelist_tags:

@@ -18,7 +18,8 @@ import os
 from platformdirs import user_data_dir
 from reader import Reader, make_reader
 
-logging.basicConfig(level=logging.DEBUG, format="[%(asctime)s] [%(funcName)s:%(lineno)d] %(message)s")
+logging_format: str = "[%(asctime)s] [%(funcName)s:%(lineno)d] %(message)s"
+logging.basicConfig(level=logging.DEBUG, format=logging_format)
 data_dir: str = user_data_dir(appname="discord_rss_bot", appauthor="TheLovinator", roaming=True)
 os.makedirs(data_dir, exist_ok=True)
 
@@ -58,9 +59,12 @@ def list_webhooks(reader: Reader) -> list[dict[str, str]]:
         list[dict[str, str]]: The webhooks.
     """
     webhooks: list[dict[str, str]] = []
+
+    # Get global tags
     if reader.get_tags(()) is not None:
         for tag in reader.get_tag_keys(()):
+            # Check if the tag is named webhooks
             if tag == "webhooks":
-                webhooks = reader.get_tag((), "webhooks")
+                webhooks = reader.get_tag((), "webhooks")  # type: ignore
             break
     return webhooks

@@ -13,13 +13,13 @@ def is_word_in_text(words: str, text: str) -> bool:
         bool: If the word is in the text.
     """
     # Split the word list into a list of words.
-    word_list = words.split(",")
+    word_list: list[str] = words.split(",")
 
     # Check if each word is in the text.
     for word in word_list:
-        pattern = rf"(^|[^\w]){word}([^\w]|$)"
-        pattern = re.compile(pattern, re.IGNORECASE)
-        matches = re.search(pattern, text)
+        look_for: str = rf"(^|[^\w]){word}([^\w]|$)"
+        pattern: re.Pattern[str] = re.compile(look_for, re.IGNORECASE)
+        matches: re.Match[str] | None = re.search(pattern, text)
         if matches:
             return True
     return False
@@ -39,9 +39,9 @@ def has_black_tags(custom_reader: Reader, feed: Feed) -> bool:
     Returns:
         bool: If the feed has any of the tags.
     """
-    blacklist_title = get_blacklist_title(custom_reader, feed)
-    blacklist_summary = get_blacklist_summary(custom_reader, feed)
-    blacklist_content = get_blacklist_content(custom_reader, feed)
+    blacklist_title: str = get_blacklist_title(custom_reader, feed)
+    blacklist_summary: str = get_blacklist_summary(custom_reader, feed)
+    blacklist_content: str = get_blacklist_content(custom_reader, feed)
 
     if blacklist_title or blacklist_summary or blacklist_content:
         return True
@@ -59,9 +59,9 @@ def should_be_skipped(custom_reader: Reader, entry: Entry) -> bool:
         bool: If the entry is in the blacklist.
     """
     feed: Feed = entry.feed
-    blacklist_title = get_blacklist_title(custom_reader, feed)
-    blacklist_summary = get_blacklist_summary(custom_reader, feed)
-    blacklist_content = get_blacklist_content(custom_reader, feed)
+    blacklist_title: str = get_blacklist_title(custom_reader, feed)
+    blacklist_summary: str = get_blacklist_summary(custom_reader, feed)
+    blacklist_content: str = get_blacklist_content(custom_reader, feed)
     # TODO: Fix content
     # TODO: Check author
 
@@ -73,10 +73,12 @@ def should_be_skipped(custom_reader: Reader, entry: Entry) -> bool:
         if is_word_in_text(blacklist_summary, entry.summary):
             return True
 
+    return False
+
     # if blacklist_content.lower() in entry.content.lower():
 
 
-def get_blacklist_content(custom_reader, feed) -> str:
+def get_blacklist_content(custom_reader: Reader, feed: Feed) -> str:
     """
     Get the blacklist_content tag from the feed.
 
@@ -88,15 +90,15 @@ def get_blacklist_content(custom_reader, feed) -> str:
         str: The blacklist_content tag.
     """
     try:
-        blacklist_content = custom_reader.get_tag(feed, "blacklist_content")
+        blacklist_content: str = custom_reader.get_tag(feed, "blacklist_content")  # type: ignore
     except TagNotFoundError:
-        blacklist_content = ""
+        blacklist_content: str = ""
     except ValueError:
-        blacklist_content = ""
+        blacklist_content: str = ""
     return blacklist_content
 
 
-def get_blacklist_summary(custom_reader, feed) -> str:
+def get_blacklist_summary(custom_reader: Reader, feed: Feed) -> str:
     """
     Get the blacklist_summary tag from the feed.
 
@@ -108,15 +110,15 @@ def get_blacklist_summary(custom_reader, feed) -> str:
         str: The blacklist_summary tag.
     """
     try:
-        blacklist_summary = custom_reader.get_tag(feed, "blacklist_summary")
+        blacklist_summary: str = custom_reader.get_tag(feed, "blacklist_summary")  # type: ignore
     except TagNotFoundError:
-        blacklist_summary = ""
+        blacklist_summary: str = ""
     except ValueError:
-        blacklist_summary = ""
+        blacklist_summary: str = ""
     return blacklist_summary
 
 
-def get_blacklist_title(custom_reader, feed) -> str:
+def get_blacklist_title(custom_reader: Reader, feed: Feed) -> str:
     """
     Get the blacklist_title tag from the feed.
 
@@ -128,9 +130,9 @@ def get_blacklist_title(custom_reader, feed) -> str:
         str: The blacklist_title tag.
     """
     try:
-        blacklist_title = custom_reader.get_tag(feed, "blacklist_title")
+        blacklist_title: str = custom_reader.get_tag(feed, "blacklist_title")  # type: ignore
     except TagNotFoundError:
-        blacklist_title = ""
+        blacklist_title: str = ""
     except ValueError:
-        blacklist_title = ""
+        blacklist_title: str = ""
     return blacklist_title

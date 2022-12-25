@@ -13,13 +13,13 @@ def is_word_in_text(words: str, text: str) -> bool:
         bool: If the word is in the text.
     """
     # Split the word list into a list of words.
-    word_list = words.split(",")
+    word_list: list[str] = words.split(",")
 
     # Check if each word is in the text.
     for word in word_list:
-        pattern = rf"(^|[^\w]){word}([^\w]|$)"
-        pattern = re.compile(pattern, re.IGNORECASE)
-        matches = re.search(pattern, text)
+        look_for: str = rf"(^|[^\w]){word}([^\w]|$)"
+        pattern: re.Pattern[str] = re.compile(look_for, re.IGNORECASE)
+        matches: re.Match[str] | None = re.search(pattern, text)
         if matches:
             return True
     return False
@@ -39,12 +39,13 @@ def has_white_tags(custom_reader: Reader, feed: Feed) -> bool:
     Returns:
         bool: If the feed has any of the tags.
     """
-    whitelist_title = get_whitelist_title(custom_reader, feed)
-    whitelist_summary = get_whitelist_summary(custom_reader, feed)
-    whitelist_content = get_whitelist_content(custom_reader, feed)
+    whitelist_title: str = get_whitelist_title(custom_reader, feed)
+    whitelist_summary: str = get_whitelist_summary(custom_reader, feed)
+    whitelist_content: str = get_whitelist_content(custom_reader, feed)
 
     if whitelist_title or whitelist_summary or whitelist_content:
         return True
+    return False
 
 
 def should_be_sent(custom_reader: Reader, entry: Entry) -> bool:
@@ -59,9 +60,9 @@ def should_be_sent(custom_reader: Reader, entry: Entry) -> bool:
         bool: If the entry is in the whitelist.
     """
     feed: Feed = entry.feed
-    whitelist_title = get_whitelist_title(custom_reader, feed)
-    whitelist_summary = get_whitelist_summary(custom_reader, feed)
-    whitelist_content = get_whitelist_content(custom_reader, feed)
+    whitelist_title: str = get_whitelist_title(custom_reader, feed)
+    whitelist_summary: str = get_whitelist_summary(custom_reader, feed)
+    whitelist_content: str = get_whitelist_content(custom_reader, feed)
     # TODO: Fix content
     # TODO: Check author
 
@@ -73,10 +74,11 @@ def should_be_sent(custom_reader: Reader, entry: Entry) -> bool:
         if is_word_in_text(whitelist_summary, entry.summary):
             return True
 
+    return False
     # if whitelist_content.lower() in entry.content.lower():
 
 
-def get_whitelist_content(custom_reader, feed) -> str:
+def get_whitelist_content(custom_reader: Reader, feed: Feed) -> str:
     """
     Get the whitelist_content tag from the feed.
 
@@ -88,15 +90,15 @@ def get_whitelist_content(custom_reader, feed) -> str:
         str: The whitelist_content tag.
     """
     try:
-        whitelist_content = custom_reader.get_tag(feed, "whitelist_content")
+        whitelist_content: str = custom_reader.get_tag(feed, "whitelist_content")  # type: ignore
     except TagNotFoundError:
-        whitelist_content = ""
+        whitelist_content: str = ""
     except ValueError:
-        whitelist_content = ""
+        whitelist_content: str = ""
     return whitelist_content
 
 
-def get_whitelist_summary(custom_reader, feed) -> str:
+def get_whitelist_summary(custom_reader: Reader, feed: Feed) -> str:
     """
     Get the whitelist_summary tag from the feed.
 
@@ -108,15 +110,15 @@ def get_whitelist_summary(custom_reader, feed) -> str:
         str: The whitelist_summary tag.
     """
     try:
-        whitelist_summary = custom_reader.get_tag(feed, "whitelist_summary")
+        whitelist_summary: str = custom_reader.get_tag(feed, "whitelist_summary")  # type: ignore
     except TagNotFoundError:
-        whitelist_summary = ""
+        whitelist_summary: str = ""
     except ValueError:
-        whitelist_summary = ""
+        whitelist_summary: str = ""
     return whitelist_summary
 
 
-def get_whitelist_title(custom_reader, feed) -> str:
+def get_whitelist_title(custom_reader: Reader, feed: Feed) -> str:
     """
     Get the whitelist_title tag from the feed.
 
@@ -128,9 +130,9 @@ def get_whitelist_title(custom_reader, feed) -> str:
         str: The whitelist_title tag.
     """
     try:
-        whitelist_title = custom_reader.get_tag(feed, "whitelist_title")
+        whitelist_title: str = custom_reader.get_tag(feed, "whitelist_title")  # type: ignore
     except TagNotFoundError:
-        whitelist_title = ""
+        whitelist_title: str = ""
     except ValueError:
-        whitelist_title = ""
+        whitelist_title: str = ""
     return whitelist_title

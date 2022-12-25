@@ -6,14 +6,14 @@ import sys
 import requests
 
 
-def healthcheck():
+def healthcheck() -> None:
     """Check if the website is up.
 
     sys.exit(0): success - the container is healthy and ready for use.
     sys.exit(1): unhealthy - the container is not working correctly."""
     # TODO: We should check more than just that the website is up.
     try:
-        r = requests.get("http://localhost:5000")
+        r: requests.Response = requests.get("http://localhost:5000")
         if r.ok:
             sys.exit(0)
     except requests.exceptions.RequestException as e:

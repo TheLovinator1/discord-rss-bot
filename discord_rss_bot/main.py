@@ -75,7 +75,8 @@ def encode_url(url_to_quote: str) -> str:
     """
     if url_to_quote:
         return urllib.parse.quote(url_to_quote)
-    print("url_to_quote is None")  # TODO: Send error to Discord.
+    return "None"
+    # TODO: Send error to Discord.
 
 
 def entry_is_whitelisted(entry_to_check: Entry) -> bool:
@@ -92,6 +93,7 @@ def entry_is_whitelisted(entry_to_check: Entry) -> bool:
     if has_white_tags(reader, entry_to_check.feed):
         if should_be_sent(reader, entry_to_check):
             return True
+    return False
 
 
 def entry_is_blacklisted(entry_to_check: Entry) -> bool:
@@ -108,6 +110,7 @@ def entry_is_blacklisted(entry_to_check: Entry) -> bool:
     if has_black_tags(reader, entry_to_check.feed):
         if should_be_skipped(reader, entry_to_check):
             return True
+    return False
 
 
 templates.env.filters["encode_url"] = encode_url
@@ -143,7 +146,7 @@ async def add_webhook(webhook_name: str = Form(), webhook_url: str = Form()) -> 
         webhooks.append(new_webhook)
 
         # Add our new list of webhooks to the database.
-        reader.set_tag((), "webhooks", webhooks)
+        reader.set_tag((), "webhooks", webhooks)  # type: ignore
 
         return RedirectResponse(url="/", status_code=303)
 
@@ -166,7 +169,7 @@ async def delete_webhook(webhook_url: str = Form()) -> RedirectResponse | dict[s
     clean_webhook_url: str = webhook_url.strip()
 
     # Get current webhooks from the database if they exist otherwise use an empty list.
-    webhooks = list_webhooks(reader)
+    webhooks: list[dict[str, str]] = list_webhooks(reader)
 
     # Only add the webhook if it doesn't already exist.
     for webhook in webhooks:
@@ -177,7 +180,7 @@ async def delete_webhook(webhook_url: str = Form()) -> RedirectResponse | dict[s
             print(f"Removed webhook {webhook['name']}.")
 
             # Add our new list of webhooks to the database.
-            reader.set_tag((), "webhooks", webhooks)
+            reader.set_tag((), "webhooks", webhooks)  # type: ignore
 
             return RedirectResponse(url="/", status_code=303)
 
@@ -212,15 +215,15 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) ->
     except TagNotFoundError:
         hooks = []
 
-    webhook_url = None
+    webhook_url = ""
     if len(hooks) > 0:
         # Get the webhook URL from the dropdown.
         for hook in hooks:
             if hook["name"] == webhook_dropdown:
-                webhook_url = hook["url"]
+                webhook_url: str = hook["url"]
                 break
 
-    if webhook_url is None:
+    if not webhook_url:
         # TODO: Show this error on the page.
         return {"error": "No webhook URL found."}
 
@@ -260,7 +263,7 @@ async def set_whitelist(
     whitelist_summary: str = Form(None),
     whitelist_content: str = Form(None),
     feed_url: str = Form(),
-):
+) -> RedirectResponse:
     # Add the whitelist to the feed.
 
     if whitelist_title:
@@ -283,9 +286,9 @@ async def get_whitelist(feed_url: str, request: Request) -> _TemplateResponse:
 
     feed: Feed = reader.get_feed(url)
     try:
-        whitelist = reader.get_tag(url, "whitelist")
+        whitelist: str = reader.get_tag(url, "whitelist")
     except TagNotFoundError:
-        whitelist = ""
+        whitelist: str = ""
 
     context = {"request": request, "feed": feed, "whitelist": whitelist}
     return templates.TemplateResponse("whitelist.html", context)
@@ -297,7 +300,7 @@ async def set_blacklist(
     blacklist_summary: str = Form(None),
     blacklist_content: str = Form(None),
     feed_url: str = Form(),
-):
+) -> RedirectResponse:
     # Add the blacklist to the feed.
 
     if blacklist_title:
@@ -320,9 +323,9 @@ async def get_blacklist(feed_url: str, request: Request) -> _TemplateResponse:
 
     feed: Feed = reader.get_feed(url)
     try:
-        blacklist = reader.get_tag(url, "blacklist")
+        blacklist: str = reader.get_tag(url, "blacklist")
     except TagNotFoundError:
-        blacklist = ""
+        blacklist: str = ""
 
     context = {"request": request, "feed": feed, "blacklist": blacklist}
     return templates.TemplateResponse("blacklist.html", context)
@@ -417,12 +420,12 @@ def make_context_index(request) -> dict:
     except TagNotFoundError:
         hooks = []
 
-    feed_list = []
-    broken_feeds = []
+    feed_list: list[dict[str, Any]] = []
+    broken_feeds: list[Feed] = []
     feeds: Iterable[Feed] = reader.get_feeds()
     for feed in feeds:
         try:
-            hook = reader.get_tag(feed.url, "webhook")
+            hook: str = reader.get_tag(feed.url, "webhook")  # type: ignore
             feed_list.append({"feed": feed, "webhook": hook})
         except TagNotFoundError:
             broken_feeds.append(feed)
