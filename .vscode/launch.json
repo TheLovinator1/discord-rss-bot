@@ -11,8 +11,7 @@
       "module": "uvicorn",
       "args": ["discord_rss_bot.main:app", "--reload"],
       "jinja": true,
-      "justMyCode": true,
-      "cwd": "${workspaceFolder}/discord_rss_bot"
+      "justMyCode": true
     }
   ]
 }
