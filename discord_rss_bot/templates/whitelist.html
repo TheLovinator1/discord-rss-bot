@@ -7,22 +7,40 @@
             <div class="row pb-2">
 
                 <div class="col-sm-12">
-                    <div class="form-text">Comma separated list of words to whitelist. Only send message to
-                        Discord if one of these words are present in the corresponding fields.
-                        Whitelist always takes precedence over blacklist. Leave empty to disable.
-                        Words are case-insensitive. No spaces should be used before or after the comma.
+                    <div class="form-text">
+                        <ul class="list-inline">
+                            <li>Comma separated list of words to whitelist. Only send message to
+                                Discord if one of these words are present in the corresponding fields.
+                            </li>
+                            <li>Whitelist always takes precedence over blacklist. Leave empty to disable.</li>
+                            <li>Words are case-insensitive. No spaces should be used before or after the comma.</li>
+
+                            <li>
+                                Correct:
+                                <code>
+                                    primogem,events,gameplay preview,special program
+                                </code>
+                            </li>
+                            <li>
+                                Wrong:
+                                <code>
+                                    primogem, events, gameplay preview, special program
+                                </code>
+                            </li>
+                        </ul>
                     </div>
+
                     <label for="whitelist_title" class="col-sm-6 col-form-label">Whitelist - Title</label>
                     <input name="whitelist_title" type="text" class="form-control bg-dark border-dark text-muted"
-                           id="whitelist_title" placeholder="primogem,events,gameplay preview,special program">
+                           id="whitelist_title" value="{% if whitelist_title %}{{ whitelist_title }}{% endif %}">
 
                     <label for="whitelist_summary" class="col-sm-6 col-form-label">Whitelist - Summary</label>
                     <input name="whitelist_summary" type="text" class="form-control bg-dark border-dark text-muted"
-                           id="whitelist_summary" placeholder="primogem,events,gameplay preview,special program">
+                           id="whitelist_summary" value="{% if whitelist_summary %}{{ whitelist_summary }}{% endif %}">
 
                     <label for="whitelist_content" class="col-sm-6 col-form-label">Whitelist - Content</label>
                     <input name="whitelist_content" type="text" class="form-control bg-dark border-dark text-muted"
-                           id="whitelist_content" placeholder="primogem,events,gameplay preview,special program">
+                           id="whitelist_content" value="{% if whitelist_content %}{{ whitelist_content }}{% endif %}">
                 </div>
             </div>
 

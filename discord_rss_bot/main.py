@@ -49,6 +49,7 @@ from reader import (
 from starlette.responses import RedirectResponse
 from starlette.templating import _TemplateResponse  # noqa
 
+from discord_rss_bot import blacklist, whitelist
 from discord_rss_bot.blacklist import has_black_tags, should_be_skipped
 from discord_rss_bot.feeds import send_to_discord
 from discord_rss_bot.search import create_html_for_search_results
@@ -284,8 +285,6 @@ async def set_whitelist(
     Returns:
         Redirect back to the feed page.
     """
-    # Add the whitelist to the feed.
-
     if whitelist_title:
         reader.set_tag(feed_url, "whitelist_title", whitelist_title)  # type: ignore
     if whitelist_summary:
@@ -314,12 +313,19 @@ async def get_whitelist(feed_url: str, request: Request) -> _TemplateResponse:
     url: str = urllib.parse.unquote(feed_url)
 
     feed: Feed = reader.get_feed(url)
-    try:
-        whitelist: str = reader.get_tag(url, "whitelist")  # type: ignore
-    except TagNotFoundError:
-        whitelist: str = ""
 
-    context = {"request": request, "feed": feed, "whitelist": whitelist}
+    # Get previous data, this is used when creating the form.
+    whitelist_title = whitelist.get_whitelist_title(reader, feed)
+    whitelist_summary = whitelist.get_whitelist_summary(reader, feed)
+    whitelist_content = whitelist.get_whitelist_content(reader, feed)
+
+    context = {
+        "request": request,
+        "feed": feed,
+        "whitelist_title": whitelist_title,
+        "whitelist_summary": whitelist_summary,
+        "whitelist_content": whitelist_content,
+    }
     return templates.TemplateResponse("whitelist.html", context)
 
 
@@ -362,12 +368,19 @@ async def get_blacklist(feed_url: str, request: Request) -> _TemplateResponse:
     url: str = urllib.parse.unquote(feed_url)
 
     feed: Feed = reader.get_feed(url)
-    try:
-        blacklist: str = reader.get_tag(url, "blacklist")  # type: ignore
-    except TagNotFoundError:
-        blacklist: str = ""
 
-    context = {"request": request, "feed": feed, "blacklist": blacklist}
+    # Get previous data, this is used when creating the form.
+    blacklist_title = blacklist.get_blacklist_title(reader, feed)
+    blacklist_summary = blacklist.get_blacklist_summary(reader, feed)
+    blacklist_content = blacklist.get_blacklist_content(reader, feed)
+
+    context = {
+        "request": request,
+        "feed": feed,
+        "blacklist_title": blacklist_title,
+        "blacklist_summary": blacklist_summary,
+        "blacklist_content": blacklist_content,
+    }
     return templates.TemplateResponse("blacklist.html", context)
 
 
