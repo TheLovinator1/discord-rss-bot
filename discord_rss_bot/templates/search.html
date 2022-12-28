@@ -4,7 +4,5 @@
     <div class="p-2 border border-dark text-muted">
         Your search for "{{ query }}" returned {{ search_amount.total }} results.
     </div>
-    <div class="p-2 border border-dark text-muted">
-        {{ search_html | safe }}
-    </div>
+    {{ search_html | safe }}
 {% endblock %}

@@ -32,11 +32,12 @@ def create_html_for_search_results(
             feed_url: str = urllib.parse.quote(feed.url)
 
             html += f"""
-            <a class="text-muted text-decoration-none" href="/feed?feed_url={feed_url}">
-                <h2>{result.metadata[".title"]}</h2>
-            </a>
-            {result_summary}
-            <hr>
+            <div class="p-2 mb-2 border border-dark">
+                <a class="text-muted text-decoration-none" href="/feed?feed_url={feed_url}">
+                    <h2>{result.metadata[".title"]}</h2>
+                </a>
+                {result_summary}
+            </div>
             """
     return html
 
