@@ -24,9 +24,10 @@ Exceptions:
 from typing import Iterable
 
 from discord_webhook import DiscordWebhook
-from reader import Entry, Reader, TagNotFoundError
+from reader import Entry, Reader
 from requests import Response
 
+from discord_rss_bot import settings
 from discord_rss_bot.blacklist import should_be_skipped
 from discord_rss_bot.settings import get_reader
 from discord_rss_bot.whitelist import has_white_tags, should_be_sent
@@ -54,22 +55,15 @@ def send_to_discord(custom_reader: Reader | None = None, feed=None, do_once=Fals
 
     # If feed is not None we will only get the entries for that feed.
     if feed is None:
-        # Get all the entries, we will loop through them and check if they should be sent.
         entries: Iterable[Entry] = reader.get_entries(read=False)
     else:
-        # Get all the entries, we will loop through them and check if they should be sent.
         entries: Iterable[Entry] = reader.get_entries(feed=feed, read=False)
 
     for entry in entries:
         # Set the webhook to read, so we don't send it again.
         reader.set_entry_read(entry, True)  # type: ignore
 
-        # Get the webhook from the feed.
-        try:
-            webhook_url: str = str(reader.get_tag(entry.feed_url, "webhook"))
-        except TagNotFoundError:
-            print(f"Webhook not found for feed {entry.feed_url}")
-            continue
+        webhook_url = settings.get_webhook_for_entry(reader, entry)
 
         webhook_message: str = f":robot: :mega: {entry.title}\n{entry.link}"
         webhook: DiscordWebhook = DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)

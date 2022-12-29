@@ -16,12 +16,38 @@ import logging
 import os
 
 from platformdirs import user_data_dir
-from reader import Reader, make_reader
+from reader import Entry, Reader, TagNotFoundError, make_reader
 
 logging_format: str = "[%(asctime)s] [%(funcName)s:%(lineno)d] %(message)s"
 logging.basicConfig(level=logging.DEBUG, format=logging_format)
 data_dir: str = user_data_dir(appname="discord_rss_bot", appauthor="TheLovinator", roaming=True)
 os.makedirs(data_dir, exist_ok=True)
+
+
+def get_webhook_for_entry(custom_reader: Reader, entry: Entry) -> str | None:
+    """
+    Get the webhook from the database.
+
+    Args:
+        custom_reader: If we should use a custom reader, or the default one.
+        entry: The entry to get the webhook for.
+
+    Returns:
+        Webhook URL if it has one, returns None if not or error.
+    """
+    # Get the default reader if we didn't get a custom one.
+    reader: Reader = get_reader() if custom_reader is None else custom_reader
+
+    # Get the webhook from the feed.
+    # Is None if not found or error.
+    webhook_url: str | None
+    try:
+        webhook_url = str(reader.get_tag(entry.feed_url, "webhook"))
+    except TagNotFoundError:
+        print(f"Webhook not found for feed {entry.feed_url}")
+        webhook_url = None
+
+    return webhook_url
 
 
 def get_db_location(custom_location: str = "") -> str:
