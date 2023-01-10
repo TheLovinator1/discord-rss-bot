@@ -19,8 +19,7 @@ def is_word_in_text(words: str, text: str) -> bool:
     for word in word_list:
         look_for: str = rf"(^|[^\w]){word}([^\w]|$)"
         pattern: re.Pattern[str] = re.compile(look_for, re.IGNORECASE)
-        matches: re.Match[str] | None = re.search(pattern, text)
-        if matches:
+        if re.search(pattern, text):
             return True
     return False
 
