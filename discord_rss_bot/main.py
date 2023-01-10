@@ -38,7 +38,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from reader import Entry, EntryCounts, EntrySearchCounts, EntrySearchResult, Feed, FeedCounts, Reader, TagNotFoundError
 from starlette.responses import RedirectResponse
-from starlette.templating import _TemplateResponse  # noqa
 
 from discord_rss_bot import blacklist, whitelist
 from discord_rss_bot.blacklist import has_black_tags, should_be_skipped
@@ -104,7 +103,7 @@ templates.env.filters["entry_is_blacklisted"] = entry_is_blacklisted
 
 
 @app.post("/add_webhook")
-async def add_webhook(webhook_name: str = Form(), webhook_url: str = Form()) -> RedirectResponse | dict[str, str]:
+async def add_webhook(webhook_name: str = Form(), webhook_url: str = Form()):
     """
     Add a feed to the database.
 
@@ -140,7 +139,7 @@ async def add_webhook(webhook_name: str = Form(), webhook_url: str = Form()) -> 
 
 
 @app.post("/delete_webhook")
-async def delete_webhook(webhook_url: str = Form()) -> RedirectResponse | dict[str, str]:
+async def delete_webhook(webhook_url: str = Form()):
     """
     Delete a webhook from the database.
 
@@ -174,7 +173,7 @@ async def delete_webhook(webhook_url: str = Form()) -> RedirectResponse | dict[s
 
 
 @app.post("/add")
-async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) -> dict[str, str] | RedirectResponse:
+async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()):
     """
     Add a feed to the database.
 
@@ -221,7 +220,7 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) ->
 
 
 @app.post("/pause")
-async def pause_feed(feed_url: str = Form()) -> dict[str, str] | RedirectResponse:
+async def pause_feed(feed_url: str = Form()):
     """Pause a feed.
 
     Args:
@@ -240,7 +239,7 @@ async def pause_feed(feed_url: str = Form()) -> dict[str, str] | RedirectRespons
 
 
 @app.post("/unpause")
-async def unpause_feed(feed_url: str = Form()) -> dict[str, str] | RedirectResponse:
+async def unpause_feed(feed_url: str = Form()):
     """Unpause a feed.
 
     Args:
@@ -264,7 +263,7 @@ async def set_whitelist(
     whitelist_summary: str = Form(None),
     whitelist_content: str = Form(None),
     feed_url: str = Form(),
-) -> RedirectResponse:
+):
     """Set what the whitelist should be sent, if you have this set only words in the whitelist will be sent.
 
     Args:
@@ -290,7 +289,7 @@ async def set_whitelist(
 
 
 @app.get("/whitelist", response_class=HTMLResponse)
-async def get_whitelist(feed_url: str, request: Request) -> _TemplateResponse:
+async def get_whitelist(feed_url: str, request: Request):
     """Get the whitelist.
 
     Args:
@@ -326,7 +325,7 @@ async def set_blacklist(
     blacklist_summary: str = Form(None),
     blacklist_content: str = Form(None),
     feed_url: str = Form(),
-) -> RedirectResponse:
+):
     """Set the blacklist, if this is set we will check if words are in the title, summary or content and then don't send that entry.
 
     Args:
@@ -354,7 +353,7 @@ async def set_blacklist(
 
 
 @app.get("/blacklist", response_class=HTMLResponse)
-async def get_blacklist(feed_url: str, request: Request) -> _TemplateResponse:
+async def get_blacklist(feed_url: str, request: Request):
     # Make feed_url a valid URL.
     url: str = urllib.parse.unquote(feed_url)
 
@@ -376,7 +375,7 @@ async def get_blacklist(feed_url: str, request: Request) -> _TemplateResponse:
 
 
 @app.get("/add", response_class=HTMLResponse)
-def get_add(request: Request) -> _TemplateResponse:
+def get_add(request: Request):
     """
     Page for adding a new feed.
 
@@ -391,7 +390,7 @@ def get_add(request: Request) -> _TemplateResponse:
 
 
 @app.get("/feed", response_class=HTMLResponse)
-async def get_feed(feed_url: str, request: Request) -> _TemplateResponse:
+async def get_feed(feed_url: str, request: Request):
     """
     Get a feed by URL.
 
@@ -418,7 +417,7 @@ async def get_feed(feed_url: str, request: Request) -> _TemplateResponse:
 
 
 @app.get("/webhooks", response_class=HTMLResponse)
-async def get_webhooks(request: Request) -> _TemplateResponse:
+async def get_webhooks(request: Request):
     """
     Page for adding a new webhook.
 
@@ -432,7 +431,7 @@ async def get_webhooks(request: Request) -> _TemplateResponse:
 
 
 @app.get("/", response_class=HTMLResponse)
-def index(request: Request) -> _TemplateResponse:
+def index(request: Request):
     """
     This is the root of the website.
 
@@ -492,7 +491,7 @@ def make_context_index(request) -> dict:
 
 
 @app.post("/remove", response_class=HTMLResponse)
-async def remove_feed(feed_url: str = Form()) -> RedirectResponse:
+async def remove_feed(feed_url: str = Form()):
     """
     Get a feed by URL.
 
@@ -509,7 +508,7 @@ async def remove_feed(feed_url: str = Form()) -> RedirectResponse:
 
 
 @app.get("/search", response_class=HTMLResponse)
-async def search(request: Request, query: str) -> _TemplateResponse:
+async def search(request: Request, query: str):
     """
     Get entries matching a full-text search query.
 
