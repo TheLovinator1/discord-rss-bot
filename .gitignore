@@ -132,3 +132,5 @@ dmypy.json
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+
+*.pyi
