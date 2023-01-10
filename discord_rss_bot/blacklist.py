@@ -44,6 +44,7 @@ def has_black_tags(custom_reader: Reader, feed: Feed) -> bool:
 
     if blacklist_title or blacklist_summary or blacklist_content:
         return True
+    return False
 
 
 def should_be_skipped(custom_reader: Reader, entry: Entry) -> bool:
