@@ -36,16 +36,7 @@ from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from reader import (
-    Entry,
-    EntryCounts,
-    EntrySearchCounts,
-    EntrySearchResult,
-    Feed,
-    FeedCounts,
-    Reader,
-    TagNotFoundError,
-)
+from reader import Entry, EntryCounts, EntrySearchCounts, EntrySearchResult, Feed, FeedCounts, Reader, TagNotFoundError
 from starlette.responses import RedirectResponse
 from starlette.templating import _TemplateResponse  # noqa
 

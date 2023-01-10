@@ -5,11 +5,7 @@ import tempfile
 from platformdirs import user_data_dir
 from reader import Reader
 
-from discord_rss_bot.settings import (
-    data_dir,
-    get_db_location,
-    get_reader,
-)
+from discord_rss_bot.settings import data_dir, get_db_location, get_reader
 
 
 def test_get_db_location() -> None:
