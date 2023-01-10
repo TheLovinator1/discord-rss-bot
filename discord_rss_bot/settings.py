@@ -2,7 +2,7 @@ import logging
 import os
 
 from platformdirs import user_data_dir
-from reader import Entry, Reader, TagNotFoundError, make_reader
+from reader import Entry, Reader, TagNotFoundError, make_reader  # type: ignore
 
 logging_format: str = "[%(asctime)s] [%(funcName)s:%(lineno)d] %(message)s"
 logging.basicConfig(level=logging.DEBUG, format=logging_format)

@@ -3,7 +3,7 @@ import tempfile
 from pathlib import Path
 from typing import Iterable
 
-from reader import EntrySearchResult, Feed, Reader, make_reader
+from reader import EntrySearchResult, Feed, Reader, make_reader  # type: ignore
 
 from discord_rss_bot.search import create_html_for_search_results
 

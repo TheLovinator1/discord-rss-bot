@@ -42,9 +42,7 @@ def has_black_tags(custom_reader: Reader, feed: Feed) -> bool:
     blacklist_summary: str = get_blacklist_summary(custom_reader, feed)
     blacklist_content: str = get_blacklist_content(custom_reader, feed)
 
-    if blacklist_title or blacklist_summary or blacklist_content:
-        return True
-    return False
+    return bool(blacklist_title or blacklist_summary or blacklist_content)
 
 
 def should_be_skipped(custom_reader: Reader, entry: Entry) -> bool:
@@ -61,21 +59,15 @@ def should_be_skipped(custom_reader: Reader, entry: Entry) -> bool:
     feed: Feed = entry.feed
     blacklist_title: str = get_blacklist_title(custom_reader, feed)
     blacklist_summary: str = get_blacklist_summary(custom_reader, feed)
-    blacklist_content: str = get_blacklist_content(custom_reader, feed)
+    # blacklist_content: str = get_blacklist_content(custom_reader, feed)
     # TODO: Fix content
     # TODO: Check author
 
-    if blacklist_title:
-        if is_word_in_text(blacklist_title, entry.title):
-            return True
-
-    if blacklist_summary:
-        if is_word_in_text(blacklist_summary, entry.summary):
-            return True
-
+    if entry.title and blacklist_title and is_word_in_text(blacklist_title, entry.title):
+        return True
+    elif entry.summary and blacklist_summary and is_word_in_text(blacklist_summary, entry.summary):
+        return True
     return False
-
-    # if blacklist_content.lower() in entry.content.lower():
 
 
 def get_blacklist_content(custom_reader: Reader, feed: Feed) -> str:

@@ -2,7 +2,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from reader import Feed, Reader, make_reader
+from reader import Feed, Reader, make_reader  # type: ignore
 
 from discord_rss_bot.feeds import send_to_discord
 

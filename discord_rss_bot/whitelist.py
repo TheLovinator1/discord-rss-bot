@@ -42,9 +42,7 @@ def has_white_tags(custom_reader: Reader, feed: Feed) -> bool:
     whitelist_summary: str = get_whitelist_summary(custom_reader, feed)
     whitelist_content: str = get_whitelist_content(custom_reader, feed)
 
-    if whitelist_title or whitelist_summary or whitelist_content:
-        return True
-    return False
+    return bool(whitelist_title or whitelist_summary or whitelist_content)
 
 
 def should_be_sent(custom_reader: Reader, entry: Entry) -> bool:
@@ -61,20 +59,15 @@ def should_be_sent(custom_reader: Reader, entry: Entry) -> bool:
     feed: Feed = entry.feed
     whitelist_title: str = get_whitelist_title(custom_reader, feed)
     whitelist_summary: str = get_whitelist_summary(custom_reader, feed)
-    whitelist_content: str = get_whitelist_content(custom_reader, feed)
+    # whitelist_content: str = get_whitelist_content(custom_reader, feed)
     # TODO: Fix content
     # TODO: Check author
 
-    if whitelist_title:
-        if is_word_in_text(whitelist_title, entry.title):
-            return True
-
-    if whitelist_summary:
-        if is_word_in_text(whitelist_summary, entry.summary):
-            return True
-
+    if entry.title and whitelist_title and is_word_in_text(whitelist_title, entry.title):
+        return True
+    elif entry.summary and whitelist_summary and is_word_in_text(whitelist_summary, entry.summary):
+        return True
     return False
-    # if whitelist_content.lower() in entry.content.lower():
 
 
 def get_whitelist_content(custom_reader: Reader, feed: Feed) -> str:
