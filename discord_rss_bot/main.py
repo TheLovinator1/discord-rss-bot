@@ -1,31 +1,3 @@
-"""
-The main file for the discord-rss-bot.
-
-This file is used to start the bot.
-
-Functions:
-    check_feed() -> /check
-        POST - Update a feed.
-    crete_feed() -> /add
-        POST - Create a new feed.
-    favicon() -> /favicon.ico
-        GET - Return the favicon.
-    get_add() -> /add
-        GET - Page for adding a new feed.
-    get_feed() -> /feed
-        GET - Page for a single feed.
-    index() -> /
-        GET - index page.
-    remove_feed() -> /remove
-        POST - Remove a feed.
-
-    create_list_of_webhooks()
-        Create a list with webhooks.
-    make_context_index()
-        Create the needed context for the index page.
-    startup()
-        Runs on startup.
-"""
 import urllib.parse
 from datetime import datetime
 from typing import Any, Iterable

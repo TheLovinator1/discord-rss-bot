@@ -1,6 +1,3 @@
-"""This is used as a healthcheck in the Dockerfile.
-The normal way would probably be to use CURL, but then we would have to install it."""
-
 import sys
 
 import requests

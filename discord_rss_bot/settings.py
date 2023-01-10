@@ -1,17 +1,3 @@
-"""This module contains functions for reading and writing settings and configuration files.
-
-Functions:
-    create_settings_file:
-        Create the settings file if it doesn't exist.
-    get_db_file:
-        Where we store the database file.
-    read_settings_file:
-        Read the settings file and return it as a dict.
-
-Variables:
-    data_dir:
-        Where we store the database and settings file.
-"""
 import logging
 import os
 
