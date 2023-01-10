@@ -5,9 +5,9 @@ from reader import Entry, Feed, Reader
 from requests import Response
 
 from discord_rss_bot import settings
-from discord_rss_bot.blacklist import should_be_skipped
+from discord_rss_bot.filter.blacklist import should_be_skipped
 from discord_rss_bot.settings import get_reader
-from discord_rss_bot.whitelist import has_white_tags, should_be_sent
+from discord_rss_bot.filter.whitelist import has_white_tags, should_be_sent
 
 
 def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = None, do_once: bool = False) -> None:

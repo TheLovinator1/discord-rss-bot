@@ -11,12 +11,23 @@ from fastapi.templating import Jinja2Templates
 from reader import Entry, EntryCounts, EntrySearchCounts, EntrySearchResult, Feed, FeedCounts, Reader, TagNotFoundError
 from starlette.responses import RedirectResponse
 
-from discord_rss_bot import blacklist, whitelist
-from discord_rss_bot.blacklist import has_black_tags, should_be_skipped
 from discord_rss_bot.feeds import send_to_discord
+from discord_rss_bot.filter.blacklist import (
+    get_blacklist_content,
+    get_blacklist_summary,
+    get_blacklist_title,
+    has_black_tags,
+    should_be_skipped,
+)
+from discord_rss_bot.filter.whitelist import (
+    get_whitelist_content,
+    get_whitelist_summary,
+    get_whitelist_title,
+    has_white_tags,
+    should_be_sent,
+)
 from discord_rss_bot.search import create_html_for_search_results
 from discord_rss_bot.settings import get_reader, list_webhooks
-from discord_rss_bot.whitelist import has_white_tags, should_be_sent
 
 app: FastAPI = FastAPI()
 app.mount("/static", StaticFiles(directory="discord_rss_bot/static"), name="static")
@@ -278,9 +289,9 @@ async def get_whitelist(feed_url: str, request: Request):
     feed: Feed = reader.get_feed(url)
 
     # Get previous data, this is used when creating the form.
-    whitelist_title: str = whitelist.get_whitelist_title(reader, feed)
-    whitelist_summary: str = whitelist.get_whitelist_summary(reader, feed)
-    whitelist_content: str = whitelist.get_whitelist_content(reader, feed)
+    whitelist_title: str = get_whitelist_title(reader, feed)
+    whitelist_summary: str = get_whitelist_summary(reader, feed)
+    whitelist_content: str = get_whitelist_content(reader, feed)
 
     context = {
         "request": request,
@@ -334,9 +345,9 @@ async def get_blacklist(feed_url: str, request: Request):
     feed: Feed = reader.get_feed(url)
 
     # Get previous data, this is used when creating the form.
-    blacklist_title: str = blacklist.get_blacklist_title(reader, feed)
-    blacklist_summary: str = blacklist.get_blacklist_summary(reader, feed)
-    blacklist_content: str = blacklist.get_blacklist_content(reader, feed)
+    blacklist_title: str = get_blacklist_title(reader, feed)
+    blacklist_summary: str = get_blacklist_summary(reader, feed)
+    blacklist_content: str = get_blacklist_content(reader, feed)
 
     context = {
         "request": request,
