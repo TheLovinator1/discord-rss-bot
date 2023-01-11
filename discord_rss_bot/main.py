@@ -11,21 +11,10 @@ from fastapi.templating import Jinja2Templates
 from reader import Entry, EntryCounts, EntrySearchCounts, EntrySearchResult, Feed, FeedCounts, Reader, TagNotFoundError
 from starlette.responses import RedirectResponse
 
+from discord_rss_bot.custom_filters import encode_url, entry_is_blacklisted, entry_is_whitelisted
 from discord_rss_bot.feeds import send_to_discord
-from discord_rss_bot.filter.blacklist import (
-    get_blacklist_content,
-    get_blacklist_summary,
-    get_blacklist_title,
-    has_black_tags,
-    should_be_skipped,
-)
-from discord_rss_bot.filter.whitelist import (
-    get_whitelist_content,
-    get_whitelist_summary,
-    get_whitelist_title,
-    has_white_tags,
-    should_be_sent,
-)
+from discord_rss_bot.filter.blacklist import get_blacklist_content, get_blacklist_summary, get_blacklist_title
+from discord_rss_bot.filter.whitelist import get_whitelist_content, get_whitelist_summary, get_whitelist_title
 from discord_rss_bot.search import create_html_for_search_results
 from discord_rss_bot.settings import get_reader, list_webhooks
 
@@ -34,50 +23,6 @@ app.mount("/static", StaticFiles(directory="discord_rss_bot/static"), name="stat
 templates: Jinja2Templates = Jinja2Templates(directory="discord_rss_bot/templates")
 
 reader: Reader = get_reader()
-
-
-def encode_url(url_to_quote: str) -> str:
-    """%-escape the URL so it can be used in a URL.
-
-    If we didn't do this, we couldn't go to feeds with a ? in the URL.
-    You can use this in templates with {{ url | encode_url }}.
-
-    Args:
-        url_to_quote: The url to encode.
-
-    Returns:
-        The encoded url.
-    """
-    # TODO: Send error to Discord.
-    return urllib.parse.quote(url_to_quote) if url_to_quote else "None"
-
-
-def entry_is_whitelisted(entry_to_check: Entry) -> bool:
-    """
-    Check if the entry is whitelisted.
-
-    Args:
-        entry_to_check: The feed to check.
-
-    Returns:
-        bool: True if the feed is whitelisted, False otherwise.
-
-    """
-    return bool(has_white_tags(reader, entry_to_check.feed) and should_be_sent(reader, entry_to_check))
-
-
-def entry_is_blacklisted(entry_to_check: Entry) -> bool:
-    """
-    Check if the entry is blacklisted.
-
-    Args:
-        entry_to_check: The feed to check.
-
-    Returns:
-        bool: True if the feed is blacklisted, False otherwise.
-
-    """
-    return bool(has_black_tags(reader, entry_to_check.feed) and should_be_skipped(reader, entry_to_check))
 
 
 # Add the filters to the Jinja2 environment so they can be used in html templates.
