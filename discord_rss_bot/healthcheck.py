@@ -10,7 +10,7 @@ def healthcheck() -> None:
     sys.exit(1): unhealthy - the container is not working correctly."""
     # TODO: We should check more than just that the website is up.
     try:
-        r: requests.Response = requests.get("http://localhost:5000")
+        r: requests.Response = requests.get(url="http://localhost:5000", timeout=5)
         if r.ok:
             sys.exit(0)
     except requests.exceptions.RequestException as e:
