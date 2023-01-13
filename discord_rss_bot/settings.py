@@ -5,7 +5,7 @@ from platformdirs import user_data_dir
 from reader import Entry, Reader, TagNotFoundError, make_reader  # type: ignore
 
 logging_format: str = "[%(asctime)s] [%(funcName)s:%(lineno)d] %(message)s"
-logging.basicConfig(level=logging.DEBUG, format=logging_format)
+logging.basicConfig(level=logging.INFO, format=logging_format)
 data_dir: str = user_data_dir(appname="discord_rss_bot", appauthor="TheLovinator", roaming=True)
 os.makedirs(data_dir, exist_ok=True)
 
