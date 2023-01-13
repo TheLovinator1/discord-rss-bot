@@ -42,7 +42,7 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
 
         webhook_url: str | None = settings.get_webhook_for_entry(reader, entry)
 
-        webhook_message: str = f":robot: :mega: {entry.title}\n{entry.link}"
+        webhook_message: str = f"{entry.title}\n{entry.link}"
 
         if webhook_url is None:
             print(f"Error: No webhook found for feed: {entry.feed.title}")
