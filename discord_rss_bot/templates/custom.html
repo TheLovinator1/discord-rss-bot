@@ -1,0 +1,70 @@
+{% extends "base.html" %}(
+{% block title %} | Custom message{% endblock %}
+{% block content %}
+    <div class="p-2 border border-dark">
+        <form action="/custom" method="post">
+            <!-- Feed URL -->
+            <div class="row pb-2">
+
+                <div class="col-sm-12">
+                    <div class="form-text">
+                        <ul class="list-inline">
+                            <li>You can modify the message that is sent to Discord.</li>
+                            <br>
+                            <li><code>{% raw %}{{feed_url}}{% endraw %}</code> will be replaced with the feed URL. You can use <code>\n</code> for new lines.</li>
+                            <br>
+                            <li><code>{% raw %}{{feed_author}}{% endraw %}</code> - {{feed.author}}</li>
+                            <li><code>{% raw %}{{feed_added}}{% endraw %}</code> - {{feed.added}}</li>
+                            <li><code>{% raw %}{{feed_last_exception}}{% endraw %}</code> - {{feed.last_exception}}</li>
+                            <li><code>{% raw %}{{feed_last_updated}}{% endraw %}</code> - {{feed.last_updated}}</li>
+                            <li><code>{% raw %}{{feed_link}}{% endraw %}</code> - {{feed.link}}</li>
+                            <li><code>{% raw %}{{feed_subtitle}}{% endraw %}</code> - {{feed.subtitle}}</li>
+                            <li><code>{% raw %}{{feed_title}}{% endraw %}</code> - {{feed.title}}</li>
+                            <li><code>{% raw %}{{feed_updated}}{% endraw %}</code> - {{feed.updated}}</li>
+                            <li><code>{% raw %}{{feed_updates_enabled}}{% endraw %}</code> - {{feed.updates_enabled}}</li>
+                            <li><code>{% raw %}{{feed_url}}{% endraw %}</code> - {{feed.url}}</li>
+                            <li><code>{% raw %}{{feed_user_title}}{% endraw %}</code> - {{feed.user_title}}</li>
+                            <li><code>{% raw %}{{feed_version}}{% endraw %}</code> - {{feed.version}}</li>
+                            <br>
+                            <li><code>{% raw %}{{entry_added}}{% endraw %}</code> - {{entry.added}}</li>
+                            <li><code>{% raw %}{{entry_author}}{% endraw %}</code> - {{entry.author}}</li>
+                            <li><code>{% raw %}{{entry_content}}{% endraw %}</code> - {{entry.content[0].value}}</li>
+                            <li><code>{% raw %}{{entry_id}}{% endraw %}</code> - {{entry.id}}</li>
+                            <li><code>{% raw %}{{entry_important}}{% endraw %}</code> - {{entry.important}}</li>
+                            <li><code>{% raw %}{{entry_link}}{% endraw %}</code> - {{entry.link}}</li>
+                            <li><code>{% raw %}{{entry_published}}{% endraw %}</code> - {{entry.published}}</li>
+                            <li><code>{% raw %}{{entry_read}}{% endraw %}</code> - {{entry.read}}</li>
+                            <li><code>{% raw %}{{entry_read_modified}}{% endraw %}</code> - {{entry.read_modified}}</li>
+                            <li><code>{% raw %}{{entry_summary}}{% endraw %}</code> - {{entry.summary}}</li>
+                            <li><code>{% raw %}{{entry_title}}{% endraw %}</code> - {{entry.title}}</li>
+                            <li><code>{% raw %}{{entry_updated}}{% endraw %}</code> - {{entry.updated}}</li>
+                        </ul>
+                        <ul class="list-inline">
+                            <li>Examples:</li>
+                            <li><code>{% raw %}Hello {{entry_author}}\n{{feed_title}}\n{{entry_read}}{% endraw %}</code></li> 
+                            <br>
+                            <li>Will become:</li>
+                            <li><code style="white-space: pre-line">
+                                Hello {{entry.author}}
+                                {{feed.title}} 
+                                {{entry.read}}
+                            </code></li>
+                        </ul>
+                    </div>
+
+                    <label for="custom_message" class="col-sm-6 col-form-label">Message</label>
+                    <input name="custom_message" type="text" class="form-control bg-dark border-dark text-muted"
+                           id="custom_message" value="{% if custom_message %}{{ custom_message }}{% endif %}">
+                </div>
+            </div>
+
+            <!-- Add a hidden feed_url field to the form -->
+            <input type="hidden" name="feed_url" value="{{ feed.url }}">
+
+            <!-- Submit button -->
+            <div class="d-md-flex">
+                <button class="btn btn-dark btn-sm">Update message</button>
+            </div>
+        </form>
+    </div>
+{% endblock %}

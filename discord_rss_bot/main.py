@@ -12,6 +12,7 @@ from reader import Entry, EntryCounts, EntrySearchCounts, EntrySearchResult, Fee
 from starlette.responses import RedirectResponse
 
 from discord_rss_bot.custom_filters import encode_url, entry_is_blacklisted, entry_is_whitelisted
+from discord_rss_bot.custom_message import get_custom_message
 from discord_rss_bot.feeds import send_to_discord
 from discord_rss_bot.filter.blacklist import get_blacklist_content, get_blacklist_summary, get_blacklist_title
 from discord_rss_bot.filter.whitelist import get_whitelist_content, get_whitelist_summary, get_whitelist_title
@@ -115,6 +116,8 @@ async def create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()):
     """
     clean_feed_url: str = feed_url.strip()
 
+    # TODO: Check if the feed is valid, if not return an error or fix it.
+    # For example, if the feed is missing the protocol, add it.
     reader.add_feed(clean_feed_url)
     reader.update_feed(clean_feed_url)
 
@@ -302,6 +305,62 @@ async def get_blacklist(feed_url: str, request: Request):
         "blacklist_content": blacklist_content,
     }
     return templates.TemplateResponse("blacklist.html", context)  # type: ignore
+
+
+@app.post("/custom")
+async def set_custom(custom_message: str = Form(""), feed_url: str = Form()):
+    """
+    Set the custom message, this is used when sending the message.
+
+    Args:
+        custom_message: The custom message.
+        feed_url: The feed we should set the custom message for.
+
+        Returns:
+            Redirect to the feed.
+    """
+
+    # Add the custom_message to the feed.
+    if custom_message:
+        reader.set_tag(feed_url, "custom_message", custom_message)
+        print(f"Set custom message for {feed_url} to {custom_message}")
+    else:
+        print(f"Removing custom message for {feed_url}")
+        reader.delete_tag(feed_url, "custom_message", missing_ok=True)
+
+    # Clean URL is used to redirect to the feed page.
+    clean_url: str = urllib.parse.quote(feed_url)
+
+    return RedirectResponse(url=f"/feed/?feed_url={clean_url}", status_code=303)
+
+
+@app.get("/custom", response_class=HTMLResponse)
+async def get_custom(feed_url: str, request: Request):
+    """Get the custom message. This is used when sending the message to Discord.
+
+    Args:
+        feed_url: What feed we should get the custom message for.
+        request: The HTTP request.
+
+    Returns:
+        custom.html
+    """
+
+    # Make feed_url a valid URL.
+    url: str = urllib.parse.unquote(feed_url)
+
+    feed: Feed = reader.get_feed(url)
+
+    # Get previous data, this is used when creating the form.
+    custom_message: str = get_custom_message(reader, feed)
+
+    # Get the first entry, this is used to show the user what the custom message will look like.
+    first_entry: Entry = reader.get_entries(feed=feed, limit=1)
+    for entry in first_entry:
+        first_entry = entry
+
+    context = {"request": request, "feed": feed, "custom_message": custom_message, "entry": first_entry}
+    return templates.TemplateResponse("custom.html", context)  # type: ignore
 
 
 @app.get("/add", response_class=HTMLResponse)

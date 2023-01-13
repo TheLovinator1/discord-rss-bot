@@ -26,6 +26,7 @@
         {% endif %}
         <a class="text-muted" href="/whitelist?feed_url={{ feed.url|encode_url }}">Whitelist</a>
         <a class="text-muted" href="/blacklist?feed_url={{ feed.url|encode_url }}">Blacklist</a>
+        <a class="text-muted" href="/custom?feed_url={{ feed.url|encode_url }}">Custom message</a>
 
     </div>
     {% for entry in entries %}
@@ -46,7 +47,8 @@
             {% if entry.published %}
                 @ {{ entry.published.strftime('%Y-%m-%d, %T') }}
             {% endif %}
-
+            
+            {# TODO: Only show one if both are the same #}
             {% if entry.summary %}
                 <details>
                     <summary>Summary</summary>

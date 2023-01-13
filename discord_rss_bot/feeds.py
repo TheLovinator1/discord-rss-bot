@@ -4,10 +4,10 @@ from discord_webhook import DiscordWebhook
 from reader import Entry, Feed, Reader
 from requests import Response
 
-from discord_rss_bot import settings
+from discord_rss_bot import custom_message, settings
 from discord_rss_bot.filter.blacklist import should_be_skipped
-from discord_rss_bot.settings import get_reader
 from discord_rss_bot.filter.whitelist import has_white_tags, should_be_sent
+from discord_rss_bot.settings import get_reader
 
 
 def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = None, do_once: bool = False) -> None:
@@ -50,6 +50,11 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
 
         webhook: DiscordWebhook = DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)
 
+        if custom_message.get_custom_message(reader, entry.feed) != "":
+            print("Custom message found, replacing tags.")
+            webhook.content = custom_message.replace_tags(entry=entry, feed=entry.feed)
+
+        print(f"Webhook content: {webhook.content}")
         if feed is not None and has_white_tags(reader, feed):
             # Only send the entry if it is whitelisted, otherwise, mark it as read and continue.
             if should_be_sent(reader, entry):
