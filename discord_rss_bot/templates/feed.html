@@ -47,13 +47,13 @@
             {% if entry.published %}
                 @ {{ entry.published.strftime('%Y-%m-%d, %T') }}
             {% endif %}
-            
+
             {# TODO: Only show one if both are the same #}
             {% if entry.summary %}
                 <details>
                     <summary>Summary</summary>
                     <div class="text-muted text-wrap summary">
-                        {{ entry.summary | safe }}
+                        {{ entry.summary | discord_markdown }}
                     </div>
                 </details>
             {% endif %}
@@ -61,7 +61,7 @@
                 <details>
                     <summary>Content</summary>
                     <div class="text-muted summary">
-                        {{ entry.content[0].value | safe }}
+                        {{ entry.content[0].value | discord_markdown }}
                     </div>
                 </details>
             {% endif %}

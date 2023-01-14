@@ -10,7 +10,7 @@ data_dir: str = user_data_dir(appname="discord_rss_bot", appauthor="TheLovinator
 os.makedirs(data_dir, exist_ok=True)
 
 
-def get_webhook_for_entry(custom_reader: Reader, entry: Entry) -> str | None:
+def get_webhook_for_entry(custom_reader: Reader, entry: Entry) -> str:
     """
     Get the webhook from the database.
 
@@ -26,12 +26,12 @@ def get_webhook_for_entry(custom_reader: Reader, entry: Entry) -> str | None:
 
     # Get the webhook from the feed.
     # Is None if not found or error.
-    webhook_url: str | None
+    webhook_url: str
     try:
         webhook_url = str(reader.get_tag(entry.feed_url, "webhook"))
     except TagNotFoundError:
         print(f"Webhook not found for feed {entry.feed_url}")
-        webhook_url = None
+        webhook_url = ""
 
     return webhook_url
 

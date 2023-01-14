@@ -34,17 +34,17 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
     if feed is None:
         entries: Iterable[Entry] = reader.get_entries(read=False)
     else:
-        entries: Iterable[Entry] = reader.get_entries(feed=feed, read=False)
+        entries = reader.get_entries(feed=feed, read=False)
 
     for entry in entries:
         # Set the webhook to read, so we don't send it again.
         reader.set_entry_read(entry, True)
 
-        webhook_url: str | None = settings.get_webhook_for_entry(reader, entry)
+        webhook_url: str = settings.get_webhook_for_entry(reader, entry)
 
         webhook_message: str = f"{entry.title}\n{entry.link}"
 
-        if webhook_url is None:
+        if not webhook_url:
             print(f"Error: No webhook found for feed: {entry.feed.title}")
             continue
 

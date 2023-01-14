@@ -1,3 +1,4 @@
+from markdownify import markdownify
 from reader import Entry, Feed, Reader, TagNotFoundError
 
 from discord_rss_bot.settings import get_reader
@@ -41,6 +42,13 @@ def replace_tags(feed: Feed, entry: Entry) -> str:
     custom_reader: Reader = get_reader()
     custom_message: str = get_custom_message(feed=feed, custom_reader=custom_reader)
 
+    summary = ""
+    content = ""
+    if entry.summary:
+        summary: str = markdownify(entry.summary)
+    if entry.content:
+        content: str = markdownify(entry.content[0]["value"])
+
     list_of_replacements = [
         {"{{feed_author}}": feed.author},
         {"{{feed_added}}": feed.added},
@@ -56,21 +64,21 @@ def replace_tags(feed: Feed, entry: Entry) -> str:
         {"{{feed_version}}": feed.version},
         {"{{entry_added}}": entry.added},
         {"{{entry_author}}": entry.author},
-        {"{{entry_content}}": entry.content},
+        {"{{entry_content}}": content},
         {"{{entry_id}}": entry.id},
         {"{{entry_important}}": str(entry.important)},
         {"{{entry_link}}": entry.link},
         {"{{entry_published}}": entry.published},
         {"{{entry_read}}": str(entry.read)},
         {"{{entry_read_modified}}": entry.read_modified},
-        {"{{entry_summary}}": entry.summary},
+        {"{{entry_summary}}": summary},
         {"{{entry_title}}": entry.title},
         {"{{entry_updated}}": entry.updated},
     ]
 
     for replacement in list_of_replacements:
         for template, replace_with in replacement.items():
-            custom_message: str = try_to_replace(custom_message, template, replace_with)
+            custom_message = try_to_replace(custom_message, template, replace_with)
 
     print(f"custom_message: {custom_message}")
     return custom_message
@@ -87,9 +95,9 @@ def get_custom_message(custom_reader: Reader, feed: Feed) -> str:
         Returns the contents from the custom_message tag.
     """
     try:
-        custom_message: str = custom_reader.get_tag(feed, "custom_message")  # type: ignore
+        custom_message: str = str(custom_reader.get_tag(feed, "custom_message"))
     except TagNotFoundError:
-        custom_message: str = ""
+        custom_message = ""
     except ValueError:
-        custom_message: str = ""
+        custom_message = ""
     return custom_message
