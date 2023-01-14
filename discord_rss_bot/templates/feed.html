@@ -43,28 +43,27 @@
                     {{ entry.title }}
                 </a>
             </h2>
-            By {{ entry.author }}
+            {% if entry.author %}
+                By {{ entry.author }} @ 
+            {% endif %}
             {% if entry.published %}
-                @ {{ entry.published.strftime('%Y-%m-%d, %T') }}
+                {{ entry.published.strftime('%Y-%m-%d, %T') }}
             {% endif %}
 
-            {# TODO: Only show one if both are the same #}
-            {% if entry.summary %}
-                <details>
-                    <summary>Summary</summary>
-                    <div class="text-muted text-wrap summary">
-                        {{ entry.summary | discord_markdown }}
-                    </div>
-                </details>
+            {% if entry.summary%}
+                <div class="text-muted">
+                    {{ entry.summary | discord_markdown }}
+                </div>
+            {% elif entry.content[0].value %}
+                <div class="text-muted">
+                    {{ entry.content[0].value | discord_markdown }}
+                </div>
+            {% else %}
+                <div class="text-muted">
+                    No content available.
+                </div>
             {% endif %}
-            {% if entry.content %}
-                <details>
-                    <summary>Content</summary>
-                    <div class="text-muted summary">
-                        {{ entry.content[0].value | discord_markdown }}
-                    </div>
-                </details>
-            {% endif %}
+
         </div>
     {% endfor %}
 {% endblock %}
