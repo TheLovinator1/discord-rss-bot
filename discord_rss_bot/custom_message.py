@@ -1,6 +1,6 @@
-from markdownify import markdownify
 from reader import Entry, Feed, Reader, TagNotFoundError
 
+from discord_rss_bot.custom_filters import convert_to_md
 from discord_rss_bot.settings import get_reader
 
 
@@ -45,9 +45,9 @@ def replace_tags(feed: Feed, entry: Entry) -> str:
     summary = ""
     content = ""
     if entry.summary:
-        summary: str = markdownify(entry.summary)
+        summary: str = entry.summary
     if entry.content:
-        content: str = markdownify(entry.content[0]["value"])
+        content: str = entry.content[0]["value"]  # type: ignore
 
     list_of_replacements = [
         {"{{feed_author}}": feed.author},
@@ -64,16 +64,16 @@ def replace_tags(feed: Feed, entry: Entry) -> str:
         {"{{feed_version}}": feed.version},
         {"{{entry_added}}": entry.added},
         {"{{entry_author}}": entry.author},
-        {"{{entry_content}}": content},
-        {"{{entry_content_raw}}": entry.content[0]["value"]},
+        {"{{entry_content}}": convert_to_md(content)},
+        {"{{entry_content_raw}}": content},
         {"{{entry_id}}": entry.id},
         {"{{entry_important}}": str(entry.important)},
         {"{{entry_link}}": entry.link},
         {"{{entry_published}}": entry.published},
         {"{{entry_read}}": str(entry.read)},
         {"{{entry_read_modified}}": entry.read_modified},
-        {"{{entry_summary}}": summary},
-        {"{{entry_summary_raw}}": entry.summary},
+        {"{{entry_summary}}": convert_to_md(summary)},
+        {"{{entry_summary_raw}}": summary},
         {"{{entry_title}}": entry.title},
         {"{{entry_updated}}": entry.updated},
     ]

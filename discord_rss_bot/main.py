@@ -8,11 +8,10 @@ from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from markdownify import markdownify
 from reader import Entry, EntryCounts, EntrySearchCounts, EntrySearchResult, Feed, FeedCounts, Reader, TagNotFoundError
 from starlette.responses import RedirectResponse
 
-from discord_rss_bot.custom_filters import encode_url, entry_is_blacklisted, entry_is_whitelisted
+from discord_rss_bot.custom_filters import convert_to_md, encode_url, entry_is_blacklisted, entry_is_whitelisted
 from discord_rss_bot.custom_message import get_custom_message
 from discord_rss_bot.feeds import send_to_discord
 from discord_rss_bot.filter.blacklist import get_blacklist_content, get_blacklist_summary, get_blacklist_title
@@ -31,7 +30,7 @@ reader: Reader = get_reader()
 templates.env.filters["encode_url"] = encode_url
 templates.env.filters["entry_is_whitelisted"] = entry_is_whitelisted
 templates.env.filters["entry_is_blacklisted"] = entry_is_blacklisted
-templates.env.filters["discord_markdown"] = markdownify
+templates.env.filters["discord_markdown"] = convert_to_md
 
 
 @app.post("/add_webhook")

@@ -1,5 +1,6 @@
 import urllib.parse
 
+from markdownify import markdownify
 from reader import Entry, Reader
 
 from discord_rss_bot.filter.blacklist import has_black_tags, should_be_skipped
@@ -52,3 +53,8 @@ def entry_is_blacklisted(entry_to_check: Entry) -> bool:
 
     """
     return bool(has_black_tags(reader, entry_to_check.feed) and should_be_skipped(reader, entry_to_check))
+
+
+def convert_to_md(thing: str) -> str:
+    """Discord does not support tables so we need to remove them from the markdown."""
+    return markdownify(thing, strip=["table", "thead", "tbody", "tr", "th", "td"])
