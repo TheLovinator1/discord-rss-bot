@@ -52,11 +52,11 @@
 
             {% if entry.summary%}
                 <div class="text-muted">
-                    {{ entry.summary | discord_markdown }}
+                    {{ entry.summary|discord_markdown }}
                 </div>
             {% elif entry.content[0].value %}
                 <div class="text-muted">
-                    {{ entry.content[0].value | discord_markdown }}
+                    {{ entry.content[0].value|discord_markdown }}
                 </div>
             {% else %}
                 <div class="text-muted">

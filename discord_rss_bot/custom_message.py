@@ -65,6 +65,7 @@ def replace_tags(feed: Feed, entry: Entry) -> str:
         {"{{entry_added}}": entry.added},
         {"{{entry_author}}": entry.author},
         {"{{entry_content}}": content},
+        {"{{entry_content_raw}}": entry.content[0]["value"]},
         {"{{entry_id}}": entry.id},
         {"{{entry_important}}": str(entry.important)},
         {"{{entry_link}}": entry.link},
@@ -72,6 +73,7 @@ def replace_tags(feed: Feed, entry: Entry) -> str:
         {"{{entry_read}}": str(entry.read)},
         {"{{entry_read_modified}}": entry.read_modified},
         {"{{entry_summary}}": summary},
+        {"{{entry_summary_raw}}": entry.summary},
         {"{{entry_title}}": entry.title},
         {"{{entry_updated}}": entry.updated},
     ]

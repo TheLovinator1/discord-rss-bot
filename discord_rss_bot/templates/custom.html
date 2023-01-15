@@ -28,14 +28,16 @@
                             <br>
                             <li><code>{% raw %}{{entry_added}}{% endraw %}</code> - {{entry.added}}</li>
                             <li><code>{% raw %}{{entry_author}}{% endraw %}</code> - {{entry.author}}</li>
-                            <li><code>{% raw %}{{entry_content}}{% endraw %}</code> - {{entry.content[0].value}}</li>
+                            <li><code>{% raw %}{{entry_content}}{% endraw %}</code> - {{entry.content[0].value|discord_markdown}}</li>
+                            <li><code>{% raw %}{{entry_content_raw}}{% endraw %}</code> - {{entry.content[0].value}}</li>
                             <li><code>{% raw %}{{entry_id}}{% endraw %}</code> - {{entry.id}}</li>
                             <li><code>{% raw %}{{entry_important}}{% endraw %}</code> - {{entry.important}}</li>
                             <li><code>{% raw %}{{entry_link}}{% endraw %}</code> - {{entry.link}}</li>
                             <li><code>{% raw %}{{entry_published}}{% endraw %}</code> - {{entry.published}}</li>
                             <li><code>{% raw %}{{entry_read}}{% endraw %}</code> - {{entry.read}}</li>
                             <li><code>{% raw %}{{entry_read_modified}}{% endraw %}</code> - {{entry.read_modified}}</li>
-                            <li><code>{% raw %}{{entry_summary}}{% endraw %}</code> - {{entry.summary}}</li>
+                            <li><code>{% raw %}{{entry_summary}}{% endraw %}</code> - {{entry.summary|discord_markdown}}</li>
+                            <li><code>{% raw %}{{entry_summary_raw}}{% endraw %}</code> - {{entry.summary}}</li>
                             <li><code>{% raw %}{{entry_title}}{% endraw %}</code> - {{entry.title}}</li>
                             <li><code>{% raw %}{{entry_updated}}{% endraw %}</code> - {{entry.updated}}</li>
                         </ul>
