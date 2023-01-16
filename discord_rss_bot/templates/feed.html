@@ -1,26 +1,27 @@
 {% extends "base.html" %}
-{% block title %} | {{ feed.title }}{% endblock %}
+{% block title %}
+    | {{ feed.title }}
+{% endblock title %}
 {% block content %}
     <div class="p-2 mb-2 border border-dark">
         <!-- The feed title. -->
-        <h2><a class="text-muted text-decoration-none" href="{{ feed.link }}">{{ feed.title }}</a></h2>
-
+        <h2>
+            <a class="text-muted text-decoration-none" href="{{ feed.link }}">{{ feed.title }}</a>
+        </h2>
         {% if not feed.updates_enabled %}<span class="text-danger">Disabled</span>{% endif %}
-
         {% if feed.last_exception %}
-        <h3 class="text-danger">{{ feed.last_exception.type_name }}:</h3>
-        <code>{{ feed.last_exception.value_str }}</code>
-
-        <pre><code>{{ feed.last_exception.traceback_str }}</code></pre>
-
+            <h3 class="text-danger">{{ feed.last_exception.type_name }}:</h3>
+            <code>{{ feed.last_exception.value_str }}</code>
+            <pre><code>{{ feed.last_exception.traceback_str }}</code></pre>
         {% endif %}
-
         <form action="/remove" method="post">
-            <button class="btn btn-danger btn-sm" name="feed_url" value="{{ feed.url }}"
-                    onclick="return confirm('Are you sure you want to delete this feed?')">Remove
+            <button class="btn btn-danger btn-sm"
+                    name="feed_url"
+                    value="{{ feed.url }}"
+                    onclick="return confirm('Are you sure you want to delete this feed?')">
+                Remove
             </button>
         </form>
-
         {% if not feed.updates_enabled %}
             <form action="/unpause" method="post">
                 <button class="btn btn-dark btn-sm" name="feed_url" value="{{ feed.url }}">Unpause</button>
@@ -30,46 +31,30 @@
                 <button class="btn btn-danger btn-sm" name="feed_url" value="{{ feed.url }}">Pause</button>
             </form>
         {% endif %}
-        <a class="text-muted" href="/whitelist?feed_url={{ feed.url|encode_url }}">Whitelist</a>
-        <a class="text-muted" href="/blacklist?feed_url={{ feed.url|encode_url }}">Blacklist</a>
+        <a class="text-muted"
+           href="/whitelist?feed_url={{ feed.url|encode_url }}">Whitelist</a>
+        <a class="text-muted"
+           href="/blacklist?feed_url={{ feed.url|encode_url }}">Blacklist</a>
         <a class="text-muted" href="/custom?feed_url={{ feed.url|encode_url }}">Custom message</a>
-
     </div>
     {% for entry in entries %}
         <div class="p-2 mb-2 border border-dark">
-            {% if entry|entry_is_blacklisted %}
-                <span class="text-danger">Blacklisted</span>
-            {% endif %}
-            {% if entry|entry_is_whitelisted %}
-                <span class="text-success">Whitelisted</span>
-            {% endif %}
-
+            {% if entry|entry_is_blacklisted %}<span class="text-danger">Blacklisted</span>{% endif %}
+            {% if entry|entry_is_whitelisted %}<span class="text-success">Whitelisted</span>{% endif %}
             <h2>
-                <a class="text-muted text-decoration-none" href="{{ entry.link }}">
-                    {{ entry.title }}
-                </a>
+                <a class="text-muted text-decoration-none" href="{{ entry.link }}">{{ entry.title }}</a>
             </h2>
-            {% if entry.author %}
-                By {{ entry.author }} @ 
-            {% endif %}
+            {% if entry.author %}By {{ entry.author }} @{% endif %}
             {% if entry.published %}
                 {{ entry.published.strftime('%Y-%m-%d, %T') }}
             {% endif %}
-
-            {% if entry.summary%}
-                <div class="text-muted">
-                    {{ entry.summary|discord_markdown }}
-                </div>
+            {% if entry.summary %}
+                <div class="text-muted">{{ entry.summary|discord_markdown }}</div>
             {% elif entry.content[0].value %}
-                <div class="text-muted">
-                    {{ entry.content[0].value|discord_markdown }}
-                </div>
+                <div class="text-muted">{{ entry.content[0].value|discord_markdown }}</div>
             {% else %}
-                <div class="text-muted">
-                    No content available.
-                </div>
+                <div class="text-muted">No content available.</div>
             {% endif %}
-
         </div>
     {% endfor %}
-{% endblock %}
+{% endblock content %}

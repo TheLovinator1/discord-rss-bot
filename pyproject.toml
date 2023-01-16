@@ -32,3 +32,9 @@ profile = "black"
 [tool.black]
 line-length = 120
 target-version = ["py311"]
+
+[tool.djlint]
+ignore = "D018,J018"
+profile = "jinja"
+max_line_length = 120
+format_attribute_template_tags = true

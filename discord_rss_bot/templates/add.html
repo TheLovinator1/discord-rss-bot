@@ -1,5 +1,7 @@
 {% extends "base.html" %}
-{% block title %} | Add new feed{% endblock %}
+{% block title %}
+    | Add new feed
+{% endblock title %}
 {% block content %}
     <div class="p-2 border border-dark">
         <form action="/add" method="post">
@@ -7,30 +9,35 @@
             <div class="row pb-2">
                 <label for="feed_url" class="col-sm-2 col-form-label">Feed URL</label>
                 <div class="col-sm-10">
-                    <input name="feed_url" type="text" class="form-control bg-dark border-dark text-muted" id="feed_url"
-                           placeholder="https://www.reddit.com/r/FreeGameFindings.rss">
+                    <input name="feed_url"
+                           type="text"
+                           class="form-control bg-dark border-dark text-muted"
+                           id="feed_url"
+                           placeholder="https://www.reddit.com/r/FreeGameFindings.rss"/>
                 </div>
             </div>
-
             <!-- Webhook dropdown -->
             <div class="row pb-2">
-                <label for="webhook_dropdown"
-                       class="col-sm-2 col-form-label">Which webhook should we send entries to?</label>
+                <label for="webhook_dropdown" class="col-sm-2 col-form-label">Which webhook should we send entries to?</label>
                 <div class="col-sm-10">
-                    <select class="col-auto form-select bg-dark border-dark text-muted" id="webhook_dropdown"
+                    <select class="col-auto form-select bg-dark border-dark text-muted"
+                            id="webhook_dropdown"
                             name="webhook_dropdown">
-                        <option selected>Choose webhook...</option>
+                        <option selected>
+                            Choose webhook...
+                        </option>
                         {% for hook in webhooks %}
-                            <option value="{{ hook.name }}">{{ hook.name }}</option>
+                            <option value="{{ hook.name }}">
+                                {{ hook.name }}
+                            </option>
                         {% endfor %}
                     </select>
                 </div>
             </div>
-
             <!-- Submit button -->
             <div class="d-md-flex">
                 <button class="btn btn-dark btn-sm">Add feed</button>
             </div>
         </form>
     </div>
-{% endblock %}
+{% endblock content %}
