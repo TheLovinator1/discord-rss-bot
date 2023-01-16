@@ -7,7 +7,13 @@
 
         {% if not feed.updates_enabled %}<span class="text-danger">Disabled</span>{% endif %}
 
-        {% if feed.last_exception %}Last exception: {{ feed.last_exception }}{% endif %}
+        {% if feed.last_exception %}
+        <h3 class="text-danger">{{ feed.last_exception.type_name }}:</h3>
+        <code>{{ feed.last_exception.value_str }}</code>
+
+        <pre><code>{{ feed.last_exception.traceback_str }}</code></pre>
+
+        {% endif %}
 
         <form action="/remove" method="post">
             <button class="btn btn-danger btn-sm" name="feed_url" value="{{ feed.url }}"
