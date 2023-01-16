@@ -9,20 +9,20 @@
                 <!-- How many broken feeds -->
                 <!-- Make broken feed text red if true. -->
                 {% if feed_count.broken %}
-                    <span class="text-danger">
+                - <span class="text-danger">
                 {% else %}
-                    <span>
+                - <span>
                 {% endif %}
-                - {{ feed_count.broken }} broken</span>
+                {{ feed_count.broken }} broken</span>
 
                 <!-- How many enabled feeds -->
                 <!-- Make amount of enabled feeds yellow if some are disabled. -->
                 {% if feed_count.total != feed_count.updates_enabled %}
-                    <span class="text-warning">
+                - <span class="text-warning">
                 {% else %}
-                    <span>
+                - <span>
                 {% endif %}
-                - {{ feed_count.updates_enabled }} enabled
+                {{ feed_count.updates_enabled }} enabled
                 </span>
 
                 <!-- How many entries -->
