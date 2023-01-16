@@ -355,12 +355,14 @@ async def get_custom(feed_url, request: Request):
     # Get previous data, this is used when creating the form.
     custom_message: str = get_custom_message(reader, feed)
 
+    context = {"request": request, "feed": feed, "custom_message": custom_message}
+
     # Get the first entry, this is used to show the user what the custom message will look like.
     entries: Iterable[Entry] = reader.get_entries(feed=feed, limit=1)
     for entry in entries:
-        first_entry: Entry = entry
+        # Append to context.
+        context["entry"] = entry
 
-    context = {"request": request, "feed": feed, "custom_message": custom_message, "entry": first_entry}
     return templates.TemplateResponse("custom.html", context)
 
 

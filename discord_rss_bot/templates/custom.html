@@ -26,6 +26,7 @@
                             <li><code>{% raw %}{{feed_user_title}}{% endraw %}</code> - {{feed.user_title}}</li>
                             <li><code>{% raw %}{{feed_version}}{% endraw %}</code> - {{feed.version}}</li>
                             <br>
+                            {% if entry %}
                             <li><code>{% raw %}{{entry_added}}{% endraw %}</code> - {{entry.added}}</li>
                             <li><code>{% raw %}{{entry_author}}{% endraw %}</code> - {{entry.author}}</li>
                             <li><code>{% raw %}{{entry_content}}{% endraw %}</code> - {{entry.content[0].value|discord_markdown}}</li>
@@ -40,6 +41,7 @@
                             <li><code>{% raw %}{{entry_summary_raw}}{% endraw %}</code> - {{entry.summary}}</li>
                             <li><code>{% raw %}{{entry_title}}{% endraw %}</code> - {{entry.title}}</li>
                             <li><code>{% raw %}{{entry_updated}}{% endraw %}</code> - {{entry.updated}}</li>
+                            
                         </ul>
                         <ul class="list-inline">
                             <li>Examples:</li>
@@ -52,6 +54,9 @@
                                 {{entry.read}}
                             </code></li>
                         </ul>
+                        {% else %}
+                        Something went wrong, there was no entry found. If this feed has entries and you still see this message, please contact the developer.
+                        {% endif %}
                     </div>
 
                     <label for="custom_message" class="col-sm-6 col-form-label">Message</label>
