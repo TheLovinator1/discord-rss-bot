@@ -92,8 +92,6 @@ async def delete_webhook(webhook_url=Form()):
             # Add the new webhook to the list of webhooks.
             webhooks.remove(webhook)
 
-            print(f"Removed webhook {webhook['name']}.")
-
             # Add our new list of webhooks to the database.
             reader.set_tag((), "webhooks", webhooks)  # type: ignore
 
@@ -324,9 +322,7 @@ async def set_custom(custom_message=Form(""), feed_url=Form()):
     # Add the custom_message to the feed.
     if custom_message:
         reader.set_tag(feed_url, "custom_message", custom_message)
-        print(f"Set custom message for {feed_url} to {custom_message}")
     else:
-        print(f"Removing custom message for {feed_url}")
         reader.delete_tag(feed_url, "custom_message", missing_ok=True)
 
     # Clean URL is used to redirect to the feed page.

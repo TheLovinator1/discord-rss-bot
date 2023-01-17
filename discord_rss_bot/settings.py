@@ -30,7 +30,6 @@ def get_webhook_for_entry(custom_reader: Reader, entry: Entry) -> str:
     try:
         webhook_url = str(reader.get_tag(entry.feed_url, "webhook"))
     except TagNotFoundError:
-        print(f"Webhook not found for feed {entry.feed_url}")
         webhook_url = ""
 
     return webhook_url

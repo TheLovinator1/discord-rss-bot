@@ -21,9 +21,6 @@ def try_to_replace(custom_message: str, template: str, replace_with: str) -> str
     if not replace_with:
         return custom_message
     try:
-        print(f"custom_message: {custom_message}")
-        print(f"template: {template}")
-        print(f"replace_with: {replace_with}")
         return custom_message.replace(template, replace_with)
     except TypeError:
         return custom_message
@@ -81,8 +78,6 @@ def replace_tags(feed: Feed, entry: Entry) -> str:
     for replacement in list_of_replacements:
         for template, replace_with in replacement.items():
             custom_message = try_to_replace(custom_message, template, replace_with)
-
-    print(f"custom_message: {custom_message}")
     return custom_message
 
 
