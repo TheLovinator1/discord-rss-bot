@@ -7,7 +7,7 @@ from requests import Response
 from discord_rss_bot import custom_message, settings
 from discord_rss_bot.filter.blacklist import should_be_skipped
 from discord_rss_bot.filter.whitelist import has_white_tags, should_be_sent
-from discord_rss_bot.settings import get_reader
+from discord_rss_bot.settings import default_custom_message, get_reader
 
 
 def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = None, do_once: bool = False) -> None:
@@ -36,24 +36,28 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
     else:
         entries = reader.get_entries(feed=feed, read=False)
 
+    # Loop through the unread entries.
     for entry in entries:
         # Set the webhook to read, so we don't send it again.
         reader.set_entry_read(entry, True)
 
+        # Get the webhook URL for the entry. If it is None, we will continue to the next entry.
         webhook_url: str = settings.get_webhook_for_entry(reader, entry)
-
-        webhook_message: str = f"{entry.title}\n{entry.link}"
-
         if not webhook_url:
             continue
 
+        # If the user has set the custom message to an empty string, we will use the default message, otherwise we will
+        # use the custom message.
+        if custom_message.get_custom_message(reader, entry.feed) != "":
+            webhook_message = custom_message.replace_tags(entry=entry, feed=entry.feed)  # type: ignore
+        else:
+            webhook_message: str = default_custom_message
+
+        # Create the webhook.
         webhook: DiscordWebhook = DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)
 
-        if custom_message.get_custom_message(reader, entry.feed) != "":
-            webhook.content = custom_message.replace_tags(entry=entry, feed=entry.feed)
-
+        # Check if the feed has a whitelist, and if it does, check if the entry is whitelisted.
         if feed is not None and has_white_tags(reader, feed):
-            # Only send the entry if it is whitelisted, otherwise, mark it as read and continue.
             if should_be_sent(reader, entry):
                 response: Response = webhook.execute()
                 reader.set_entry_read(entry, True)

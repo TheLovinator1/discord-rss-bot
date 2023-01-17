@@ -1,7 +1,30 @@
+import re
+
 from reader import Entry, Feed, Reader, TagNotFoundError
 
 from discord_rss_bot.custom_filters import convert_to_md
 from discord_rss_bot.settings import get_reader
+
+
+def get_images_from_string(string: str) -> tuple[str, list[str]]:
+    """Get images from a string. This will also remove the images from the string.
+
+    Args:
+        string: The string to get the images from.
+
+    Returns:
+        Returns a list of images.
+    """
+    # This regex will match any markdown image that follows the format of ![alt text](image url).
+    image_regex = r"!\[(.*)\]\((.*)\)"
+
+    # Remove them from the string
+    new_string: str = re.sub(image_regex, "", string)
+
+    # Get the images
+    images: list[str] = re.findall(image_regex, string)
+
+    return new_string, images
 
 
 def try_to_replace(custom_message: str, template: str, replace_with: str) -> str:
@@ -26,7 +49,7 @@ def try_to_replace(custom_message: str, template: str, replace_with: str) -> str
         return custom_message
 
 
-def replace_tags(feed: Feed, entry: Entry) -> str:
+def replace_tags(feed: Feed, entry: Entry) -> tuple[str, list[str]]:
     """Replace tags in custom_message.
 
     Args:
@@ -78,7 +101,10 @@ def replace_tags(feed: Feed, entry: Entry) -> str:
     for replacement in list_of_replacements:
         for template, replace_with in replacement.items():
             custom_message = try_to_replace(custom_message, template, replace_with)
-    return custom_message
+
+    custom_message, images = get_images_from_string(custom_message)
+
+    return custom_message, images
 
 
 def get_custom_message(custom_reader: Reader, feed: Feed) -> str:

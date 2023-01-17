@@ -9,6 +9,8 @@ logging.basicConfig(level=logging.INFO, format=logging_format)
 data_dir: str = user_data_dir(appname="discord_rss_bot", appauthor="TheLovinator", roaming=True)
 os.makedirs(data_dir, exist_ok=True)
 
+default_custom_message: str = "{{entry_title}}\n{{entry_link}}"
+
 
 def get_webhook_for_entry(custom_reader: Reader, entry: Entry) -> str:
     """

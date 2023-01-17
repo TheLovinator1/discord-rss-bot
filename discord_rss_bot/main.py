@@ -11,13 +11,14 @@ from fastapi.templating import Jinja2Templates
 from reader import Entry, EntryCounts, EntrySearchCounts, EntrySearchResult, Feed, FeedCounts, Reader, TagNotFoundError
 from starlette.responses import RedirectResponse
 
+from discord_rss_bot import settings
 from discord_rss_bot.custom_filters import convert_to_md, encode_url, entry_is_blacklisted, entry_is_whitelisted
 from discord_rss_bot.custom_message import get_custom_message
 from discord_rss_bot.feeds import send_to_discord
 from discord_rss_bot.filter.blacklist import get_blacklist_content, get_blacklist_summary, get_blacklist_title
 from discord_rss_bot.filter.whitelist import get_whitelist_content, get_whitelist_summary, get_whitelist_title
 from discord_rss_bot.search import create_html_for_search_results
-from discord_rss_bot.settings import get_reader, list_webhooks
+from discord_rss_bot.settings import default_custom_message, get_reader, list_webhooks
 
 app: FastAPI = FastAPI()
 app.mount("/static", StaticFiles(directory="discord_rss_bot/static"), name="static")
@@ -142,9 +143,15 @@ async def create_feed(feed_url=Form(), webhook_dropdown=Form()):
         # TODO: Show this error on the page.
         return {"error": "No webhook URL found."}
 
+    # This is the webhook that will be used to send the feed to Discord.
     reader.set_tag(clean_feed_url, "webhook", webhook_url)  # type: ignore
     reader.get_tag(clean_feed_url, "webhook")
 
+    # This is the default message that will be sent to Discord.
+    reader.set_tag(clean_feed_url, "custom_message", default_custom_message)  # type: ignore
+    reader.get_tag(clean_feed_url, "custom_message")
+
+    # Update the full-text search index so our new feed is searchable.
     reader.update_search()
 
     return RedirectResponse(url=f"/feed/?feed_url={feed_url}", status_code=303)
@@ -318,12 +325,10 @@ async def set_custom(custom_message=Form(""), feed_url=Form()):
         Returns:
             Redirect to the feed.
     """
-
-    # Add the custom_message to the feed.
-    if custom_message:
-        reader.set_tag(feed_url, "custom_message", custom_message)
+    if custom_message := custom_message.strip():
+        reader.set_tag(feed_url, "custom_message", custom_message)  # type: ignore
     else:
-        reader.delete_tag(feed_url, "custom_message", missing_ok=True)
+        reader.set_tag(feed_url, "custom_message", settings.default_custom_message)  # type: ignore
 
     # Clean URL is used to redirect to the feed page.
     clean_url: str = urllib.parse.quote(feed_url)
@@ -495,7 +500,7 @@ async def remove_feed(feed_url=Form()):
 
 
 @app.get("/search", response_class=HTMLResponse)
-async def search(request: Request, query):
+async def search(request: Request, query: str):
     """
     Get entries matching a full-text search query.
 
@@ -526,6 +531,24 @@ def startup() -> None:
     """This is called when the server starts.
 
     It reads the settings file and starts the scheduler."""
+    # Add default feed message if it doesn't exist.
+    # This was added in version 0.2.0.
+    for feed in reader.get_feeds():
+        try:
+            reader.get_tag(feed, "custom_message")
+        except TagNotFoundError:
+            reader.set_tag(feed.url, "custom_message", default_custom_message)  # type: ignore
+            reader.set_tag(feed.url, "has_custom_message", True)  # type: ignore
+
+        # Add has_custom_message tag if it doesn't exist.
+        try:
+            reader.get_tag(feed, "has_custom_message")
+        except TagNotFoundError:
+            if reader.get_tag(feed, "custom_message") == default_custom_message:
+                reader.set_tag(feed.url, "has_custom_message", False)  # type: ignore
+            else:
+                reader.set_tag(feed.url, "has_custom_message", True)  # type: ignore
+
     scheduler: BackgroundScheduler = BackgroundScheduler()
 
     # Update all feeds every 15 minutes.
