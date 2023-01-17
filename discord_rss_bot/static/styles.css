@@ -5,9 +5,3 @@ body {
 .border {
     background: #161616;
 }
-
-/* Used in feed.html for minimizing the height when expanding the summary and content */
-.summary {
-    max-height: 450px;
-    overflow-y: auto
-}
