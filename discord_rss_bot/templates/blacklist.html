@@ -36,7 +36,7 @@
                            class="form-control bg-dark border-dark text-muted"
                            id="blacklist_title"
                            value="{% if blacklist_title %}
-                                      {{ blacklist_title }}
+                                      {{- blacklist_title -}}
                                   {% endif %}"/>
                     <label for="blacklist_summary" class="col-sm-6 col-form-label">Blacklist - Summary</label>
                     <input name="blacklist_summary"
@@ -44,7 +44,7 @@
                            class="form-control bg-dark border-dark text-muted"
                            id="blacklist_summary"
                            value="{% if blacklist_summary %}
-                                      {{ blacklist_summary }}
+                                      {{- blacklist_summary -}}
                                   {% endif %}"/>
                     <label for="blacklist_content" class="col-sm-6 col-form-label">Blacklist - Content (Not implemented yet)</label>
                     <input name="blacklist_content"
@@ -52,7 +52,7 @@
                            class="form-control bg-dark border-dark text-muted"
                            id="blacklist_content"
                            value="{% if blacklist_content %}
-                                      {{ blacklist_content }}
+                                      {{- blacklist_content -}}
                                   {% endif %}"
                            disabled/>
                 </div>

@@ -210,7 +210,7 @@
                                 <li>
                                     <code>
                                         {% raw %}
-                                            Hello {{ entry_author }}\n{{ feed_title }}\n{{ entry_read -}}
+                                            Hello {{ entry_author }}\n{{ feed_title }}\n{{ entry_read }}
                                         {% endraw %}
                                     </code>
                                 </li>
@@ -221,7 +221,7 @@
                                         <pre>
 Hello {{ entry.author }}
 {{ feed.title }}
-{{ entry.read -}}
+{{ entry.read }}
                             </pre>
                                     </code>
                                 </li>
@@ -235,8 +235,9 @@ Hello {{ entry.author }}
                            type="text"
                            class="form-control bg-dark border-dark text-muted"
                            id="custom_message"
-                           value="{% if custom_message -%}
-                                      {{ custom_message }}{%- endif %}"/>
+                           value="{% if custom_message %}
+                                      {{- custom_message -}}
+                                  {% endif %}"/>
                 </div>
             </div>
             <!-- Add a hidden feed_url field to the form -->

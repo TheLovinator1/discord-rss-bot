@@ -28,7 +28,7 @@
                         </option>
                         {% for hook in webhooks %}
                             <option value="{{ hook.name }}">
-                                {{ hook.name }}
+                                {{- hook.name -}}
                             </option>
                         {% endfor %}
                     </select>

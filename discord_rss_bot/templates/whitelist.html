@@ -35,19 +35,25 @@
                            type="text"
                            class="form-control bg-dark border-dark text-muted"
                            id="whitelist_title"
-                           value="{% if whitelist_title %} {{ whitelist_title }}{% endif %}"/>
+                           value="{% if whitelist_title %}
+                                      {{- whitelist_title -}}
+                                  {% endif %}"/>
                     <label for="whitelist_summary" class="col-sm-6 col-form-label">Whitelist - Summary</label>
                     <input name="whitelist_summary"
                            type="text"
                            class="form-control bg-dark border-dark text-muted"
                            id="whitelist_summary"
-                           value="{% if whitelist_summary %} {{ whitelist_summary }}{% endif %}"/>
+                           value="{% if whitelist_summary %}
+                                      {{- whitelist_summary -}}
+                                  {% endif %}"/>
                     <label for="whitelist_content" class="col-sm-6 col-form-label">Whitelist - Content (Not implemented yet)</label>
                     <input name="whitelist_content"
                            type="text"
                            class="form-control bg-dark border-dark text-muted"
                            id="whitelist_content"
-                           value="{% if whitelist_content %} {{ whitelist_content }}{% endif %}"
+                           value="{% if whitelist_content %}
+                                      {{- whitelist_content -}}
+                                  {% endif %}"
                            disabled/>
                 </div>
             </div>
