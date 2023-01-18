@@ -1,6 +1,7 @@
 import sys
 
 import requests
+from loguru import logger
 
 
 def healthcheck() -> None:
@@ -14,7 +15,7 @@ def healthcheck() -> None:
         if r.ok:
             sys.exit(0)
     except requests.exceptions.RequestException as e:
-        print(f"ERROR: {e}", file=sys.stderr)
+        logger.error(f"Healthcheck failed: {e}")
         sys.exit(1)
 
 

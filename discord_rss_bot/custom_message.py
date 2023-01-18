@@ -1,5 +1,6 @@
 import re
 
+from loguru import logger
 from reader import Entry, Feed, Reader, TagNotFoundError
 
 from discord_rss_bot.custom_filters import convert_to_md
@@ -20,7 +21,10 @@ def get_images_from_entry(entry: Entry, summary: bool = False) -> list[str]:
     image_regex = r"!\[(.*)\]\((.*)\)"
 
     if summary:
+        logger.debug("Getting images from summary.")
         return re.findall(image_regex, convert_to_md(entry.summary)) if entry.summary else []
+
+    logger.debug("Getting images from content.")
     return re.findall(image_regex, convert_to_md(entry.content[0].value)) if entry.content else []
 
 
@@ -37,12 +41,18 @@ def try_to_replace(custom_message: str, template: str, replace_with: str) -> str
         Returns the custom_message with the tag replaced.
     """
     if not template:
+        logger.debug("template is empty. Returning custom_message.")
         return custom_message
+
     if not replace_with:
+        logger.debug("replace_with is empty. Returning custom_message.")
         return custom_message
+
     try:
+        logger.debug(f"Replacing {template} with {replace_with}.")
         return custom_message.replace(template, replace_with)
     except TypeError:
+        logger.debug(f"TypeError: {template} or {replace_with} is not a string.")
         return custom_message
 
 
@@ -55,6 +65,7 @@ def remove_image_tags(message: str) -> str:
     Returns:
         Returns the message with the image tags removed.
     """
+    logger.debug(f"Removing image tags from message {message}.")
     return re.sub(r"!\[(.*)\]\((.*)\)", "", message)
 
 
@@ -74,18 +85,23 @@ def replace_tags(feed: Feed, entry: Entry) -> str:
     summary = ""
     content = ""
     if entry.summary:
+        logger.debug(f"Entry summary: {entry.summary}")
         summary: str = entry.summary
         summary = remove_image_tags(message=summary)
 
     if entry.content:
         for content_item in entry.content:
+            logger.debug(f"Entry content: {content_item.value}")
             content: str = content_item.value
             content = remove_image_tags(message=content)
 
     if images := get_images_from_entry(entry=entry):
         first_image: str = images[0][1]
     else:
+        logger.debug("No images found.")
         first_image = ""
+
+    logger.debug(f"First image: {first_image}")
 
     list_of_replacements = [
         {"{{feed_author}}": feed.author},
@@ -120,6 +136,7 @@ def replace_tags(feed: Feed, entry: Entry) -> str:
     for replacement in list_of_replacements:
         for template, replace_with in replacement.items():
             custom_message = try_to_replace(custom_message, template, replace_with)
+            logger.debug(f"custom_message: {custom_message}")
 
     return custom_message
 
@@ -140,4 +157,6 @@ def get_custom_message(custom_reader: Reader, feed: Feed) -> str:
         custom_message = ""
     except ValueError:
         custom_message = ""
+
+    logger.debug(f"custom_message: {custom_message}")
     return custom_message

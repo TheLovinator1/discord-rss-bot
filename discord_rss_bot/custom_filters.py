@@ -1,5 +1,6 @@
 import urllib.parse
 
+from loguru import logger
 from markdownify import markdownify
 from reader import Entry, Reader
 
@@ -23,8 +24,11 @@ def encode_url(url_to_quote: str) -> str:
     Returns:
         The encoded url.
     """
-    # TODO: Send error to Discord.
-    return urllib.parse.quote(url_to_quote) if url_to_quote else "None"
+    if url_to_quote:
+        return urllib.parse.quote(url_to_quote)
+
+    logger.error("URL to quote is None.")
+    return ""
 
 
 def entry_is_whitelisted(entry_to_check: Entry) -> bool:
@@ -38,6 +42,7 @@ def entry_is_whitelisted(entry_to_check: Entry) -> bool:
         bool: True if the feed is whitelisted, False otherwise.
 
     """
+    logger.debug(f"Checking if {entry_to_check.title} is whitelisted.")
     return bool(has_white_tags(reader, entry_to_check.feed) and should_be_sent(reader, entry_to_check))
 
 
@@ -52,9 +57,11 @@ def entry_is_blacklisted(entry_to_check: Entry) -> bool:
         bool: True if the feed is blacklisted, False otherwise.
 
     """
+    logger.debug(f"Checking if {entry_to_check.title} is blacklisted.")
     return bool(has_black_tags(reader, entry_to_check.feed) and should_be_skipped(reader, entry_to_check))
 
 
 def convert_to_md(thing: str) -> str:
     """Discord does not support tables so we need to remove them from the markdown."""
+    logger.debug(f"Converting {thing} to markdown.")
     return markdownify(thing, strip=["table", "thead", "tbody", "tr", "th", "td"])
