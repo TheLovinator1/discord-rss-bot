@@ -37,24 +37,6 @@
            href="/blacklist?feed_url={{ feed.url|encode_url }}">Blacklist</a>
         <a class="text-muted" href="/custom?feed_url={{ feed.url|encode_url }}">Custom message</a>
     </div>
-    {% for entry in entries %}
-        <div class="p-2 mb-2 border border-dark">
-            {% if entry|entry_is_blacklisted %}<span class="text-danger">Blacklisted</span>{% endif %}
-            {% if entry|entry_is_whitelisted %}<span class="text-success">Whitelisted</span>{% endif %}
-            <h2>
-                <a class="text-muted text-decoration-none" href="{{ entry.link }}">{{ entry.title }}</a>
-            </h2>
-            {% if entry.author %}By {{ entry.author }} @{% endif %}
-            {% if entry.published %}
-                {{ entry.published.strftime('%Y-%m-%d, %T') }}
-            {% endif %}
-            {% if entry.summary %}
-                <div class="text-muted">{{ entry.summary|discord_markdown }}</div>
-            {% elif entry.content[0].value %}
-                <div class="text-muted">{{ entry.content[0].value|discord_markdown }}</div>
-            {% else %}
-                <div class="text-muted">No content available.</div>
-            {% endif %}
-        </div>
-    {% endfor %}
+    {# HTML is created in main.create_html_for_feed #}
+    {{ html|safe }}
 {% endblock content %}

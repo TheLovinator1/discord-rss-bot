@@ -13,7 +13,7 @@ from starlette.responses import RedirectResponse
 
 from discord_rss_bot import settings
 from discord_rss_bot.custom_filters import convert_to_md, encode_url, entry_is_blacklisted, entry_is_whitelisted
-from discord_rss_bot.custom_message import get_custom_message
+from discord_rss_bot.custom_message import get_custom_message, get_images_from_entry, remove_image_tags
 from discord_rss_bot.feeds import send_to_discord
 from discord_rss_bot.filter.blacklist import get_blacklist_content, get_blacklist_summary, get_blacklist_title
 from discord_rss_bot.filter.whitelist import get_whitelist_content, get_whitelist_summary, get_whitelist_title
@@ -360,10 +360,10 @@ async def get_custom(feed_url, request: Request):
 
     # Get the first entry, this is used to show the user what the custom message will look like.
     entries: Iterable[Entry] = reader.get_entries(feed=feed, limit=1)
+
     for entry in entries:
         # Append to context.
         context["entry"] = entry
-
     return templates.TemplateResponse("custom.html", context)
 
 
@@ -405,8 +405,56 @@ async def get_feed(feed_url, request: Request):
     # Get the entries in the feed.
     feed_counts: FeedCounts = reader.get_feed_counts(feed=url)
 
-    context = {"request": request, "feed": feed, "entries": entries, "feed_counts": feed_counts}
+    # Create the html for the entries.
+    html: str = create_html_for_feed(entries)
+
+    context = {"request": request, "feed": feed, "entries": entries, "feed_counts": feed_counts, "html": html}
     return templates.TemplateResponse("feed.html", context)
+
+
+def create_html_for_feed(entries: Iterable[Entry]) -> str:
+    """Create HTML for the search results.
+
+    Args:
+        search_results: The search results.
+        custom_reader: The reader. If None, we will get the reader from the settings.
+
+    Returns:
+        str: The HTML.
+    """
+    html: str = ""
+    for entry in entries:
+
+        # Get first image.
+        if images := get_images_from_entry(entry=entry):
+            first_image: str = images[0][1]
+            first_image_text: str = images[0][0]
+        else:
+            first_image = ""
+            first_image_text = ""
+
+        if entry.summary:
+            summary: str = convert_to_md(entry.summary)
+            summary = remove_image_tags(message=summary)
+            text: str = f"<div class='text-muted'>{summary}</div>"
+        elif entry.content:
+            content: str = convert_to_md(entry.content[0].value)
+            content = remove_image_tags(message=content)
+            text = f"<div class='text-muted'>{content}</div>"
+        else:
+            text = "<div class='text-muted'>No content available.</div>"
+
+        html += f"""
+            <div class="p-2 mb-2 border border-dark">
+            <h2>
+                <a class="text-muted text-decoration-none" href="{entry.link}">{entry.title}</a>
+            </h2>
+            {f"By { entry.author } @" if entry.author else ""}
+            {text}
+            {f"<img src='{first_image}' class='img-fluid' alt='{first_image_text}'>" if first_image else ""}
+            </div>
+            """
+    return html
 
 
 @app.get("/webhooks", response_class=HTMLResponse)

@@ -6,11 +6,12 @@ from discord_rss_bot.custom_filters import convert_to_md
 from discord_rss_bot.settings import get_reader
 
 
-def get_images_from_string(string: str) -> tuple[str, list[str]]:
-    """Get images from a string. This will also remove the images from the string.
+def get_images_from_entry(entry: Entry, summary: bool = False) -> list[str]:
+    """Get images from a entry.
 
     Args:
-        string: The string to get the images from.
+        entry: The entry to get the images from.
+        summary: Whether to get the images from the summary or the content.
 
     Returns:
         Returns a list of images.
@@ -18,13 +19,9 @@ def get_images_from_string(string: str) -> tuple[str, list[str]]:
     # This regex will match any markdown image that follows the format of ![alt text](image url).
     image_regex = r"!\[(.*)\]\((.*)\)"
 
-    # Remove them from the string
-    new_string: str = re.sub(image_regex, "", string)
-
-    # Get the images
-    images: list[str] = re.findall(image_regex, string)
-
-    return new_string, images
+    if summary:
+        return re.findall(image_regex, convert_to_md(entry.summary)) if entry.summary else []
+    return re.findall(image_regex, convert_to_md(entry.content[0].value)) if entry.content else []
 
 
 def try_to_replace(custom_message: str, template: str, replace_with: str) -> str:
@@ -49,7 +46,19 @@ def try_to_replace(custom_message: str, template: str, replace_with: str) -> str
         return custom_message
 
 
-def replace_tags(feed: Feed, entry: Entry) -> tuple[str, list[str]]:
+def remove_image_tags(message: str) -> str:
+    """Remove image tags from message.
+
+    Args:
+        message: The message to remove the tags from.
+
+    Returns:
+        Returns the message with the image tags removed.
+    """
+    return re.sub(r"!\[(.*)\]\((.*)\)", "", message)
+
+
+def replace_tags(feed: Feed, entry: Entry) -> str:
     """Replace tags in custom_message.
 
     Args:
@@ -66,8 +75,17 @@ def replace_tags(feed: Feed, entry: Entry) -> tuple[str, list[str]]:
     content = ""
     if entry.summary:
         summary: str = entry.summary
+        summary = remove_image_tags(message=summary)
+
     if entry.content:
-        content: str = entry.content[0]["value"]  # type: ignore
+        for content_item in entry.content:
+            content: str = content_item.value
+            content = remove_image_tags(message=content)
+
+    if images := get_images_from_entry(entry=entry):
+        first_image: str = images[0][1]
+    else:
+        first_image = ""
 
     list_of_replacements = [
         {"{{feed_author}}": feed.author},
@@ -84,7 +102,7 @@ def replace_tags(feed: Feed, entry: Entry) -> tuple[str, list[str]]:
         {"{{feed_version}}": feed.version},
         {"{{entry_added}}": entry.added},
         {"{{entry_author}}": entry.author},
-        {"{{entry_content}}": convert_to_md(content)},
+        {"{{entry_content}}": content},
         {"{{entry_content_raw}}": content},
         {"{{entry_id}}": entry.id},
         {"{{entry_important}}": str(entry.important)},
@@ -92,19 +110,18 @@ def replace_tags(feed: Feed, entry: Entry) -> tuple[str, list[str]]:
         {"{{entry_published}}": entry.published},
         {"{{entry_read}}": str(entry.read)},
         {"{{entry_read_modified}}": entry.read_modified},
-        {"{{entry_summary}}": convert_to_md(summary)},
+        {"{{entry_summary}}": summary},
         {"{{entry_summary_raw}}": summary},
         {"{{entry_title}}": entry.title},
         {"{{entry_updated}}": entry.updated},
+        {"{{image_1}}": first_image},
     ]
 
     for replacement in list_of_replacements:
         for template, replace_with in replacement.items():
             custom_message = try_to_replace(custom_message, template, replace_with)
 
-    custom_message, images = get_images_from_string(custom_message)
-
-    return custom_message, images
+    return custom_message
 
 
 def get_custom_message(custom_reader: Reader, feed: Feed) -> str:
