@@ -64,4 +64,5 @@ def entry_is_blacklisted(entry_to_check: Entry) -> bool:
 def convert_to_md(thing: str) -> str:
     """Discord does not support tables so we need to remove them from the markdown."""
     logger.debug(f"Converting {thing} to markdown.")
+    # TODO: Should we remove thead, tbody, tr, th, and td instead?
     return markdownify(thing, strip=["table", "thead", "tbody", "tr", "th", "td"]) if thing else ""

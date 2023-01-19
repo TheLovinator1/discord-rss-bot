@@ -483,12 +483,29 @@ def create_html_for_feed(entries: Iterable[Entry]) -> str:
         else:
             text = "<div class='text-muted'>No content available.</div>"
 
+        if entry.published:
+            published: str = entry.published.strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            published = ""
+
+        if entry_is_blacklisted(entry):
+            blacklisted = "<span class='badge bg-danger'>Blacklisted</span>"
+        else:
+            blacklisted = ""
+
+        if entry_is_whitelisted(entry):
+            whitelisted = "<span class='badge bg-success'>Whitelisted</span>"
+        else:
+            whitelisted = ""
+
         html += f"""
             <div class="p-2 mb-2 border border-dark">
+            {blacklisted}
+            {whitelisted}
             <h2>
                 <a class="text-muted text-decoration-none" href="{entry.link}">{entry.title}</a>
             </h2>
-            {f"By { entry.author } @" if entry.author else ""}
+            {f"By { entry.author } @" if entry.author else ""} {published}
             {text}
             {f"<img src='{first_image}' class='img-fluid' alt='{first_image_text}'>" if first_image else ""}
             </div>
