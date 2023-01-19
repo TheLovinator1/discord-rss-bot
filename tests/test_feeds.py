@@ -2,6 +2,7 @@ import os
 import tempfile
 from pathlib import Path
 
+import pytest
 from reader import Feed, Reader, make_reader  # type: ignore
 
 from discord_rss_bot.feeds import send_to_discord
@@ -30,6 +31,10 @@ def test_send_to_discord() -> None:
 
         # Get the webhook.
         webhook_url: str | None = os.environ.get("TEST_WEBHOOK_URL")
+
+        if webhook_url is None:
+            pytest.skip("No webhook URL provided.")
+
         assert webhook_url is not None
 
         # Add tag to the feed and check if it is there.

@@ -67,10 +67,6 @@ def get_reader(custom_location: str = "") -> Reader:
     db_location: str = get_db_location(custom_location)
     logger.debug(f"Database location: {db_location}")
 
-    if not os.path.exists(db_location):
-        logger.error("Database does not exist.")
-        raise FileNotFoundError("Database does not exist.")
-
     return make_reader(url=db_location)
 
 
