@@ -1,4 +1,5 @@
 import re
+from functools import lru_cache
 
 from loguru import logger
 from reader import Entry, Feed, Reader, TagNotFoundError
@@ -28,6 +29,7 @@ def get_images_from_entry(entry: Entry, summary: bool = False) -> list[str]:
     return re.findall(image_regex, convert_to_md(entry.content[0].value)) if entry.content else []
 
 
+@lru_cache()
 def try_to_replace(custom_message: str, template: str, replace_with: str) -> str:
     """Try to replace a tag in custom_message.
 
@@ -56,6 +58,7 @@ def try_to_replace(custom_message: str, template: str, replace_with: str) -> str
         return custom_message
 
 
+@lru_cache()
 def remove_image_tags(message: str) -> str:
     """Remove image tags from message.
 

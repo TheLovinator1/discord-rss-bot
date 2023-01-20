@@ -1,4 +1,5 @@
 import os
+from functools import lru_cache
 
 from loguru import logger
 from platformdirs import user_data_dir
@@ -38,6 +39,7 @@ def get_webhook_for_entry(custom_reader: Reader, entry: Entry) -> str:
     return webhook_url
 
 
+@lru_cache()
 def get_db_location(custom_location: str = "") -> str:
     """Where we store the database file.
 
@@ -55,6 +57,7 @@ def get_db_location(custom_location: str = "") -> str:
     return db_loc
 
 
+@lru_cache()
 def get_reader(custom_location: str = "") -> Reader:
     """Get the reader.
 

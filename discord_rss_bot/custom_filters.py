@@ -1,4 +1,5 @@
 import urllib.parse
+from functools import lru_cache
 
 import html2text
 from loguru import logger
@@ -12,6 +13,7 @@ from discord_rss_bot.settings import get_reader
 reader: Reader = get_reader()
 
 
+@lru_cache()
 def encode_url(url_to_quote: str) -> str:
     """%-escape the URL so it can be used in a URL.
 
@@ -61,6 +63,7 @@ def entry_is_blacklisted(entry_to_check: Entry) -> bool:
     return bool(has_black_tags(reader, entry_to_check.feed) and should_be_skipped(reader, entry_to_check))
 
 
+@lru_cache()
 def convert_to_md(thing: str) -> str:
     """Discord does not support tables so we need to remove them from the markdown."""
     logger.debug(f"Converting {thing} to markdown.")
