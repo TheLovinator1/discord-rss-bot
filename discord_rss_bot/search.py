@@ -1,7 +1,6 @@
 import urllib.parse
 from typing import Iterable
 
-from loguru import logger
 from reader import EntrySearchResult, Feed, HighlightedString, Reader
 
 from discord_rss_bot.settings import get_reader
@@ -32,10 +31,6 @@ def create_html_for_search_results(
             feed: Feed = reader.get_feed(result.feed_url)
             feed_url: str = urllib.parse.quote(feed.url)
 
-            logger.debug(f"Adding {result.metadata['.title']} to the search results.")
-            logger.debug(f"Feed URL: {feed_url}")
-            logger.debug(f"Result summary: {result_summary}")
-
             html += f"""
             <div class="p-2 mb-2 border border-dark">
                 <a class="text-muted text-decoration-none" href="/feed?feed_url={feed_url}">
@@ -45,7 +40,6 @@ def create_html_for_search_results(
             </div>
             """
 
-    logger.debug(f"Search results HTML: {html}")
     return html
 
 
@@ -66,7 +60,4 @@ def add_span_with_slice(highlighted_string: HighlightedString) -> str:
         span_part: str = f"<span class='bg-warning'>{highlighted_string.value[txt_slice.start: txt_slice.stop]}</span>"
         after_span: str = f"{highlighted_string.value[txt_slice.stop:]}"
 
-    logger.debug(f"Before span: {before_span}")
-    logger.debug(f"Span part: {span_part}")
-    logger.debug(f"After span: {after_span}")
     return f"{before_span}{span_part}{after_span}"

@@ -2,7 +2,6 @@ import urllib.parse
 from functools import lru_cache
 
 import html2text
-from loguru import logger
 from reader import Entry, Reader
 
 from discord_rss_bot.filter.blacklist import has_black_tags, should_be_skipped
@@ -26,11 +25,7 @@ def encode_url(url_to_quote: str) -> str:
     Returns:
         The encoded url.
     """
-    if url_to_quote:
-        return urllib.parse.quote(url_to_quote)
-
-    logger.error("URL to quote is None.")
-    return ""
+    return urllib.parse.quote(url_to_quote) if url_to_quote else ""
 
 
 def entry_is_whitelisted(entry_to_check: Entry) -> bool:
@@ -44,7 +39,6 @@ def entry_is_whitelisted(entry_to_check: Entry) -> bool:
         bool: True if the feed is whitelisted, False otherwise.
 
     """
-    logger.debug(f"Checking if {entry_to_check.title} is whitelisted.")
     return bool(has_white_tags(reader, entry_to_check.feed) and should_be_sent(reader, entry_to_check))
 
 
@@ -59,14 +53,12 @@ def entry_is_blacklisted(entry_to_check: Entry) -> bool:
         bool: True if the feed is blacklisted, False otherwise.
 
     """
-    logger.debug(f"Checking if {entry_to_check.title} is blacklisted.")
     return bool(has_black_tags(reader, entry_to_check.feed) and should_be_skipped(reader, entry_to_check))
 
 
 @lru_cache()
 def convert_to_md(thing: str) -> str:
     """Discord does not support tables so we need to remove them from the markdown."""
-    logger.debug(f"Converting {thing} to markdown.")
     text_maker: html2text.HTML2Text = html2text.HTML2Text()
 
     # Ignore tables
