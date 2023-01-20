@@ -1,7 +1,7 @@
 import urllib.parse
 
+import html2text
 from loguru import logger
-from markdownify import markdownify
 from reader import Entry, Reader
 
 from discord_rss_bot.filter.blacklist import has_black_tags, should_be_skipped
@@ -64,5 +64,9 @@ def entry_is_blacklisted(entry_to_check: Entry) -> bool:
 def convert_to_md(thing: str) -> str:
     """Discord does not support tables so we need to remove them from the markdown."""
     logger.debug(f"Converting {thing} to markdown.")
-    # TODO: Should we remove thead, tbody, tr, th, and td instead?
-    return markdownify(thing, strip=["table", "thead", "tbody", "tr", "th", "td"]) if thing else ""
+    text_maker: html2text.HTML2Text = html2text.HTML2Text()
+
+    # Ignore tables
+    text_maker.ignore_tables = True
+
+    return text_maker.handle(thing) if thing else ""
