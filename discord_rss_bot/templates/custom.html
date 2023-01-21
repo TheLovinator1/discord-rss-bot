@@ -11,196 +11,198 @@
                     <div class="form-text">
                         <ul class="list-inline">
                             <li>You can modify the message that is sent to Discord.</li>
+                            <li> You can use \n to create a new line.</li>
+                            <li> You can remove the embed from links by adding < and > around the link. (For example <{% raw %}{{entry_link}}{% endraw %}>)</li>
                             <br/>
                             <li>
                                 <code>
                                     {% raw %}
-                                        {{ feed_author }}
+                                        {{feed_author}}
                                     {% endraw %}
-                                </code>{{ feed.author }}
+                                </code>{{feed.author}}
                             </li>
                             <li>
                                 <code>
                                     {% raw %}
-                                        {{ feed_added }}
+                                        {{feed_added}}
                                     {% endraw %}
-                                </code>{{ feed.added }}
+                                </code>{{feed.added}}
                             </li>
                             <li>
                                 <code>
                                     {% raw %}
-                                        {{ feed_last_exception }}
+                                        {{feed_last_exception}}
                                     {% endraw %}
-                                </code>{{ feed.last_exception }}
+                                </code>{{feed.last_exception}}
                             </li>
                             <li>
                                 <code>
                                     {% raw %}
-                                        {{ feed_last_updated }}
+                                        {{feed_last_updated}}
                                     {% endraw %}
-                                </code>{{ feed.last_updated }}
+                                </code>{{feed.last_updated}}
                             </li>
                             <li>
                                 <code>
                                     {% raw %}
-                                        {{ feed_link }}
+                                        {{feed_link}}
                                     {% endraw %}
-                                </code>{{ feed.link }}
+                                </code>{{feed.link}}
                             </li>
                             <li>
                                 <code>
                                     {% raw %}
-                                        {{ feed_subtitle }}
+                                        {{feed_subtitle}}
                                     {% endraw %}
-                                </code>{{ feed.subtitle }}
+                                </code>{{feed.subtitle}}
                             </li>
                             <li>
                                 <code>
                                     {% raw %}
-                                        {{ feed_title }}
+                                        {{feed_title}}
                                     {% endraw %}
-                                </code>{{ feed.title }}
+                                </code>{{feed.title}}
                             </li>
                             <li>
                                 <code>
                                     {% raw %}
-                                        {{ feed_updated }}
+                                        {{feed_updated}}
                                     {% endraw %}
-                                </code>{{ feed.updated }}
+                                </code>{{feed.updated}}
                             </li>
                             <li>
                                 <code>
                                     {% raw %}
-                                        {{ feed_updates_enabled }}
+                                        {{feed_updates_enabled}}
                                     {% endraw %}
-                                </code>{{ feed.updates_enabled }}
+                                </code>{{feed.updates_enabled}}
                             </li>
                             <li>
                                 <code>
                                     {% raw %}
-                                        {{ feed_url }}
+                                        {{feed_url}}
                                     {% endraw %}
-                                </code>{{ feed.url }}
+                                </code>{{feed.url}}
                             </li>
                             <li>
                                 <code>
                                     {% raw %}
-                                        {{ feed_user_title }}
+                                        {{feed_user_title}}
                                     {% endraw %}
-                                </code>{{ feed.user_title }}
+                                </code>{{feed.user_title}}
                             </li>
                             <li>
                                 <code>
                                     {% raw %}
-                                        {{ feed_version }}
+                                        {{feed_version}}
                                     {% endraw %}
-                                </code>{{ feed.version }}
+                                </code>{{feed.version}}
                             </li>
                             <br/>
                             {% if entry %}
                                 <li>
                                     <code>
                                         {% raw %}
-                                            {{ entry_added }}
+                                            {{entry_added}}
                                         {% endraw %}
-                                    </code>{{ entry.added }}
+                                    </code>{{entry.added}}
                                 </li>
                                 <li>
                                     <code>
                                         {% raw %}
-                                            {{ entry_author }}
+                                            {{entry_author}}
                                         {% endraw %}
-                                    </code>{{ entry.author }}
+                                    </code>{{entry.author}}
                                 </li>
                                 <li>
                                     <code>
                                         {% raw %}
-                                            {{ entry_content }}
+                                            {{entry_content}}
                                         {% endraw %}
-                                    </code>{{ entry.content[0].value|discord_markdown|remove_image_tags }}
+                                    </code>{{entry.content[0].value|discord_markdown|remove_image_tags}}
                                 </li>
                                 <li>
                                     <code>
                                         {% raw %}
-                                            {{ entry_content_raw }}
+                                            {{entry_content_raw}}
                                         {% endraw %}
-                                    </code>{{ entry.content[0].value }}
+                                    </code>{{entry.content[0].value}}
                                 </li>
                                 <li>
                                     <code>
                                         {% raw %}
-                                            {{ entry_id }}
+                                            {{entry_id}}
                                         {% endraw %}
-                                    </code>{{ entry.id }}
+                                    </code>{{entry.id}}
                                 </li>
                                 <li>
                                     <code>
                                         {% raw %}
-                                            {{ entry_important }}
+                                            {{entry_important}}
                                         {% endraw %}
-                                    </code>{{ entry.important }}
+                                    </code>{{entry.important}}
                                 </li>
                                 <li>
                                     <code>
                                         {% raw %}
-                                            {{ entry_link }}
+                                            {{entry_link}}
                                         {% endraw %}
-                                    </code>{{ entry.link }}
+                                    </code>{{entry.link}}
                                 </li>
                                 <li>
                                     <code>
                                         {% raw %}
-                                            {{ entry_published }}
+                                            {{entry_published}}
                                         {% endraw %}
-                                    </code>{{ entry.published }}
+                                    </code>{{entry.published}}
                                 </li>
                                 <li>
                                     <code>
                                         {% raw %}
-                                            {{ entry_read }}
+                                            {{entry_read}}
                                         {% endraw %}
-                                    </code>{{ entry.read }}
+                                    </code>{{entry.read}}
                                 </li>
                                 <li>
                                     <code>
                                         {% raw %}
-                                            {{ entry_read_modified }}
+                                            {{entry_read_modified}}
                                         {% endraw %}
-                                    </code>{{ entry.read_modified }}
+                                    </code>{{entry.read_modified}}
                                 </li>
                                 <li>
                                     <code>
                                         {% raw %}
-                                            {{ entry_summary }}
+                                            {{entry_summary}}
                                         {% endraw %}
-                                    </code>{{ entry.summary|discord_markdown|remove_image_tags }}
+                                    </code>{{entry.summary|discord_markdown|remove_image_tags}}
                                 </li>
                                 <li>
                                     <code>
                                         {% raw %}
-                                            {{ entry_summary_raw }}
+                                            {{entry_summary_raw}}
                                         {% endraw %}
-                                    </code>{{ entry.summary }}
+                                    </code>{{entry.summary}}
                                 </li>
                                 <li>
                                     <code>
                                         {% raw %}
-                                            {{ entry_title }}
+                                            {{entry_title}}
                                         {% endraw %}
-                                    </code>{{ entry.title }}
+                                    </code>{{entry.title}}
                                 </li>
                                 <li>
                                     <code>
                                         {% raw %}
-                                            {{ entry_updated }}
+                                            {{entry_updated}}
                                         {% endraw %}
-                                    </code>{{ entry.updated }}
+                                    </code>{{entry.updated}}
                                 </li>
                                 <br/>
                                 <li>
                                     <code>
                                         {% raw %}
-                                            {{ image_1 }}
+                                            {{image_1}}
                                         {% endraw %}
                                     </code>First image in the entry if it exists
                                 </li>
@@ -210,7 +212,7 @@
                                 <li>
                                     <code>
                                         {% raw %}
-                                            Hello {{ entry_author }}\n{{ feed_title }}\n{{ entry_read }}
+                                            {{feed_title}}\n{{entry_content}}
                                         {% endraw %}
                                     </code>
                                 </li>
@@ -219,9 +221,8 @@
                                 <li>
                                     <code>
                                         <pre>
-Hello {{ entry.author }}
-{{ feed.title }}
-{{ entry.read }}
+{{feed.title -}}
+{{- entry.content[0].value|discord_markdown|remove_image_tags -}}
                             </pre>
                                     </code>
                                 </li>
@@ -241,7 +242,7 @@ Hello {{ entry.author }}
                 </div>
             </div>
             <!-- Add a hidden feed_url field to the form -->
-            <input type="hidden" name="feed_url" value="{{ feed.url }}"/>
+            <input type="hidden" name="feed_url" value="{{feed.url}}"/>
             <!-- Submit button -->
             <div class="d-md-flex">
                 <button class="btn btn-dark btn-sm">Update message</button>

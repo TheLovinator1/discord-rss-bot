@@ -10,6 +10,53 @@ from discord_rss_bot.filter.whitelist import has_white_tags, should_be_sent
 from discord_rss_bot.settings import default_custom_message, get_reader
 
 
+def get_entry_from_id(entry_id: str, custom_reader: Reader | None = None) -> Entry | None:
+    """
+    Get an entry from an ID.
+
+    Args:
+        entry_id: The ID of the entry.
+        custom_reader: If we should use a custom reader instead of the default one.
+
+    Returns:
+        Entry: The entry with the ID. None if it doesn't exist.
+    """
+    # Get the default reader if we didn't get a custom one.
+    reader: Reader = get_reader() if custom_reader is None else custom_reader
+
+    # Get the entry from the ID, or return None if it doesn't exist.
+    return next((entry for entry in reader.get_entries() if entry.id == entry_id), None)
+
+
+def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None):
+    """
+    Send a single entry to Discord.
+
+    Args:
+        entry: The entry to send to Discord.
+    """
+    # Get the default reader if we didn't get a custom one.
+    reader: Reader = get_reader() if custom_reader is None else custom_reader
+
+    # Get the webhook URL for the entry.
+    webhook_url: str = settings.get_webhook_for_entry(reader, entry)
+    if not webhook_url:
+        return "No webhook URL found."
+
+    # Try to get the custom message for the feed. If the user has none, we will use the default message.
+    if custom_message.get_custom_message(reader, entry.feed) != "":
+        webhook_message = custom_message.replace_tags(entry=entry, feed=entry.feed)  # type: ignore
+    else:
+        webhook_message: str = default_custom_message
+
+    # Create the webhook.
+    webhook: DiscordWebhook = DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)
+
+    response: Response = webhook.execute()
+    if not response.ok:
+        return f"Error sending entry to Discord: {response.text}"
+
+
 def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = None, do_once: bool = False) -> None:
     """
     Send entries to Discord.

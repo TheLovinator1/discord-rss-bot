@@ -75,11 +75,13 @@ def replace_tags(feed: Feed, entry: Entry) -> str:
     content = ""
     if entry.summary:
         summary: str = entry.summary
+        summary = convert_to_md(summary)
         summary = remove_image_tags(message=summary)
 
     if entry.content:
         for content_item in entry.content:
             content: str = content_item.value
+            content = convert_to_md(content)
             content = remove_image_tags(message=content)
 
     if images := get_images_from_entry(entry=entry):
@@ -103,7 +105,7 @@ def replace_tags(feed: Feed, entry: Entry) -> str:
         {"{{entry_added}}": entry.added},
         {"{{entry_author}}": entry.author},
         {"{{entry_content}}": content},
-        {"{{entry_content_raw}}": content},
+        {"{{entry_content_raw}}": entry.content[0].value if entry.content else ""},
         {"{{entry_id}}": entry.id},
         {"{{entry_important}}": str(entry.important)},
         {"{{entry_link}}": entry.link},
@@ -111,7 +113,7 @@ def replace_tags(feed: Feed, entry: Entry) -> str:
         {"{{entry_read}}": str(entry.read)},
         {"{{entry_read_modified}}": entry.read_modified},
         {"{{entry_summary}}": summary},
-        {"{{entry_summary_raw}}": summary},
+        {"{{entry_summary_raw}}": entry.summary if entry.summary else ""},
         {"{{entry_title}}": entry.title},
         {"{{entry_updated}}": entry.updated},
         {"{{image_1}}": first_image},
@@ -121,7 +123,10 @@ def replace_tags(feed: Feed, entry: Entry) -> str:
         for template, replace_with in replacement.items():
             custom_message = try_to_replace(custom_message, template, replace_with)
 
-    return custom_message
+    # Replace \\n with newlines.
+    custom_message_with_newlines = custom_message.replace("\\n", "\n")
+
+    return custom_message_with_newlines
 
 
 def get_custom_message(custom_reader: Reader, feed: Feed) -> str:

@@ -14,7 +14,7 @@ from starlette.responses import RedirectResponse
 from discord_rss_bot import settings
 from discord_rss_bot.custom_filters import convert_to_md, encode_url, entry_is_blacklisted, entry_is_whitelisted
 from discord_rss_bot.custom_message import get_custom_message, get_images_from_entry, remove_image_tags
-from discord_rss_bot.feeds import send_to_discord
+from discord_rss_bot.feeds import get_entry_from_id, send_entry_to_discord, send_to_discord
 from discord_rss_bot.filter.blacklist import get_blacklist_content, get_blacklist_summary, get_blacklist_title
 from discord_rss_bot.filter.whitelist import get_whitelist_content, get_whitelist_summary, get_whitelist_title
 from discord_rss_bot.search import create_html_for_search_results
@@ -426,13 +426,14 @@ def create_html_for_feed(entries: Iterable[Entry]) -> str:
     for entry in entries:
 
         # Get first image.
+        first_image = ""
+        first_image_text = ""
         if images := get_images_from_entry(entry=entry):
             first_image: str = images[0][1]
             first_image_text: str = images[0][0]
-        else:
-            first_image = ""
-            first_image_text = ""
 
+        # Get the text from the entry.
+        text = "<div class='text-muted'>No content available.</div>"
         if entry.summary:
             summary: str = convert_to_md(entry.summary)
             summary = remove_image_tags(message=summary)
@@ -441,32 +442,30 @@ def create_html_for_feed(entries: Iterable[Entry]) -> str:
             content: str = convert_to_md(entry.content[0].value)
             content = remove_image_tags(message=content)
             text = f"<div class='text-muted'>{content}</div>"
-        else:
-            text = "<div class='text-muted'>No content available.</div>"
 
+        published = ""
         if entry.published:
             published: str = entry.published.strftime("%Y-%m-%d %H:%M:%S")
-        else:
-            published = ""
 
+        blacklisted = ""
         if entry_is_blacklisted(entry):
             blacklisted = "<span class='badge bg-danger'>Blacklisted</span>"
-        else:
-            blacklisted = ""
 
+        whitelisted = ""
         if entry_is_whitelisted(entry):
             whitelisted = "<span class='badge bg-success'>Whitelisted</span>"
-        else:
-            whitelisted = ""
+
+        entry_id: str = urllib.parse.quote(entry.id)
+        to_disord_html: str = f"<a class='text-muted' href='/post_entry?entry_id={entry_id}'>Send to Discord</a>"
 
         html += f"""
             <div class="p-2 mb-2 border border-dark">
             {blacklisted}
             {whitelisted}
-            <h2>
-                <a class="text-muted text-decoration-none" href="{entry.link}">{entry.title}</a>
-            </h2>
-            {f"By { entry.author } @" if entry.author else ""} {published}
+
+            <a class="text-muted text-decoration-none" href="{entry.link}"><h2>{entry.title}</h2></a>
+
+            {f"By { entry.author } @" if entry.author else ""} {published} - {to_disord_html}
             {text}
             {f"<img src='{first_image}' class='img-fluid' alt='{first_image_text}'>" if first_image else ""}
             </div>
@@ -589,6 +588,30 @@ async def search(request: Request, query: str):
         "search_amount": search_amount,
     }
     return templates.TemplateResponse("search.html", context)
+
+
+@app.get("/post_entry", response_class=HTMLResponse)
+async def post_entry(entry_id: str):
+    """
+    Send a feed to Discord.
+
+    Returns:
+        HTMLResponse: The HTML response.
+    """
+    # Unquote the entry id.
+    unquoted_entry_id: str = urllib.parse.unquote(entry_id)
+
+    print(f"Sending entry '{unquoted_entry_id}' to Discord.")
+    entry: Entry | None = get_entry_from_id(entry_id=unquoted_entry_id)
+    if entry is None:
+        return {"error": f"Failed to get entry '{entry_id}' when posting to Discord."}
+
+    if result := send_entry_to_discord(entry=entry):
+        return result
+
+    # Redirect to the feed page.
+    clean_url: str = entry.feed.url.strip()
+    return RedirectResponse(url=f"/feed/?feed_url={clean_url}", status_code=303)
 
 
 @app.on_event("startup")
