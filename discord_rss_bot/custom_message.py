@@ -113,7 +113,7 @@ def replace_tags(feed: Feed, entry: Entry) -> str:
         {"{{entry_read}}": str(entry.read)},
         {"{{entry_read_modified}}": entry.read_modified},
         {"{{entry_summary}}": summary},
-        {"{{entry_summary_raw}}": entry.summary if entry.summary else ""},
+        {"{{entry_summary_raw}}": entry.summary or ""},
         {"{{entry_title}}": entry.title},
         {"{{entry_updated}}": entry.updated},
         {"{{image_1}}": first_image},
