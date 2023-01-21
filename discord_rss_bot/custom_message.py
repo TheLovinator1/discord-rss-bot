@@ -39,12 +39,6 @@ def try_to_replace(custom_message: str, template: str, replace_with: str) -> str
     Returns:
         Returns the custom_message with the tag replaced.
     """
-    if not template:
-        return custom_message
-
-    if not replace_with:
-        return custom_message
-
     try:
         return custom_message.replace(template, replace_with)
     except TypeError:

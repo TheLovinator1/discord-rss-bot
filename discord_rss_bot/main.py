@@ -31,6 +31,7 @@ templates.env.filters["encode_url"] = encode_url
 templates.env.filters["entry_is_whitelisted"] = entry_is_whitelisted
 templates.env.filters["entry_is_blacklisted"] = entry_is_blacklisted
 templates.env.filters["discord_markdown"] = convert_to_md
+templates.env.filters["remove_image_tags"] = remove_image_tags
 
 
 @app.post("/add_webhook")

@@ -117,7 +117,7 @@
                                         {% raw %}
                                             {{ entry_content }}
                                         {% endraw %}
-                                    </code>{{ entry.content[0].value|discord_markdown }}
+                                    </code>{{ entry.content[0].value|discord_markdown|remove_image_tags }}
                                 </li>
                                 <li>
                                     <code>
@@ -173,7 +173,7 @@
                                         {% raw %}
                                             {{ entry_summary }}
                                         {% endraw %}
-                                    </code>{{ entry.summary|discord_markdown }}
+                                    </code>{{ entry.summary|discord_markdown|remove_image_tags }}
                                 </li>
                                 <li>
                                     <code>

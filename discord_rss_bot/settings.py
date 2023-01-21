@@ -82,6 +82,5 @@ def list_webhooks(reader: Reader) -> list[dict[str, str]]:
             # Check if the tag is named webhooks
             if tag == "webhooks":
                 webhooks = reader.get_tag((), "webhooks")  # type: ignore
-            break
 
     return webhooks
