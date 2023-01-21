@@ -1,32 +1,43 @@
-import re
-from functools import lru_cache
-
+from bs4 import BeautifulSoup
 from reader import Entry, Feed, Reader, TagNotFoundError
 
-from discord_rss_bot.custom_filters import convert_to_md
+from discord_rss_bot.markdown import convert_html_to_md
 from discord_rss_bot.settings import get_reader
 
 
-def get_images_from_entry(entry: Entry, summary: bool = False) -> list[str]:
+def get_images_from_entry(entry: Entry):
     """Get images from a entry.
 
     Args:
         entry: The entry to get the images from.
-        summary: Whether to get the images from the summary or the content.
 
     Returns:
         Returns a list of images.
     """
-    # This regex will match any markdown image that follows the format of ![alt text](image url).
-    image_regex = r"!\[(.*)\]\((.*)\)"
 
-    if summary:
-        return re.findall(image_regex, convert_to_md(entry.summary)) if entry.summary else []
+    def return_image(found_images):
+        soup: BeautifulSoup = BeautifulSoup(found_images, "html.parser")
+        images = soup.find_all("img")
+        for image in images:
+            image_src = image["src"] or ""
+            image_alt: str = "Link to image"
+            if image.get("alt"):
+                image_alt = image.get("alt")
+            return [(image_src, image_alt)]
 
-    return re.findall(image_regex, convert_to_md(entry.content[0].value)) if entry.content else []
+    images = []
+    # Get the images from the summary with beautiful soup
+    if entry.summary:
+        images = return_image(entry.summary)
+
+    # Get the images from the content with beautiful soup
+    if entry.content:
+        images = return_image(entry.content[0].value)
+
+    # No images found
+    return images
 
 
-@lru_cache()
 def try_to_replace(custom_message: str, template: str, replace_with: str) -> str:
     """Try to replace a tag in custom_message.
 
@@ -43,19 +54,6 @@ def try_to_replace(custom_message: str, template: str, replace_with: str) -> str
         return custom_message.replace(template, replace_with)
     except TypeError:
         return custom_message
-
-
-@lru_cache()
-def remove_image_tags(message: str) -> str:
-    """Remove image tags from message.
-
-    Args:
-        message: The message to remove the tags from.
-
-    Returns:
-        Returns the message with the image tags removed.
-    """
-    return re.sub(r"!\[(.*)\]\((.*)\)", "", message)
 
 
 def replace_tags(feed: Feed, entry: Entry) -> str:
@@ -75,17 +73,15 @@ def replace_tags(feed: Feed, entry: Entry) -> str:
     content = ""
     if entry.summary:
         summary: str = entry.summary
-        summary = convert_to_md(summary)
-        summary = remove_image_tags(message=summary)
+        summary = convert_html_to_md(summary)
 
     if entry.content:
         for content_item in entry.content:
             content: str = content_item.value
-            content = convert_to_md(content)
-            content = remove_image_tags(message=content)
+            content = convert_html_to_md(content)
 
     if images := get_images_from_entry(entry=entry):
-        first_image: str = images[0][1]
+        first_image: str = images[0][0]
     else:
         first_image = ""
 
@@ -123,10 +119,7 @@ def replace_tags(feed: Feed, entry: Entry) -> str:
         for template, replace_with in replacement.items():
             custom_message = try_to_replace(custom_message, template, replace_with)
 
-    # Replace \\n with newlines.
-    custom_message_with_newlines = custom_message.replace("\\n", "\n")
-
-    return custom_message_with_newlines
+    return custom_message.replace("\\n", "\n")
 
 
 def get_custom_message(custom_reader: Reader, feed: Feed) -> str:

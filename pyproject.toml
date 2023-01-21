@@ -17,7 +17,8 @@ python-multipart = "^0.0.5"
 python-dotenv = "^0.21.0"
 tomlkit = "^0.11.6"
 loguru = "^0.6.0"
-html2text = "^2020.1.16"
+beautifulsoup4 = "^4.11.1"
+lxml = "^4.9.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.2.0"

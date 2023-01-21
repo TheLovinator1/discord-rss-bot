@@ -119,7 +119,7 @@
                                         {% raw %}
                                             {{entry_content}}
                                         {% endraw %}
-                                    </code>{{entry.content[0].value|discord_markdown|remove_image_tags}}
+                                    </code>{{entry.content[0].value|discord_markdown}}
                                 </li>
                                 <li>
                                     <code>
@@ -175,7 +175,7 @@
                                         {% raw %}
                                             {{entry_summary}}
                                         {% endraw %}
-                                    </code>{{entry.summary|discord_markdown|remove_image_tags}}
+                                    </code>{{entry.summary|discord_markdown}}
                                 </li>
                                 <li>
                                     <code>
@@ -222,7 +222,7 @@
                                     <code>
                                         <pre>
 {{feed.title -}}
-{{- entry.content[0].value|discord_markdown|remove_image_tags -}}
+{{- entry.content[0].value|discord_markdown -}}
                             </pre>
                                     </code>
                                 </li>

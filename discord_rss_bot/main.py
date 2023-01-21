@@ -12,11 +12,12 @@ from reader import Entry, EntryCounts, EntrySearchCounts, EntrySearchResult, Fee
 from starlette.responses import RedirectResponse
 
 from discord_rss_bot import settings
-from discord_rss_bot.custom_filters import convert_to_md, encode_url, entry_is_blacklisted, entry_is_whitelisted
-from discord_rss_bot.custom_message import get_custom_message, get_images_from_entry, remove_image_tags
+from discord_rss_bot.custom_filters import encode_url, entry_is_blacklisted, entry_is_whitelisted
+from discord_rss_bot.custom_message import get_custom_message, get_images_from_entry, replace_tags
 from discord_rss_bot.feeds import get_entry_from_id, send_entry_to_discord, send_to_discord
 from discord_rss_bot.filter.blacklist import get_blacklist_content, get_blacklist_summary, get_blacklist_title
 from discord_rss_bot.filter.whitelist import get_whitelist_content, get_whitelist_summary, get_whitelist_title
+from discord_rss_bot.markdown import convert_html_to_md
 from discord_rss_bot.search import create_html_for_search_results
 from discord_rss_bot.settings import default_custom_message, get_reader, list_webhooks
 
@@ -30,8 +31,7 @@ reader: Reader = get_reader()
 templates.env.filters["encode_url"] = encode_url
 templates.env.filters["entry_is_whitelisted"] = entry_is_whitelisted
 templates.env.filters["entry_is_blacklisted"] = entry_is_blacklisted
-templates.env.filters["discord_markdown"] = convert_to_md
-templates.env.filters["remove_image_tags"] = remove_image_tags
+templates.env.filters["discord_markdown"] = convert_html_to_md
 
 
 @app.post("/add_webhook")
@@ -429,19 +429,13 @@ def create_html_for_feed(entries: Iterable[Entry]) -> str:
         first_image = ""
         first_image_text = ""
         if images := get_images_from_entry(entry=entry):
-            first_image: str = images[0][1]
-            first_image_text: str = images[0][0]
+            first_image: str = images[0][0]
+            first_image_text: str = images[0][1]
 
         # Get the text from the entry.
-        text = "<div class='text-muted'>No content available.</div>"
-        if entry.summary:
-            summary: str = convert_to_md(entry.summary)
-            summary = remove_image_tags(message=summary)
-            text: str = f"<div class='text-muted'>{summary}</div>"
-        elif entry.content:
-            content: str = convert_to_md(entry.content[0].value)
-            content = remove_image_tags(message=content)
-            text = f"<div class='text-muted'>{content}</div>"
+        text = replace_tags(entry.feed, entry)
+        if not text:
+            text = "<div class='text-muted'>No content available.</div>"
 
         published = ""
         if entry.published:

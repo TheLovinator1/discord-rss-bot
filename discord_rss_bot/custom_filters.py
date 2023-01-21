@@ -1,7 +1,6 @@
 import urllib.parse
 from functools import lru_cache
 
-import html2text
 from reader import Entry, Reader
 
 from discord_rss_bot.filter.blacklist import has_black_tags, should_be_skipped
@@ -54,14 +53,3 @@ def entry_is_blacklisted(entry_to_check: Entry) -> bool:
 
     """
     return bool(has_black_tags(reader, entry_to_check.feed) and should_be_skipped(reader, entry_to_check))
-
-
-@lru_cache()
-def convert_to_md(thing: str) -> str:
-    """Discord does not support tables so we need to remove them from the markdown."""
-    text_maker: html2text.HTML2Text = html2text.HTML2Text()
-
-    # Ignore tables
-    text_maker.ignore_tables = True
-
-    return text_maker.handle(thing) if thing else ""
