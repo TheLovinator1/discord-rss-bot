@@ -194,6 +194,13 @@
                             <li>
                                 <code>
                                     {% raw %}
+                                        {{entry_text}}
+                                    {% endraw %}
+                                </code> Same as entry_content if it exists, otherwise entry_summary
+                            </li>
+                            <li>
+                                <code>
+                                    {% raw %}
                                         {{entry_updated}}
                                     {% endraw %}
                                 </code>{{entry.updated}}

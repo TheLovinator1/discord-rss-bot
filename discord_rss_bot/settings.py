@@ -9,12 +9,10 @@ os.makedirs(data_dir, exist_ok=True)
 
 # TODO: Add default things to the database and make the edible.
 default_custom_message: str = "{{entry_title}}\n{{entry_link}}"
-default_custom_embed = {
+default_custom_embed: dict[str, str] = {
     "title": "{{entry_title}}",
-    "description": "{{entry_content}}",
-    "url": "{{entry_link}}",
-    "image": "{{entry_image}}",
-    "color": 0x008080,
+    "description": "{{entry_text}}",
+    "image_url": "{{image_1}}",
 }
 
 

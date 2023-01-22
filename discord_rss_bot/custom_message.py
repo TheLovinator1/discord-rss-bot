@@ -12,7 +12,7 @@ from discord_rss_bot.settings import get_reader
 class CustomEmbed:
     title: str
     description: str
-    color: str
+    color: int
     author_name: str
     author_url: str
     author_icon_url: str
@@ -68,7 +68,7 @@ def try_to_replace(custom_message: str, template: str, replace_with: str) -> str
     """
     try:
         return custom_message.replace(template, replace_with)
-    except TypeError:
+    except (TypeError, AttributeError, ValueError):
         return custom_message
 
 
@@ -101,6 +101,8 @@ def replace_tags_in_text_message(feed: Feed, entry: Entry) -> str:
     else:
         first_image = ""
 
+    entry_text: str = content or summary
+
     list_of_replacements = [
         {"{{feed_author}}": feed.author},
         {"{{feed_added}}": feed.added},
@@ -126,6 +128,7 @@ def replace_tags_in_text_message(feed: Feed, entry: Entry) -> str:
         {"{{entry_read_modified}}": entry.read_modified},
         {"{{entry_summary}}": summary},
         {"{{entry_summary_raw}}": entry.summary or ""},
+        {"{{entry_text}}": entry_text},
         {"{{entry_title}}": entry.title},
         {"{{entry_updated}}": entry.updated},
         {"{{image_1}}": first_image},
@@ -168,6 +171,8 @@ def replace_tags_in_embed(feed: Feed, entry: Entry) -> CustomEmbed:
     else:
         first_image = ""
 
+    entry_text: str = content or summary
+
     list_of_replacements = [
         {"{{feed_author}}": feed.author},
         {"{{feed_added}}": feed.added},
@@ -194,6 +199,7 @@ def replace_tags_in_embed(feed: Feed, entry: Entry) -> CustomEmbed:
         {"{{entry_summary}}": summary},
         {"{{entry_summary_raw}}": entry.summary or ""},
         {"{{entry_title}}": entry.title},
+        {"{{entry_text}}": entry_text},
         {"{{entry_updated}}": entry.updated},
         {"{{image_1}}": first_image},
     ]
@@ -202,7 +208,6 @@ def replace_tags_in_embed(feed: Feed, entry: Entry) -> CustomEmbed:
         for template, replace_with in replacement.items():
             embed.title = try_to_replace(embed.title, template, replace_with)
             embed.description = try_to_replace(embed.description, template, replace_with)
-            embed.color = try_to_replace(embed.color, template, replace_with)
             embed.author_name = try_to_replace(embed.author_name, template, replace_with)
             embed.author_url = try_to_replace(embed.author_url, template, replace_with)
             embed.author_icon_url = try_to_replace(embed.author_icon_url, template, replace_with)
@@ -242,10 +247,10 @@ def save_embed(custom_reader: Reader, feed: Feed, embed: CustomEmbed) -> None:
         feed: The feed to set the tag in.
         embed: The embed to set.
     """
-    embed_dict: dict[str, str] = {
+    embed_dict: dict[str, str | int] = {
         "title": embed.title,
         "description": embed.description,
-        "color": embed.color.replace("#", "").replace("0x", ""),
+        "color": embed.color,
         "author_name": embed.author_name,
         "author_url": embed.author_url,
         "author_icon_url": embed.author_icon_url,
@@ -268,27 +273,24 @@ def get_embed(custom_reader: Reader, feed: Feed) -> CustomEmbed:
     Returns:
         Returns the contents from the embed tag.
     """
-    embed_json: dict[str, str] = {}
     try:
-        embed: str = str(custom_reader.get_tag(feed, "embed"))
+        embed: str = custom_reader.get_tag(feed, "embed")  # type: ignore
     except TagNotFoundError:
         embed = ""
     except ValueError:
         embed = ""
 
     if embed:
-        try:
-            embed_json = json.loads(embed)
-        except json.decoder.JSONDecodeError:
-            embed_json = ""  # type: ignore
-
-    if embed_json:
-        return get_embed_data(embed_json)
+        if type(embed) == str:
+            embed_data: dict[str, str | int] = json.loads(embed)
+            return get_embed_data(embed_data)
+        else:
+            return get_embed_data(embed)
 
     return CustomEmbed(
         title="",
         description="",
-        color="",
+        color=32896,
         author_name="",
         author_url="",
         author_icon_url="",
@@ -310,7 +312,7 @@ def get_embed_data(embed_data) -> CustomEmbed:
     """
     title: str = embed_data.get("title", "")
     description: str = embed_data.get("description", "")
-    color: str = embed_data.get("color", "")
+    color: int = embed_data.get("color", 32896)
     author_name: str = embed_data.get("author_name", "")
     author_url: str = embed_data.get("author_url", "")
     author_icon_url: str = embed_data.get("author_icon_url", "")

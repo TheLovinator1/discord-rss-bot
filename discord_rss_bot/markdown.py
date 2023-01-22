@@ -53,7 +53,7 @@ def convert_html_to_md(html: str) -> str:
         tag.replace_with(tag.text)
 
     # Remove all leading and trailing whitespace
-    soup_text = soup.text
+    soup_text: str = soup.text
     return soup_text.strip()
 
 
