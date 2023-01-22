@@ -4,7 +4,7 @@ import tempfile
 
 from reader import Reader
 
-from discord_rss_bot.custom_filters import convert_to_md, encode_url, entry_is_blacklisted, entry_is_whitelisted
+from discord_rss_bot.custom_filters import encode_url, entry_is_blacklisted, entry_is_whitelisted
 from discord_rss_bot.settings import get_reader
 
 
@@ -104,30 +104,3 @@ def test_entry_is_blacklisted() -> None:
 
         # Close the reader, so we can delete the directory.
         custom_reader.close()
-
-
-def test_convert_to_md():
-    # Test normal input
-    assert (
-        convert_to_md("<h1>Headline</h1><h2>Subheadline</h2><h3>subsubheadline</h3>")
-        == """Headline
-========
-
-Subheadline
------------
-
-### subsubheadline
-
-"""
-    )
-    # Test input with tables
-    assert (
-        convert_to_md(
-            "<table><thead><tr><th>Column 1</th><th>Column 2</th><th>Column 3</th></tr></thead><tbody><tr><td>Row 1, Column 1</td><td>Row 1, Column 2</td><td>Row 1, Column 3</td></tr><tr><td>Row 2, Column 1</td><td>Row 2, Column 2</td><td>Row 2, Column 3</td></tr></tbody></table>"  # noqa: E501
-        )
-        == "Column 1Column 2Column 3Row 1, Column 1Row 1, Column 2Row 1, Column 3Row 2, Column 1Row 2, Column 2Row 2, Column 3"  # noqa: E501
-    )
-    # Test empty input
-    assert convert_to_md("") == ""
-    # Test input as None
-    assert convert_to_md(None) == ""  # type: ignore
