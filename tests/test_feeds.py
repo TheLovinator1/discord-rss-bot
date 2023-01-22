@@ -6,6 +6,7 @@ import pytest
 from reader import Feed, Reader, make_reader  # type: ignore
 
 from discord_rss_bot.feeds import send_to_discord
+from discord_rss_bot.missing_tags import add_missing_tags
 
 
 def test_send_to_discord() -> None:
@@ -21,6 +22,8 @@ def test_send_to_discord() -> None:
 
         # Add a feed to the reader.
         reader.add_feed("https://www.reddit.com/r/Python/.rss")
+
+        add_missing_tags(reader)
 
         # Update the feed to get the entries.
         reader.update_feeds()

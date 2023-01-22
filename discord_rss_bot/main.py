@@ -72,6 +72,8 @@ async def add_webhook(webhook_name=Form(), webhook_url=Form()):
         # Add our new list of webhooks to the database.
         reader.set_tag((), "webhooks", webhooks)  # type: ignore
 
+        add_missing_tags(reader)
+
         return RedirectResponse(url="/", status_code=303)
 
     # TODO: Show this error on the page.
