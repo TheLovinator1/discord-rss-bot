@@ -1,6 +1,6 @@
 from typing import Iterable
 
-from discord_webhook import DiscordWebhook
+from discord_webhook import DiscordEmbed, DiscordWebhook
 from reader import Entry, Feed, Reader
 from requests import Response
 
@@ -45,16 +45,59 @@ def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None):
 
     # Try to get the custom message for the feed. If the user has none, we will use the default message.
     if custom_message.get_custom_message(reader, entry.feed) != "":
-        webhook_message = custom_message.replace_tags(entry=entry, feed=entry.feed)  # type: ignore
+        webhook_message = custom_message.replace_tags_in_text_message(entry=entry, feed=entry.feed)  # type: ignore
     else:
         webhook_message: str = default_custom_message
 
     # Create the webhook.
-    webhook: DiscordWebhook = DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)
+    if bool(reader.get_tag(entry.feed, "should_send_embed")):
+        webhook = create_embed_webhook(webhook_url, entry)
+    else:
+        webhook: DiscordWebhook = DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)
 
     response: Response = webhook.execute()
     if not response.ok:
         return f"Error sending entry to Discord: {response.text}"
+
+
+def create_embed_webhook(webhook_url: str, entry: Entry) -> DiscordWebhook:
+    webhook: DiscordWebhook = DiscordWebhook(url=webhook_url, rate_limit_retry=True)
+    feed: Feed = entry.feed
+
+    # Get the embed data from the database.
+    custom_embed: custom_message.CustomEmbed = custom_message.replace_tags_in_embed(feed=feed, entry=entry)
+
+    discord_embed: DiscordEmbed = DiscordEmbed()
+
+    if custom_embed.title:
+        discord_embed.set_title(custom_embed.title)
+    if custom_embed.description:
+        discord_embed.set_description(custom_embed.description)
+    if custom_embed.color:
+        discord_embed.set_color(custom_embed.color)
+    if custom_embed.author_name and not custom_embed.author_url and not custom_embed.author_icon_url:
+        discord_embed.set_author(name=custom_embed.author_name)
+    if custom_embed.author_name and custom_embed.author_url and not custom_embed.author_icon_url:
+        discord_embed.set_author(name=custom_embed.author_name, url=custom_embed.author_url)
+    if custom_embed.author_name and not custom_embed.author_url and custom_embed.author_icon_url:
+        discord_embed.set_author(name=custom_embed.author_name, icon_url=custom_embed.author_icon_url)
+    if custom_embed.author_name and custom_embed.author_url and custom_embed.author_icon_url:
+        discord_embed.set_author(name=custom_embed.author_name, url=custom_embed.author_url, icon_url=custom_embed.author_icon_url)  # noqa: E501
+    if custom_embed.thumbnail_url:
+        discord_embed.set_thumbnail(url=custom_embed.thumbnail_url)
+    if custom_embed.image_url:
+        discord_embed.set_image(url=custom_embed.image_url)
+    if custom_embed.footer_text:
+        discord_embed.set_footer(text=custom_embed.footer_text)
+    if custom_embed.footer_icon_url and custom_embed.footer_text:
+        discord_embed.set_footer(text=custom_embed.footer_text, icon_url=custom_embed.footer_icon_url)
+    if custom_embed.footer_icon_url and not custom_embed.footer_text:
+        # TODO: Can this be done without a text?
+        discord_embed.set_footer(icon_url=custom_embed.footer_icon_url)
+
+    webhook.add_embed(discord_embed)
+
+    return webhook
 
 
 def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = None, do_once: bool = False) -> None:
@@ -93,15 +136,18 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
         if not webhook_url:
             continue
 
-        # If the user has set the custom message to an empty string, we will use the default message, otherwise we will
-        # use the custom message.
-        if custom_message.get_custom_message(reader, entry.feed) != "":
-            webhook_message = custom_message.replace_tags(entry=entry, feed=entry.feed)  # type: ignore
+        if bool(reader.get_tag(entry.feed, "should_send_embed")):
+            webhook = create_embed_webhook(webhook_url, entry)
         else:
-            webhook_message: str = default_custom_message
+            # If the user has set the custom message to an empty string, we will use the default message, otherwise we
+            # will use the custom message.
+            if custom_message.get_custom_message(reader, entry.feed) != "":
+                webhook_message = custom_message.replace_tags_in_text_message(entry=entry, feed=entry.feed)
+            else:
+                webhook_message: str = default_custom_message
 
-        # Create the webhook.
-        webhook: DiscordWebhook = DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)
+            # Create the webhook.
+            webhook: DiscordWebhook = DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)
 
         # Check if the feed has a whitelist, and if it does, check if the entry is whitelisted.
         if feed is not None and has_white_tags(reader, feed):

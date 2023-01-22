@@ -6,9 +6,7 @@ from reader import EntrySearchResult, Feed, HighlightedString, Reader
 from discord_rss_bot.settings import get_reader
 
 
-def create_html_for_search_results(
-    search_results: Iterable[EntrySearchResult], custom_reader: Reader | None = None
-) -> str:
+def create_html_for_search_results(search_results: Iterable[EntrySearchResult], custom_reader: Reader | None = None) -> str:
     """Create HTML for the search results.
 
     Args:

@@ -236,9 +236,9 @@
                            type="text"
                            class="form-control bg-dark border-dark text-muted"
                            id="custom_message"
-                           value="{% if custom_message %}
-                                      {{- custom_message -}}
-                                  {% endif %}"/>
+                           {% if custom_message %}
+                           value="{{- custom_message -}}"
+                           {% endif %}/>
                 </div>
             </div>
             <!-- Add a hidden feed_url field to the form -->

@@ -7,7 +7,15 @@ from reader import Entry, Reader, TagNotFoundError, make_reader  # type: ignore
 data_dir: str = user_data_dir(appname="discord_rss_bot", appauthor="TheLovinator", roaming=True)
 os.makedirs(data_dir, exist_ok=True)
 
+# TODO: Add default things to the database and make the edible.
 default_custom_message: str = "{{entry_title}}\n{{entry_link}}"
+default_custom_embed = {
+    "title": "{{entry_title}}",
+    "description": "{{entry_content}}",
+    "url": "{{entry_link}}",
+    "image": "{{entry_image}}",
+    "color": 0x008080,
+}
 
 
 def get_webhook_for_entry(custom_reader: Reader, entry: Entry) -> str:

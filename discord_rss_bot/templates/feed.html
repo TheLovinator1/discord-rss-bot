@@ -31,11 +31,33 @@
                 <button class="btn btn-danger btn-sm" name="feed_url" value="{{ feed.url }}">Pause</button>
             </form>
         {% endif %}
+        {% if should_send_embed == True %}
+            <form action="/use_text" method="post">
+                <button class="btn btn-dark btn-sm" name="feed_url" value="{{ feed.url }}">
+                    Send text messages instead of embeds
+                </button>
+            </form>
+        {% else %}
+            <form action="/use_embed" method="post">
+                <button class="btn btn-dark btn-sm" name="feed_url" value="{{ feed.url }}">
+                    Send embeds instead of text messages
+                </button>
+            </form>
+        {% endif %}
         <a class="text-muted"
            href="/whitelist?feed_url={{ feed.url|encode_url }}">Whitelist</a>
+        <br/>
         <a class="text-muted"
            href="/blacklist?feed_url={{ feed.url|encode_url }}">Blacklist</a>
-        <a class="text-muted" href="/custom?feed_url={{ feed.url|encode_url }}">Custom message</a>
+        <br/>
+        <a class="text-muted" href="/custom?feed_url={{ feed.url|encode_url }}">Customize message
+            {% if not should_send_embed %}(Active){% endif %}
+        </a>
+        <br/>
+        <a class="text-muted" href="/embed?feed_url={{ feed.url|encode_url }}">Customize embed
+            {% if should_send_embed %}(Active){% endif %}
+        </a>
+        <br/>
     </div>
     {# HTML is created in main.create_html_for_feed #}
     <pre>
