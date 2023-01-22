@@ -451,20 +451,18 @@ def create_html_for_feed(entries: Iterable[Entry]) -> str:
 
         entry_id: str = urllib.parse.quote(entry.id)
         to_disord_html: str = f"<a class='text-muted' href='/post_entry?entry_id={entry_id}'>Send to Discord</a>"
+        image_html: str = f"<img src='{first_image}' class='img-fluid' alt='{first_image_text}'>" if first_image else ""
 
-        html += f"""
-            <div class="p-2 mb-2 border border-dark">
-            {blacklisted}
-            {whitelisted}
+        html += f"""<div class="p-2 mb-2 border border-dark">
+{blacklisted}{whitelisted}<a class="text-muted text-decoration-none" href="{entry.link}"><h2>{entry.title}</h2></a>
+{f"By { entry.author } @" if entry.author else ""}{published} - {to_disord_html}
 
-            <a class="text-muted text-decoration-none" href="{entry.link}"><h2>{entry.title}</h2></a>
+{text}
+{image_html}
+</div>
+"""
 
-            {f"By { entry.author } @" if entry.author else ""} {published} - {to_disord_html}
-            {text}
-            {f"<img src='{first_image}' class='img-fluid' alt='{first_image_text}'>" if first_image else ""}
-            </div>
-            """
-    return html
+    return html.strip()
 
 
 @app.get("/webhooks", response_class=HTMLResponse)

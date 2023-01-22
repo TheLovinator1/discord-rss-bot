@@ -52,9 +52,9 @@ def convert_html_to_md(html: str) -> str:
     for tag in soup.find_all(True):
         tag.replace_with(tag.text)
 
-    # If the text ends with a newline, remove it
-    # return soup.text[:-1] if soup.text.endswith("\n") else soup.text
-    return soup.text
+    # Remove all leading and trailing whitespace
+    soup_text = soup.text
+    return soup_text.strip()
 
 
 # Test the function

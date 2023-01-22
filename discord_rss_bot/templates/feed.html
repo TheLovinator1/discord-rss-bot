@@ -38,5 +38,7 @@
         <a class="text-muted" href="/custom?feed_url={{ feed.url|encode_url }}">Custom message</a>
     </div>
     {# HTML is created in main.create_html_for_feed #}
+    <pre>
     {{ html|safe }}
+    </pre>
 {% endblock content %}
