@@ -110,6 +110,7 @@
                                     {% endraw %}
                                 </code>{{entry.author}}
                             </li>
+                            {% if entry.content %}
                             <li>
                                 <code>
                                     {% raw %}
@@ -124,6 +125,7 @@
                                     {% endraw %}
                                 </code>{{entry.content[0].value}}
                             </li>
+                            {% endif %}
                             <li>
                                 <code>
                                     {% raw %}
@@ -166,6 +168,7 @@
                                     {% endraw %}
                                 </code>{{entry.read_modified}}
                             </li>
+                            {% if entry.summary %}
                             <li>
                                 <code>
                                     {% raw %}
@@ -180,6 +183,7 @@
                                     {% endraw %}
                                 </code>{{entry.summary}}
                             </li>
+                            {% endif %}
                             <li>
                                 <code>
                                     {% raw %}

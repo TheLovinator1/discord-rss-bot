@@ -114,6 +114,7 @@
                                         {% endraw %}
                                     </code>{{entry.author}}
                                 </li>
+                                {% if entry.content %}
                                 <li>
                                     <code>
                                         {% raw %}
@@ -128,6 +129,7 @@
                                         {% endraw %}
                                     </code>{{entry.content[0].value}}
                                 </li>
+                                {% endif %}
                                 <li>
                                     <code>
                                         {% raw %}
@@ -170,6 +172,7 @@
                                         {% endraw %}
                                     </code>{{entry.read_modified}}
                                 </li>
+                                {% if entry.summary %}
                                 <li>
                                     <code>
                                         {% raw %}
@@ -184,6 +187,7 @@
                                         {% endraw %}
                                     </code>{{entry.summary}}
                                 </li>
+                                {% endif %}
                                 <li>
                                     <code>
                                         {% raw %}
@@ -214,16 +218,6 @@
                                         {% raw %}
                                             {{feed_title}}\n{{entry_content}}
                                         {% endraw %}
-                                    </code>
-                                </li>
-                                <br/>
-                                <li>Will become:</li>
-                                <li>
-                                    <code>
-                                        <pre>
-{{feed.title -}}
-{{- entry.content[0].value|discord_markdown -}}
-                            </pre>
                                     </code>
                                 </li>
                             </ul>
