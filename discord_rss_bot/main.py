@@ -537,7 +537,11 @@ async def get_feed(feed_url, request: Request):
     # Create the html for the entries.
     html: str = create_html_for_feed(entries)
 
-    should_send_embed: bool = bool(reader.get_tag(feed, "should_send_embed"))
+    try:
+        should_send_embed: bool = bool(reader.get_tag(feed, "should_send_embed"))
+    except TagNotFoundError:
+        add_missing_tags(reader)
+        should_send_embed: bool = bool(reader.get_tag(feed, "should_send_embed"))
 
     context = {
         "request": request,
