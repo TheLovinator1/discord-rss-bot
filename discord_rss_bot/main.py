@@ -758,9 +758,11 @@ def startup() -> None:
     scheduler: BackgroundScheduler = BackgroundScheduler()
 
     # Update all feeds every 15 minutes.
+    # TODO: Make this configurable.
     scheduler.add_job(send_to_discord, "interval", minutes=15, next_run_time=datetime.now())
     scheduler.start()
 
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", log_level="debug", reload=True)
+    # TODO: Make this configurable.
+    uvicorn.run("main:app", log_level="info", host="0.0.0.0", port=5000, proxy_headers=True, forwarded_allow_ips="*")

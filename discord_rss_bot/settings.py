@@ -6,6 +6,8 @@ from reader import Entry, Reader, TagNotFoundError, make_reader  # type: ignore
 
 data_dir: str = user_data_dir(appname="discord_rss_bot", appauthor="TheLovinator", roaming=True)
 os.makedirs(data_dir, exist_ok=True)
+print(f"Data is stored in '{data_dir}'.")
+
 
 # TODO: Add default things to the database and make the edible.
 default_custom_message: str = "{{entry_title}}\n{{entry_link}}"
