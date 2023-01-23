@@ -12,7 +12,7 @@ from discord_rss_bot.settings import get_reader
 class CustomEmbed:
     title: str
     description: str
-    color: int
+    color: str
     author_name: str
     author_url: str
     author_icon_url: str
@@ -290,7 +290,7 @@ def get_embed(custom_reader: Reader, feed: Feed) -> CustomEmbed:
     return CustomEmbed(
         title="",
         description="",
-        color=32896,
+        color="#469ad9",
         author_name="",
         author_url="",
         author_icon_url="",
@@ -312,7 +312,7 @@ def get_embed_data(embed_data) -> CustomEmbed:
     """
     title: str = embed_data.get("title", "")
     description: str = embed_data.get("description", "")
-    color: int = embed_data.get("color", 32896)
+    color: str = embed_data.get("color", "")
     author_name: str = embed_data.get("author_name", "")
     author_url: str = embed_data.get("author_url", "")
     author_icon_url: str = embed_data.get("author_icon_url", "")

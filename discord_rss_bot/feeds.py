@@ -69,10 +69,6 @@ def create_embed_webhook(webhook_url: str, entry: Entry) -> DiscordWebhook:
 
     discord_embed: DiscordEmbed = DiscordEmbed()
 
-    # Remove # from the color if it exists.
-    if type(custom_embed.color) is str and custom_embed.color.startswith("#"):
-        custom_embed.color = custom_embed.color[1:]
-
     if custom_embed.title:
         discord_embed.set_title(custom_embed.title)
     if custom_embed.description:

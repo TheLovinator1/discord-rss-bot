@@ -13,6 +13,7 @@ default_custom_embed: dict[str, str] = {
     "title": "{{entry_title}}",
     "description": "{{entry_text}}",
     "image_url": "{{image_1}}",
+    "color": "#469ad9",
 }
 
 
