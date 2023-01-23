@@ -862,14 +862,14 @@ testing = ["argcomplete", "hypothesis (>=3.56)", "mock", "nose", "pygments (>=2.
 
 [[package]]
 name = "python-dotenv"
-version = "0.21.0"
+version = "0.21.1"
 description = "Read key-value pairs from a .env file and set them as environment variables"
 category = "main"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "python-dotenv-0.21.0.tar.gz", hash = "sha256:b77d08274639e3d34145dfa6c7008e66df0f04b7be7a75fd0d5292c191d79045"},
-    {file = "python_dotenv-0.21.0-py3-none-any.whl", hash = "sha256:1684eb44636dd462b66c3ee016599815514527ad99965de77f43e0944634a7e5"},
+    {file = "python-dotenv-0.21.1.tar.gz", hash = "sha256:1c93de8f636cde3ce377292818d0e440b6e45a82f215c3744979151fa8151c49"},
+    {file = "python_dotenv-0.21.1-py3-none-any.whl", hash = "sha256:41e12e0318bebc859fcc4d97d4db8d20ad21721a6aa5047dd59f090391cb549a"},
 ]
 
 [package.extras]
@@ -968,14 +968,14 @@ files = [
 
 [[package]]
 name = "reader"
-version = "3.3"
+version = "3.4"
 description = "A Python feed reader library."
 category = "main"
 optional = false
-python-versions = ">=3.8"
+python-versions = ">=3.9"
 files = [
-    {file = "reader-3.3-py3-none-any.whl", hash = "sha256:56976601734b1863d64eb264a8253569da0725b74978ef0298ec947b47b9ad53"},
-    {file = "reader-3.3.tar.gz", hash = "sha256:63ea07429b58298aa031619d4ab031b24199533413d9e2be7cc2a38d26d00e57"},
+    {file = "reader-3.4-py3-none-any.whl", hash = "sha256:693321de68f4f4ad15f2823003c4709619d479d6a4d41da42da03d9fc7dfbd7a"},
+    {file = "reader-3.4.tar.gz", hash = "sha256:3be3a40a997132d1ea1eb8802918bb2ed0a039b912222b79ee57d60a44685bf4"},
 ]
 
 [package.dependencies]
@@ -989,7 +989,7 @@ typing-extensions = ">=4"
 app = ["PyYAML", "flask (>=0.10)", "humanize"]
 cli = ["PyYAML", "click (>=7)"]
 dev = ["build", "pre-commit", "reader[app,cli,docs,tests,unstable-plugins]", "tox", "twine"]
-docs = ["click (>=7)", "sphinx", "sphinx-click", "sphinx-hoverxref", "sphinx-issues", "sphinx-rtd-theme (>=1.0,<2.0)", "sphinxcontrib-log-cabinet"]
+docs = ["click (>=7)", "setuptools", "sphinx", "sphinx-click", "sphinx-hoverxref", "sphinx-issues", "sphinx-rtd-theme (>=1.0,<2.0)", "sphinxcontrib-log-cabinet"]
 tests = ["coverage", "flaky", "html5lib", "lxml", "mechanicalsoup", "mypy", "pytest (>=4)", "pytest-cov", "pytest-randomly", "pytest-subtests", "requests-mock", "requests-wsgi-adapter", "types-requests", "werkzeug"]
 unstable-plugins = ["Jinja2 (>=3)", "beautifulsoup4", "blinker (>=1.4)", "mutagen", "requests", "tweepy"]
 
@@ -1133,14 +1133,14 @@ idna2008 = ["idna"]
 
 [[package]]
 name = "setuptools"
-version = "66.0.0"
+version = "66.1.1"
 description = "Easily download, build, install, upgrade, and uninstall Python packages"
 category = "main"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "setuptools-66.0.0-py3-none-any.whl", hash = "sha256:a78d01d1e2c175c474884671dde039962c9d74c7223db7369771fcf6e29ceeab"},
-    {file = "setuptools-66.0.0.tar.gz", hash = "sha256:bd6eb2d6722568de6d14b87c44a96fac54b2a45ff5e940e639979a3d1792adb6"},
+    {file = "setuptools-66.1.1-py3-none-any.whl", hash = "sha256:6f590d76b713d5de4e49fe4fbca24474469f53c83632d5d0fd056f7ff7e8112b"},
+    {file = "setuptools-66.1.1.tar.gz", hash = "sha256:ac4008d396bc9cd983ea483cb7139c0240a07bbc74ffb6232fceffedc6cf03a8"},
 ]
 
 [package.extras]
