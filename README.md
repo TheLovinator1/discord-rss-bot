@@ -5,7 +5,7 @@ Subscribe to RSS feeds and get updates to a Discord webhook. Built with [reader]
 ## Installation
 
 You have two choices, using [Docker](#docker)
-or [install directly on your computer](#Install-directly-on-your-computer).
+or [install directly on your computer](#install-directly-on-your-computer).
 
 ### Docker
 
@@ -48,7 +48,7 @@ This is not recommended if you don't have an init system (e.g., systemd)
     - (You may have to restart your terminal if it can't find the `poetry` command. Also double check it is in
           your PATH.)
 - Start the bot:
-  - Type `poetry run bot` into the PowerShell window.
+  - Type `poetry run python discord_rss_bot/main.py` into the PowerShell window.
     - You can stop the bot with <kbd>Ctrl</kbd> + <kbd>c</kbd>.
 
 Note: You will need to run `poetry install` again if [poetry.lock](poetry.lock) has been modified.
