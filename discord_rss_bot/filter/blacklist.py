@@ -41,6 +41,7 @@ def should_be_skipped(custom_reader: Reader, entry: Entry) -> bool:
     # blacklist_content: str = get_blacklist_content(custom_reader, feed)
     # TODO: Fix content
     # TODO: Check author
+    # TODO: Also add support for entry_text
 
     if entry.title and blacklist_title and is_word_in_text(blacklist_title, entry.title):
         return True

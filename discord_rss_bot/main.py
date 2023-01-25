@@ -1,13 +1,18 @@
+import json
 import urllib.parse
+from dataclasses import dataclass
 from datetime import datetime
+from functools import lru_cache
 from typing import Dict, Iterable
 
+import httpx
 import uvicorn
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from httpx import Response
 from reader import (
     Entry,
     EntryCounts,
@@ -87,7 +92,7 @@ async def add_webhook(webhook_name=Form(), webhook_url=Form()):
         return RedirectResponse(url="/", status_code=303)
 
     # TODO: Show this error on the page.
-    return {"error": "Webhook already exists."}
+    raise HTTPException(status_code=409, detail="Webhook already exists")
 
 
 @app.post("/delete_webhook")
@@ -101,24 +106,25 @@ async def delete_webhook(webhook_url=Form()):
     Returns:
         dict: The feed that was added.
     """
-    # Remove leading and trailing whitespace.
-    clean_webhook_url: str = webhook_url.strip()
-
     # Get current webhooks from the database if they exist otherwise use an empty list.
     webhooks: list[dict[str, str]] = list_webhooks(reader)
 
     # Only add the webhook if it doesn't already exist.
     for webhook in webhooks:
-        if webhook["url"] == clean_webhook_url:
+        if webhook["url"] in [webhook_url, webhook_url]:
             # Add the new webhook to the list of webhooks.
             webhooks.remove(webhook)
+
+            # Check if it has been removed.
+            if webhook in webhooks:
+                raise HTTPException(status_code=500, detail="Webhook could not be deleted")
 
             # Add our new list of webhooks to the database.
             reader.set_tag((), "webhooks", webhooks)  # type: ignore
             return RedirectResponse(url="/", status_code=303)
 
     # TODO: Show this error on the page.
-    return {"error": "Could not find webhook."}
+    raise HTTPException(status_code=404, detail="Webhook not found")
 
 
 @app.post("/add")
@@ -159,7 +165,7 @@ async def create_feed(feed_url=Form(), webhook_dropdown=Form()):
 
     if not webhook_url:
         # TODO: Show this error on the page.
-        return {"error": "No webhook URL found."}
+        raise HTTPException(status_code=404, detail="Webhook not found")
 
     # This is the webhook that will be used to send the feed to Discord.
     reader.set_tag(clean_feed_url, "webhook", webhook_url)  # type: ignore
@@ -617,6 +623,51 @@ def create_html_for_feed(entries: Iterable[Entry]) -> str:
     return html.strip()
 
 
+@app.get("/add_webhook", response_class=HTMLResponse)
+async def add_webhook_page(request: Request):
+    """
+    Page for adding a new webhook.
+
+    Args:
+        request: The request.
+
+    Returns:
+        HTMLResponse: The HTML response.
+    """
+    return templates.TemplateResponse("add_webhook.html", {"request": request})
+
+
+@dataclass()
+class WebhookInfo:
+    custom_name: str
+    url: str
+    type: int | None = None
+    id: str | None = None
+    name: str | None = None
+    avatar: str | None = None
+    channel_id: str | None = None
+    guild_id: str | None = None
+    token: str | None = None
+
+
+@lru_cache()
+def get_data_from_hook_url(hook_name: str, hook_url: str):
+    our_hook: WebhookInfo = WebhookInfo(custom_name=hook_name, url=hook_url)
+
+    if hook_url:
+        response: Response = httpx.get(hook_url)
+        if response.status_code == 200:
+            webhook_json = json.loads(response.text)
+            our_hook.type = webhook_json["type"] or None
+            our_hook.id = webhook_json["id"] or None
+            our_hook.name = webhook_json["name"] or None
+            our_hook.avatar = webhook_json["avatar"] or None
+            our_hook.channel_id = webhook_json["channel_id"] or None
+            our_hook.guild_id = webhook_json["guild_id"] or None
+            our_hook.token = webhook_json["token"] or None
+    return our_hook
+
+
 @app.get("/webhooks", response_class=HTMLResponse)
 async def get_webhooks(request: Request):
     """
@@ -628,7 +679,21 @@ async def get_webhooks(request: Request):
     Returns:
         HTMLResponse: The HTML response.
     """
-    return templates.TemplateResponse("webhooks.html", {"request": request})
+    hooks: Dict[str, str] = reader.get_tag((), "webhooks", "")  # type: ignore
+    hooks_with_data = []
+
+    for hook in hooks:
+        hook_url: str = hook["url"]  # type: ignore
+        hook_name: str = hook["name"]  # type: ignore
+        our_hook: WebhookInfo = get_data_from_hook_url(hook_url=hook_url, hook_name=hook_name)
+        hooks_with_data.append(our_hook)
+    return templates.TemplateResponse(
+        "webhooks.html",
+        {
+            "request": request,
+            "hooks_with_data": hooks_with_data,
+        },
+    )
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -660,7 +725,7 @@ def make_context_index(request: Request):
     """
     # Get webhooks name and url from the database.
     try:
-        hooks: list[dict] = reader.get_tag((), "webhooks")
+        hooks: list[dict] = reader.get_tag((), "webhooks")  # type: ignore
     except TagNotFoundError:
         hooks = []
 
@@ -708,7 +773,13 @@ async def remove_feed(feed_url=Form()):
     Returns:
         HTMLResponse: The HTML response.
     """
-    reader.delete_feed(feed_url)
+    # Unquote the url
+    unquoted_feed_url: str = urllib.parse.unquote(feed_url)
+    try:
+        reader.delete_feed(unquoted_feed_url)
+    except FeedNotFoundError as e:
+        raise HTTPException(status_code=404, detail="Feed not found") from e
+
     reader.update_search()
 
     return RedirectResponse(url="/", status_code=303)
