@@ -1,14 +1,24 @@
 import urllib.parse
 from datetime import datetime
-from typing import Iterable
+from typing import Dict, Iterable
 
 import uvicorn
 from apscheduler.schedulers.background import BackgroundScheduler
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from reader import Entry, EntryCounts, EntrySearchCounts, EntrySearchResult, Feed, FeedCounts, Reader, TagNotFoundError
+from reader import (
+    Entry,
+    EntryCounts,
+    EntrySearchCounts,
+    EntrySearchResult,
+    Feed,
+    FeedCounts,
+    FeedNotFoundError,
+    Reader,
+    TagNotFoundError,
+)
 from starlette.responses import RedirectResponse
 
 from discord_rss_bot import settings
@@ -650,20 +660,26 @@ def make_context_index(request: Request):
     """
     # Get webhooks name and url from the database.
     try:
-        hooks = reader.get_tag((), "webhooks")
+        hooks: list[dict] = reader.get_tag((), "webhooks")
     except TagNotFoundError:
         hooks = []
 
     feed_list = []
     broken_feeds = []
+    feeds_without_corresponding_webhook = []
+
     feeds: Iterable[Feed] = reader.get_feeds()
     for feed in feeds:
         try:
-            hook = reader.get_tag(feed.url, "webhook")
-            feed_list.append({"feed": feed, "webhook": hook})
+            webhook = reader.get_tag(feed.url, "webhook")
+            feed_list.append({"feed": feed, "webhook": webhook})
         except TagNotFoundError:
             broken_feeds.append(feed)
             continue
+
+        webhook_list = [hook["url"] for hook in hooks]
+        if webhook not in webhook_list:
+            feeds_without_corresponding_webhook.append(feed)
 
     # Sort feed_list by when the feed was added.
     feed_list.sort(key=lambda x: x["feed"].added)
@@ -677,6 +693,7 @@ def make_context_index(request: Request):
         "entry_count": entry_count,
         "webhooks": hooks,
         "broken_feeds": broken_feeds,
+        "feeds_without_corresponding_webhook": feeds_without_corresponding_webhook,
     }
 
 
