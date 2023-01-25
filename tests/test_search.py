@@ -3,7 +3,7 @@ import tempfile
 from pathlib import Path
 from typing import Iterable
 
-from reader import EntrySearchResult, Feed, Reader, make_reader  # type: ignore
+from reader import EntrySearchResult, Feed, Reader, make_reader
 
 from discord_rss_bot.search import create_html_for_search_results
 
@@ -21,13 +21,18 @@ def test_create_html_for_search_results() -> None:
         assert reader is not None
 
         # Add a feed to the reader.
-        reader.add_feed("https://www.reddit.com/r/Python/.rss")
+        reader.add_feed("https://lovinator.space/rss_test.xml", exist_ok=True)
+
+        # Check that the feed was added.
+        feeds: Iterable[Feed] = reader.get_feeds()
+        assert feeds is not None
+        assert len(list(feeds)) == 1
 
         # Update the feed to get the entries.
         reader.update_feeds()
 
         # Get the feed.
-        feed: Feed = reader.get_feed("https://www.reddit.com/r/Python/.rss")
+        feed: Feed = reader.get_feed("https://lovinator.space/rss_test.xml")
         assert feed is not None
 
         # Update the search index.
