@@ -73,7 +73,7 @@ def create_embed_webhook(webhook_url: str, entry: Entry) -> DiscordWebhook:
         discord_embed.set_title(custom_embed.title)
     if custom_embed.description:
         discord_embed.set_description(custom_embed.description)
-    if custom_embed.color and custom_embed.color.startswith("#"):
+    if custom_embed.color and type(custom_embed.color) == str and custom_embed.color.startswith("#"):
         custom_embed.color = custom_embed.color[1:]
         discord_embed.set_color(int(custom_embed.color, 16))
     if custom_embed.author_name and not custom_embed.author_url and not custom_embed.author_icon_url:
