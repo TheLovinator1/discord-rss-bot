@@ -55,14 +55,3 @@ def convert_html_to_md(html: str) -> str:
     # Remove all leading and trailing whitespace
     soup_text: str = soup.text
     return soup_text.strip()
-
-
-# Test the function
-if __name__ == "__main__":
-    html: str = """
-    <p><b>bold</b> <i>italic</i> <a href="https://example.com">link</a> <code>code</code> <s>strikethrough</s></p>
-    <blockquote>blockquote</blockquote>
-    <pre><code>pre code</code></pre>
-    <strong>strong</strong>
-    """
-    print(convert_html_to_md(html))
