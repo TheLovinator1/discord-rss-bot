@@ -2,7 +2,7 @@ from typing import Iterable
 
 from discord_webhook import DiscordEmbed, DiscordWebhook
 from fastapi import HTTPException
-from reader import Entry, Feed, Reader
+from reader import Entry, Feed, FeedExistsError, Reader, TagNotFoundError
 from requests import Response
 
 from discord_rss_bot import custom_message, settings
@@ -192,21 +192,8 @@ def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:
         HTTPException: If webhook_dropdown does not equal a webhook or default_custom_message not found.
     """
     clean_feed_url: str = feed_url.strip()
-
-    # TODO: Check if the feed is valid, if not return an error or fix it.
-    # For example, if the feed is missing the protocol, add it.
-    reader.add_feed(clean_feed_url)
-    reader.update_feed(clean_feed_url)
-
-    # Mark every entry as read, so we don't send all the old entries to Discord.
-    entries: Iterable[Entry] = reader.get_entries(feed=clean_feed_url, read=False)
-    for entry in entries:
-        reader.set_entry_read(entry, True)
-
-    hooks = reader.get_tag((), "webhooks", [])
-
     webhook_url: str = ""
-    if hooks:
+    if hooks := reader.get_tag((), "webhooks", []):
         # Get the webhook URL from the dropdown.
         for hook in hooks:
             if hook["name"] == webhook_dropdown:  # type: ignore
@@ -216,6 +203,23 @@ def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:
     if not webhook_url:
         # TODO: Show this error on the page.
         raise HTTPException(status_code=404, detail="Webhook not found")
+
+    try:
+        # TODO: Check if the feed is valid
+        reader.add_feed(clean_feed_url)
+    except FeedExistsError:
+        # Add the webhook to an already added feed if it doesn't have a webhook instead of trying to create a new.
+        try:
+            reader.get_tag(clean_feed_url, "webhook")
+        except TagNotFoundError:
+            reader.set_tag(clean_feed_url, "webhook", webhook_url)  # type: ignore
+
+    reader.update_feed(clean_feed_url)
+
+    # Mark every entry as read, so we don't send all the old entries to Discord.
+    entries: Iterable[Entry] = reader.get_entries(feed=clean_feed_url, read=False)
+    for entry in entries:
+        reader.set_entry_read(entry, True)
 
     if not default_custom_message:
         # TODO: Show this error on the page.
