@@ -2,26 +2,9 @@ import os
 import pathlib
 import tempfile
 
-from platformdirs import user_data_dir
 from reader import Reader
 
-from discord_rss_bot.settings import data_dir, default_custom_message, get_db_location, get_reader
-
-
-def test_get_db_location() -> None:
-    """Test getting the database location."""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        custom_loc: str = os.path.join(temp_dir, "test_db.sqlite")
-
-        # File should not exist yet.
-        assert not os.path.exists(custom_loc)
-
-        # Create the file and check if it exists.
-        assert get_db_location(custom_location=custom_loc) == os.path.join(temp_dir, "test_db.sqlite")
-
-        # Test with the default location
-        loc: str = user_data_dir(appname="discord_rss_bot", appauthor="TheLovinator", roaming=True)
-        assert get_db_location() == os.path.join(loc, "db.sqlite")
+from discord_rss_bot.settings import data_dir, default_custom_message, get_reader
 
 
 def test_reader() -> None:
