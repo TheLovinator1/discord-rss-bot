@@ -72,16 +72,16 @@ def try_to_replace(custom_message: str, template: str, replace_with: str) -> str
         return custom_message
 
 
-def replace_tags_in_text_message(feed: Feed, entry: Entry) -> str:
+def replace_tags_in_text_message(entry: Entry) -> str:
     """Replace tags in custom_message.
 
     Args:
-        feed: The feed to get the tags from.
         entry: The entry to get the tags from.
 
     Returns:
         Returns the custom_message with the tags replaced.
     """
+    feed: Feed = entry.feed
     custom_reader: Reader = get_reader()
     custom_message: str = get_custom_message(feed=feed, custom_reader=custom_reader)
 

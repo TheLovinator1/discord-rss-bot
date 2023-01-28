@@ -38,13 +38,14 @@ def add_webhook(reader: Reader, webhook_name: str, webhook_url: str):
 
 
 def remove_webhook(reader: Reader, webhook_url: str):
+    clean_webhook_url: str = webhook_url.strip()
+
     # Get current webhooks from the database if they exist otherwise use an empty list.
     webhooks: list[dict[str, str]] = list_webhooks(reader)
 
     # Only add the webhook if it doesn't already exist.
     for webhook in webhooks:
-        if webhook["url"] in [webhook_url, webhook_url]:
-            # Add the new webhook to the list of webhooks.
+        if webhook["url"] in clean_webhook_url:
             webhooks.remove(webhook)
 
             # Check if it has been removed.

@@ -3,7 +3,7 @@ import tempfile
 from pathlib import Path
 from typing import Iterable
 
-from reader import EntrySearchResult, Feed, Reader, make_reader
+from reader import Feed, Reader, make_reader
 
 from discord_rss_bot.search import create_html_for_search_results
 
@@ -39,11 +39,8 @@ def test_create_html_for_search_results() -> None:
         reader.enable_search()
         reader.update_search()
 
-        # Get the HTML for the search results.
-        search_results: Iterable[EntrySearchResult] = reader.search_entries("a", feed=feed)  # type: ignore
-
         # Create the HTML and check if it is not empty.
-        search_html: str = create_html_for_search_results(search_results, reader)
+        search_html: str = create_html_for_search_results("a", reader)
         assert search_html is not None
         assert len(search_html) > 10
 

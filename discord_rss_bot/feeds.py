@@ -11,24 +11,6 @@ from discord_rss_bot.filter.whitelist import has_white_tags, should_be_sent
 from discord_rss_bot.settings import default_custom_message, get_reader
 
 
-def get_entry_from_id(entry_id: str, custom_reader: Reader | None = None) -> Entry | None:
-    """
-    Get an entry from an ID.
-
-    Args:
-        entry_id: The ID of the entry.
-        custom_reader: If we should use a custom reader instead of the default one.
-
-    Returns:
-        Entry: The entry with the ID. None if it doesn't exist.
-    """
-    # Get the default reader if we didn't get a custom one.
-    reader: Reader = get_reader() if custom_reader is None else custom_reader
-
-    # Get the entry from the ID, or return None if it doesn't exist.
-    return next((entry for entry in reader.get_entries() if entry.id == entry_id), None)
-
-
 def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None):
     """
     Send a single entry to Discord.
@@ -46,7 +28,7 @@ def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None):
 
     # Try to get the custom message for the feed. If the user has none, we will use the default message.
     if custom_message.get_custom_message(reader, entry.feed) != "":
-        webhook_message = custom_message.replace_tags_in_text_message(entry=entry, feed=entry.feed)  # type: ignore
+        webhook_message = custom_message.replace_tags_in_text_message(entry=entry)
     else:
         webhook_message: str = default_custom_message
 
@@ -144,7 +126,7 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
             # If the user has set the custom message to an empty string, we will use the default message, otherwise we
             # will use the custom message.
             if custom_message.get_custom_message(reader, entry.feed) != "":
-                webhook_message = custom_message.replace_tags_in_text_message(entry=entry, feed=entry.feed)
+                webhook_message = custom_message.replace_tags_in_text_message(entry)
             else:
                 webhook_message: str = default_custom_message
 
