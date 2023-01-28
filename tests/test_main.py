@@ -141,26 +141,6 @@ def test_unpause_feed() -> None:
     assert feed_url in response.text
 
 
-def test_delete_webhook():
-    """Test the /delete_webhook page."""
-    # Remove the feed if it already exists before we run the test.
-    feeds: Response = client.get("/webhooks")
-    if webhook_url in feeds.text:
-        client.post("/delete_webhook", data={"webhook_url": webhook_url})
-
-    # Add the webhook.
-    response: Response = client.post("/add_webhook", data={"webhook_name": webhook_name, "webhook_url": webhook_url})
-
-    # Delete the webhook.
-    response: Response = client.post("/delete_webhook", data={"webhook_url": webhook_url})
-    assert response.status_code == 200
-
-    # Check that the webhook was added.
-    response = client.get("/webhooks")
-    assert response.status_code == 200
-    assert webhook_name not in response.text
-
-
 def test_remove_feed():
     """Test the /remove page."""
     # Remove the feed if it already exists before we run the test.
@@ -180,3 +160,23 @@ def test_remove_feed():
     response = client.get("/")
     assert response.status_code == 200
     assert feed_url not in response.text
+
+
+def test_delete_webhook():
+    """Test the /delete_webhook page."""
+    # Remove the feed if it already exists before we run the test.
+    feeds: Response = client.get("/webhooks")
+    if webhook_url in feeds.text:
+        client.post("/delete_webhook", data={"webhook_url": webhook_url})
+
+    # Add the webhook.
+    response: Response = client.post("/add_webhook", data={"webhook_name": webhook_name, "webhook_url": webhook_url})
+
+    # Delete the webhook.
+    response: Response = client.post("/delete_webhook", data={"webhook_url": webhook_url})
+    assert response.status_code == 200
+
+    # Check that the webhook was added.
+    response = client.get("/webhooks")
+    assert response.status_code == 200
+    assert webhook_name not in response.text
