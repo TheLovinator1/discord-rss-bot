@@ -1,6 +1,7 @@
 from typing import Iterable
 
 from discord_webhook import DiscordEmbed, DiscordWebhook
+from fastapi import HTTPException
 from reader import Entry, Feed, Reader
 from requests import Response
 
@@ -176,4 +177,55 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
             break
 
     # Update the search index.
+    reader.update_search()
+
+
+def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:
+    """Add a new feed, update it and mark every entry as read.
+
+    Args:
+        reader: The reader to use.
+        feed_url: The feed to add.
+        webhook_dropdown: The webhook we should send entries to.
+
+    Raises:
+        HTTPException: If webhook_dropdown does not equal a webhook or default_custom_message not found.
+    """
+    clean_feed_url: str = feed_url.strip()
+
+    # TODO: Check if the feed is valid, if not return an error or fix it.
+    # For example, if the feed is missing the protocol, add it.
+    reader.add_feed(clean_feed_url)
+    reader.update_feed(clean_feed_url)
+
+    # Mark every entry as read, so we don't send all the old entries to Discord.
+    entries: Iterable[Entry] = reader.get_entries(feed=clean_feed_url, read=False)
+    for entry in entries:
+        reader.set_entry_read(entry, True)
+
+    hooks = reader.get_tag((), "webhooks", [])
+
+    webhook_url: str = ""
+    if hooks:
+        # Get the webhook URL from the dropdown.
+        for hook in hooks:
+            if hook["name"] == webhook_dropdown:  # type: ignore
+                webhook_url = hook["url"]  # type: ignore
+                break
+
+    if not webhook_url:
+        # TODO: Show this error on the page.
+        raise HTTPException(status_code=404, detail="Webhook not found")
+
+    if not default_custom_message:
+        # TODO: Show this error on the page.
+        raise HTTPException(status_code=404, detail="Default custom message couldn't be found.")
+
+    # This is the webhook that will be used to send the feed to Discord.
+    reader.set_tag(clean_feed_url, "webhook", webhook_url)  # type: ignore
+
+    # This is the default message that will be sent to Discord.
+    reader.set_tag(clean_feed_url, "custom_message", default_custom_message)  # type: ignore
+
+    # Update the full-text search index so our new feed is searchable.
     reader.update_search()

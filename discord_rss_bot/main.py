@@ -36,13 +36,13 @@ from discord_rss_bot.custom_message import (
     replace_tags_in_text_message,
     save_embed,
 )
-from discord_rss_bot.feeds import get_entry_from_id, send_entry_to_discord, send_to_discord
+from discord_rss_bot.feeds import create_feed, get_entry_from_id, send_entry_to_discord, send_to_discord
 from discord_rss_bot.filter.blacklist import get_blacklist_content, get_blacklist_summary, get_blacklist_title
 from discord_rss_bot.filter.whitelist import get_whitelist_content, get_whitelist_summary, get_whitelist_title
 from discord_rss_bot.markdown import convert_html_to_md
 from discord_rss_bot.missing_tags import add_missing_tags
 from discord_rss_bot.search import create_html_for_search_results
-from discord_rss_bot.settings import default_custom_message, get_reader
+from discord_rss_bot.settings import get_reader
 from discord_rss_bot.webhook import add_webhook, remove_webhook
 
 app: FastAPI = FastAPI()
@@ -95,43 +95,7 @@ async def post_create_feed(feed_url=Form(), webhook_dropdown=Form()):
     Returns:
         dict: The feed that was added.
     """
-    clean_feed_url: str = feed_url.strip()
-
-    # TODO: Check if the feed is valid, if not return an error or fix it.
-    # For example, if the feed is missing the protocol, add it.
-    reader.add_feed(clean_feed_url)
-    reader.update_feed(clean_feed_url)
-
-    # Mark every entry as read, so we don't send all the old entries to Discord.
-    entries: Iterable[Entry] = reader.get_entries(feed=clean_feed_url, read=False)
-    for entry in entries:
-        reader.set_entry_read(entry, True)
-
-    hooks = reader.get_tag((), "webhooks", [])
-
-    webhook_url: str = ""
-    if hooks:
-        # Get the webhook URL from the dropdown.
-        for hook in hooks:
-            if hook["name"] == webhook_dropdown:  # type: ignore
-                webhook_url = hook["url"]  # type: ignore
-                break
-
-    if not webhook_url:
-        # TODO: Show this error on the page.
-        raise HTTPException(status_code=404, detail="Webhook not found")
-
-    # This is the webhook that will be used to send the feed to Discord.
-    reader.set_tag(clean_feed_url, "webhook", webhook_url)  # type: ignore
-    reader.get_tag(clean_feed_url, "webhook")
-
-    # This is the default message that will be sent to Discord.
-    reader.set_tag(clean_feed_url, "custom_message", default_custom_message)  # type: ignore
-    reader.get_tag(clean_feed_url, "custom_message")
-
-    # Update the full-text search index so our new feed is searchable.
-    reader.update_search()
-
+    create_feed(reader, feed_url, webhook_dropdown)
     return RedirectResponse(url=f"/feed/?feed_url={feed_url}", status_code=303)
 
 
@@ -143,10 +107,7 @@ async def post_pause_feed(feed_url=Form()):
         feed_url: The feed to pause.
     """
     reader.disable_feed_updates(feed_url)
-
-    clean_url: str = urllib.parse.quote(feed_url)
-
-    return RedirectResponse(url=f"/feed/?feed_url={clean_url}", status_code=303)
+    return RedirectResponse(url=f"/feed/?feed_url={urllib.parse.quote(feed_url)}", status_code=303)
 
 
 @app.post("/unpause")
@@ -157,10 +118,7 @@ async def post_unpause_feed(feed_url=Form()):
         feed_url: The Feed to unpause.
     """
     reader.enable_feed_updates(feed_url)
-
-    clean_url: str = urllib.parse.quote(feed_url)
-
-    return RedirectResponse(url=f"/feed/?feed_url={clean_url}", status_code=303)
+    return RedirectResponse(url=f"/feed/?feed_url={urllib.parse.quote(feed_url)}", status_code=303)
 
 
 @app.post("/whitelist")
@@ -185,23 +143,18 @@ async def post_set_whitelist(
     if whitelist_content:
         reader.set_tag(feed_url, "whitelist_content", whitelist_content)
 
-    clean_url: str = urllib.parse.quote(feed_url)
-
-    return RedirectResponse(url=f"/feed/?feed_url={clean_url}", status_code=303)
+    return RedirectResponse(url=f"/feed/?feed_url={urllib.parse.quote(feed_url)}", status_code=303)
 
 
 @app.get("/whitelist", response_class=HTMLResponse)
-async def get_whitelist(feed_url, request: Request):
+async def get_whitelist(feed_url):
     """Get the whitelist.
 
     Args:
         feed_url: What feed we should get the whitelist for.
         request: The HTTP request.
     """
-    # Make feed_url a valid URL.
-    url: str = urllib.parse.unquote(feed_url)
-
-    feed: Feed = reader.get_feed(url)
+    feed: Feed = reader.get_feed(urllib.parse.unquote(feed_url))
 
     # Get previous data, this is used when creating the form.
     whitelist_title: str = get_whitelist_title(reader, feed)
@@ -209,7 +162,6 @@ async def get_whitelist(feed_url, request: Request):
     whitelist_content: str = get_whitelist_content(reader, feed)
 
     context = {
-        "request": request,
         "feed": feed,
         "whitelist_title": whitelist_title,
         "whitelist_summary": whitelist_summary,
