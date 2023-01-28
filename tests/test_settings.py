@@ -5,13 +5,7 @@ import tempfile
 from platformdirs import user_data_dir
 from reader import Reader
 
-from discord_rss_bot.settings import (
-    data_dir,
-    default_custom_message,
-    get_db_location,
-    get_reader,
-    get_webhook_for_entry,
-)
+from discord_rss_bot.settings import data_dir, default_custom_message, get_db_location, get_reader
 
 
 def test_get_db_location() -> None:
@@ -71,9 +65,6 @@ def test_get_webhook_for_entry() -> None:
         # Add a feed to the database.
         custom_reader.add_feed("https://www.reddit.com/r/movies.rss")
         custom_reader.update_feed("https://www.reddit.com/r/movies.rss")
-
-        for entry in custom_reader.get_entries():
-            assert get_webhook_for_entry(custom_reader=custom_reader, entry=entry) == ""
 
         # Add a webhook to the database.
         custom_reader.set_tag("https://www.reddit.com/r/movies.rss", "webhook", "https://example.com")  # type: ignore

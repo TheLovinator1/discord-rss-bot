@@ -5,7 +5,7 @@ from fastapi import HTTPException
 from reader import Entry, Feed, FeedExistsError, Reader, TagNotFoundError
 from requests import Response
 
-from discord_rss_bot import custom_message, settings
+from discord_rss_bot import custom_message
 from discord_rss_bot.filter.blacklist import should_be_skipped
 from discord_rss_bot.filter.whitelist import has_white_tags, should_be_sent
 from discord_rss_bot.settings import default_custom_message, get_reader
@@ -22,7 +22,7 @@ def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None):
     reader: Reader = get_reader() if custom_reader is None else custom_reader
 
     # Get the webhook URL for the entry.
-    webhook_url: str = settings.get_webhook_for_entry(reader, entry)
+    webhook_url: str = str(reader.get_tag(entry.feed_url, "webhook", ""))
     if not webhook_url:
         return "No webhook URL found."
 
@@ -116,7 +116,7 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
         reader.set_entry_read(entry, True)
 
         # Get the webhook URL for the entry. If it is None, we will continue to the next entry.
-        webhook_url: str = settings.get_webhook_for_entry(reader, entry)
+        webhook_url: str = str(reader.get_tag(entry.feed_url, "webhook", ""))
         if not webhook_url:
             continue
 
