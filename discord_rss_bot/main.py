@@ -147,7 +147,7 @@ async def post_set_whitelist(
 
 
 @app.get("/whitelist", response_class=HTMLResponse)
-async def get_whitelist(feed_url):
+async def get_whitelist(feed_url, request: Request):
     """Get the whitelist.
 
     Args:
@@ -162,6 +162,7 @@ async def get_whitelist(feed_url):
     whitelist_content: str = get_whitelist_content(reader, feed)
 
     context = {
+        "request": request,
         "feed": feed,
         "whitelist_title": whitelist_title,
         "whitelist_summary": whitelist_summary,
@@ -186,8 +187,6 @@ async def post_set_blacklist(
         blacklist_content: Blacklisted words for when checking the content.
         feed_url: What feed we should set the blacklist for.
     """
-    # Add the blacklist to the feed.
-
     if blacklist_title:
         reader.set_tag(feed_url, "blacklist_title", blacklist_title)
     if blacklist_summary:
@@ -195,17 +194,12 @@ async def post_set_blacklist(
     if blacklist_content:
         reader.set_tag(feed_url, "blacklist_content", blacklist_content)
 
-    clean_url = urllib.parse.quote(feed_url)
-
-    return RedirectResponse(url=f"/feed/?feed_url={clean_url}", status_code=303)
+    return RedirectResponse(url=f"/feed/?feed_url={urllib.parse.quote(feed_url)}", status_code=303)
 
 
 @app.get("/blacklist", response_class=HTMLResponse)
 async def get_blacklist(feed_url, request: Request):
-    # Make feed_url a valid URL.
-    url: str = urllib.parse.unquote(feed_url)
-
-    feed: Feed = reader.get_feed(url)
+    feed: Feed = reader.get_feed(urllib.parse.unquote(feed_url))
 
     # Get previous data, this is used when creating the form.
     blacklist_title: str = get_blacklist_title(reader, feed)
@@ -558,7 +552,7 @@ async def get_webhooks(request: Request):
 
 
 @app.get("/", response_class=HTMLResponse)
-def index(request: Request):
+def get_index(request: Request):
     """
     This is the root of the website.
 

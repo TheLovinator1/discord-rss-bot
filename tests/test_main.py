@@ -9,13 +9,7 @@ client: TestClient = TestClient(app)
 webhook_name: str = "Hello, I am a webhook!"
 webhook_url: str = "https://discord.com/api/webhooks/1234567890/abcdefghijklmnopqrstuvwxyz"
 feed_url: str = "https://lovinator.space/rss_test.xml"
-encoded_feed_url: str = encode_url(webhook_url)
-
-
-def test_read_main() -> None:
-    """Test the main page."""
-    response: Response = client.get("/")
-    assert response.status_code == 200
+encoded_feed_url: str = encode_url(feed_url)
 
 
 def test_search() -> None:
@@ -85,6 +79,51 @@ def test_create_feed() -> None:
     response = client.get("/")
     assert response.status_code == 200
     assert feed_url in response.text
+
+
+def test_get() -> None:
+    """Test the /create_feed page."""
+    # Remove the feed if it already exists before we run the test.
+    feeds: Response = client.get("/")
+    if feed_url in feeds.text:
+        client.post("/remove", data={"feed_url": feed_url})
+        client.post("/remove", data={"feed_url": encoded_feed_url})
+
+    # Add the feed.
+    response: Response = client.post("/add", data={"feed_url": feed_url, "webhook_dropdown": webhook_name})
+    assert response.status_code == 200
+
+    # Check that the feed was added.
+    response = client.get("/")
+    assert response.status_code == 200
+    assert feed_url in response.text
+
+    response: Response = client.get("/add")
+    assert response.status_code == 200
+
+    response: Response = client.get("/add_webhook")
+    assert response.status_code == 200
+
+    response: Response = client.get("/blacklist", params={"feed_url": encoded_feed_url})
+    assert response.status_code == 200
+
+    response: Response = client.get("/custom", params={"feed_url": encoded_feed_url})
+    assert response.status_code == 200
+
+    response: Response = client.get("/embed", params={"feed_url": encoded_feed_url})
+    assert response.status_code == 200
+
+    response: Response = client.get("/feed", params={"feed_url": encoded_feed_url})
+    assert response.status_code == 200
+
+    response: Response = client.get("/")
+    assert response.status_code == 200
+
+    response: Response = client.get("/webhooks")
+    assert response.status_code == 200
+
+    response: Response = client.get("/whitelist", params={"feed_url": encoded_feed_url})
+    assert response.status_code == 200
 
 
 def test_pause_feed() -> None:
