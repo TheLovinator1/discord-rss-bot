@@ -348,7 +348,11 @@ async def post_use_text(feed_url: str = Form()):
 @app.get("/add", response_class=HTMLResponse)
 def get_add(request: Request):
     """Page for adding a new feed."""
-    return templates.TemplateResponse("add.html", make_context_index(request))
+    context = {
+        "request": request,
+        "webhooks": reader.get_tag((), "webhooks", []),
+    }
+    return templates.TemplateResponse("add.html", context)
 
 
 @app.get("/feed", response_class=HTMLResponse)
@@ -490,11 +494,7 @@ def get_index(request: Request):
 
 
 def make_context_index(request: Request):
-    """
-    Create the needed context for the index page.
-
-    Used by / and /add.
-    """
+    """Create the needed context for the index page."""
     hooks: list[dict] = reader.get_tag((), "webhooks", [])  # type: ignore
 
     feed_list = []
