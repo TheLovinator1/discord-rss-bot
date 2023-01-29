@@ -578,7 +578,7 @@ async def post_entry(entry_id: str):
 def startup() -> None:
     """This is called when the server starts.
 
-    It reads the settings file and starts the scheduler.
+    It adds missing tags and starts the scheduler.
     """
     add_missing_tags(reader=reader)
 
