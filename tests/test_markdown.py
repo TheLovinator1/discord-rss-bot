@@ -63,5 +63,5 @@ def test_convert_to_md() -> None:
     assert (
         convert_html_to_md(nvidia_entry)
         == "[NVIDIA Broadcast 1.4 Adds Eye Contact and Vignette Effects With Virtual Background Enhancements](https://www.nvidia.com/en-us/geforce/news/jan-2023-nvidia-broadcast-update/)\n"  # noqa: E501
-        "Plus new options to mirror your camera and take a selfie.[https://www.nvidia.com/en-us/geforce/news/jan-2023-nvidia-broadcast-update/](https://www.nvidia.com/en-us/geforce/news/jan-2023-nvidia-broadcast-update/)"  # noqa: E501
+        "Plus new options to mirror your camera and take a selfie."
     )
