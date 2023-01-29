@@ -22,37 +22,29 @@ class CustomEmbed:
     footer_icon_url: str
 
 
-def get_images_from_entry(entry: Entry):
+def return_image(found_images) -> list[tuple[str, str]] | None:
+    soup: BeautifulSoup = BeautifulSoup(found_images, features="lxml")
+    images = soup.find_all("img")
+    for image in images:
+        image_src: str = str(image["src"]) or ""
+        image_alt: str = "Link to image"
+        if image.get("alt"):
+            image_alt = image.get("alt")
+        return [(image_src, image_alt)]
+
+
+def get_first_image_html(html: str):
     """Get images from a entry.
 
     Args:
-        entry: The entry to get the images from.
+        html: The HTML to get the images from.
 
     Returns:
         Returns a list of images.
     """
-
-    def return_image(found_images):
-        soup: BeautifulSoup = BeautifulSoup(found_images, features="lxml")
-        images = soup.find_all("img")
-        for image in images:
-            image_src = image["src"] or ""
-            image_alt: str = "Link to image"
-            if image.get("alt"):
-                image_alt = image.get("alt")
-            return [(image_src, image_alt)]
-
-    images = []
-    # Get the images from the summary with beautiful soup
-    if entry.summary:
-        images = return_image(entry.summary)
-
-    # Get the images from the content with beautiful soup
-    if entry.content:
-        images = return_image(entry.content[0].value)
-
-    # No images found
-    return images
+    if images := BeautifulSoup(html, features="lxml").find_all("img"):
+        return images[0].attrs["src"]
+    return None
 
 
 def try_to_replace(custom_message: str, template: str, replace_with: str) -> str:
@@ -85,23 +77,17 @@ def replace_tags_in_text_message(entry: Entry) -> str:
     custom_reader: Reader = get_reader()
     custom_message: str = get_custom_message(feed=feed, custom_reader=custom_reader)
 
-    summary = ""
     content = ""
-    if entry.summary:
-        summary: str = entry.summary
-        summary = convert_html_to_md(summary)
-
     if entry.content:
         for content_item in entry.content:
             content: str = content_item.value
-            content = convert_html_to_md(content)
 
-    if images := get_images_from_entry(entry=entry):
-        first_image: str = images[0][0]
-    else:
-        first_image = ""
+    summary: str = entry.summary or ""
 
-    entry_text: str = content or summary
+    first_image = get_image(summary, content)
+
+    summary = convert_html_to_md(summary)
+    content = convert_html_to_md(content)
 
     list_of_replacements = [
         {"{{feed_author}}": feed.author},
@@ -128,7 +114,7 @@ def replace_tags_in_text_message(entry: Entry) -> str:
         {"{{entry_read_modified}}": entry.read_modified},
         {"{{entry_summary}}": summary},
         {"{{entry_summary_raw}}": entry.summary or ""},
-        {"{{entry_text}}": entry_text},
+        {"{{entry_text}}": content or summary},
         {"{{entry_title}}": entry.title},
         {"{{entry_updated}}": entry.updated},
         {"{{image_1}}": first_image},
@@ -139,6 +125,25 @@ def replace_tags_in_text_message(entry: Entry) -> str:
             custom_message = try_to_replace(custom_message, template, replace_with)
 
     return custom_message.replace("\\n", "\n")
+
+
+def get_image(summary, content):
+    """Get image from summary or content
+
+    Args:
+        summary: The summary from the entry
+        content: The content from the entry
+
+    Returns:
+        The first image
+    """
+    if content:
+        if images := BeautifulSoup(content, features="lxml").find_all("img"):
+            return images[0].attrs["src"]
+    if summary:
+        if images := BeautifulSoup(summary, features="lxml").find_all("img"):
+            return images[0].attrs["src"]
+    return ""
 
 
 def replace_tags_in_embed(feed: Feed, entry: Entry) -> CustomEmbed:
@@ -155,21 +160,17 @@ def replace_tags_in_embed(feed: Feed, entry: Entry) -> CustomEmbed:
     custom_reader: Reader = get_reader()
     embed: CustomEmbed = get_embed(feed=feed, custom_reader=custom_reader)
 
-    summary = ""
     content = ""
-    if entry.summary:
-        summary: str = entry.summary
-        summary = convert_html_to_md(summary)
-
     if entry.content:
         for content_item in entry.content:
             content: str = content_item.value
-            content = convert_html_to_md(content)
 
-    if images := get_images_from_entry(entry=entry):
-        first_image: str = images[0][0]
-    else:
-        first_image = ""
+    summary: str = entry.summary or ""
+
+    first_image = get_image(summary, content)
+
+    summary = convert_html_to_md(summary)
+    content = convert_html_to_md(content)
 
     entry_text: str = content or summary
 
@@ -273,19 +274,12 @@ def get_embed(custom_reader: Reader, feed: Feed) -> CustomEmbed:
     Returns:
         Returns the contents from the embed tag.
     """
-    try:
-        embed: str = custom_reader.get_tag(feed, "embed")  # type: ignore
-    except TagNotFoundError:
-        embed = ""
-    except ValueError:
-        embed = ""
 
-    if embed:
-        if type(embed) == str:
-            embed_data: dict[str, str | int] = json.loads(embed)
-            return get_embed_data(embed_data)
-        else:
+    if embed := custom_reader.get_tag(feed, "embed", ""):
+        if type(embed) != str:
             return get_embed_data(embed)
+        embed_data: dict[str, str | int] = json.loads(embed)  # type: ignore
+        return get_embed_data(embed_data)
 
     return CustomEmbed(
         title="",

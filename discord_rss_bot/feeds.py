@@ -104,13 +104,8 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
     # Check for new entries for every feed.
     reader.update_feeds()
 
-    # If feed is not None we will only get the entries for that feed.
-    if feed is None:
-        entries: Iterable[Entry] = reader.get_entries(read=False)
-    else:
-        entries = reader.get_entries(feed=feed, read=False)
-
     # Loop through the unread entries.
+    entries: Iterable[Entry] = reader.get_entries(feed=feed, read=False)
     for entry in entries:
         # Set the webhook to read, so we don't send it again.
         reader.set_entry_read(entry, True)
