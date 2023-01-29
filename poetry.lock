@@ -263,14 +263,14 @@ async = ["httpx (>=0.23.0,<0.24.0)"]
 
 [[package]]
 name = "djlint"
-version = "1.19.12"
+version = "1.19.13"
 description = "HTML Template Linter and Formatter"
 category = "dev"
 optional = false
 python-versions = ">=3.7.2,<4.0.0"
 files = [
-    {file = "djlint-1.19.12-py3-none-any.whl", hash = "sha256:60f2297176dc70148c70f0536ecbbd8ad11e5e86dd1ba07e21cfad992c5c91e1"},
-    {file = "djlint-1.19.12.tar.gz", hash = "sha256:048e9f8d43918b561f31bb49e2d52e6268bc88aa8d1c929c7416de2a575f6eff"},
+    {file = "djlint-1.19.13-py3-none-any.whl", hash = "sha256:172e1185ddd3bcce9bba68f6fe72d6a606c2ef528143447007b0c9e5a8472f60"},
+    {file = "djlint-1.19.13.tar.gz", hash = "sha256:314aa2d9183d3ec9f79e9cde1988272cf127766a529730e4a6d8245cf4dd4d1f"},
 ]
 
 [package.dependencies]
@@ -1133,14 +1133,14 @@ idna2008 = ["idna"]
 
 [[package]]
 name = "setuptools"
-version = "66.1.1"
+version = "67.0.0"
 description = "Easily download, build, install, upgrade, and uninstall Python packages"
 category = "main"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "setuptools-66.1.1-py3-none-any.whl", hash = "sha256:6f590d76b713d5de4e49fe4fbca24474469f53c83632d5d0fd056f7ff7e8112b"},
-    {file = "setuptools-66.1.1.tar.gz", hash = "sha256:ac4008d396bc9cd983ea483cb7139c0240a07bbc74ffb6232fceffedc6cf03a8"},
+    {file = "setuptools-67.0.0-py3-none-any.whl", hash = "sha256:9d790961ba6219e9ff7d9557622d2fe136816a264dd01d5997cfc057d804853d"},
+    {file = "setuptools-67.0.0.tar.gz", hash = "sha256:883131c5b6efa70b9101c7ef30b2b7b780a4283d5fc1616383cdf22c83cbefe6"},
 ]
 
 [package.extras]
@@ -1518,4 +1518,4 @@ dev = ["black (>=19.3b0)", "pytest (>=4.6.2)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "1b7bf1d4111e5188b43d7f72056a9778a1bda790fedfb0556e3c5461cd73ff95"
+content-hash = "a904e767a4c2ae0dbf8afe404069a837d331a21ae8d6d91ad0d91579fb922379"
