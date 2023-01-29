@@ -73,12 +73,12 @@ Thanks!
         </ul>
     </div>
 {% endif %}
-<!-- Show feeds that has no corresponding webhook -->
-{% if feeds_without_corresponding_webhook %}
+<!-- Show feeds that has no attached webhook -->
+{% if feeds_without_attached_webhook %}
     <div class="p-2 mb-2 border border-dark">
         <ul class="list-group text-danger">
-            Feeds without corresponding webhook:
-            {% for feed in feeds_without_corresponding_webhook %}
+            Feeds without attached webhook:
+            {% for feed in feeds_without_attached_webhook %}
                 <a class="text-muted" href="/feed?feed_url={{ feed.url|encode_url }}">{{ feed.url }}</a>
             {% endfor %}
         </ul>

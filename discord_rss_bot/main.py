@@ -499,7 +499,7 @@ def make_context_index(request: Request):
 
     feed_list = []
     broken_feeds = []
-    feeds_without_corresponding_webhook = []
+    feeds_without_attached_webhook = []
 
     feeds: Iterable[Feed] = reader.get_feeds()
     for feed in feeds:
@@ -512,7 +512,7 @@ def make_context_index(request: Request):
 
         webhook_list = [hook["url"] for hook in hooks]
         if webhook not in webhook_list:
-            feeds_without_corresponding_webhook.append(feed)
+            feeds_without_attached_webhook.append(feed)
 
     return {
         "request": request,
@@ -521,7 +521,7 @@ def make_context_index(request: Request):
         "entry_count": reader.get_entry_counts(),
         "webhooks": hooks,
         "broken_feeds": broken_feeds,
-        "feeds_without_corresponding_webhook": feeds_without_corresponding_webhook,
+        "feeds_without_attached_webhook": feeds_without_attached_webhook,
     }
 
 
