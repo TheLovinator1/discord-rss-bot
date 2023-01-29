@@ -4,15 +4,9 @@ from typing import Iterable
 
 from reader import Entry, Feed, Reader, make_reader
 
-from discord_rss_bot.filter.blacklist import (
-    get_blacklist_content,
-    get_blacklist_summary,
-    get_blacklist_title,
-    has_black_tags,
-    should_be_skipped,
-)
+from discord_rss_bot.filter.blacklist import has_black_tags, should_be_skipped
 
-feed_url = "https://lovinator.space/rss_test.xml"
+feed_url: str = "https://lovinator.space/rss_test.xml"
 
 
 # Create the database
@@ -25,7 +19,7 @@ def get_reader() -> Reader:
     return reader
 
 
-def test_has_black_tags():
+def test_has_black_tags() -> None:
     reader: Reader = get_reader()
 
     # Add feed and update entries
@@ -44,14 +38,14 @@ def test_has_black_tags():
     reader.delete_feed(feed_url)
 
 
-def check_if_has_tag(reader, feed, blacklist_name):
-    reader.set_tag(feed, blacklist_name, "a")
+def check_if_has_tag(reader: Reader, feed: Feed, blacklist_name: str) -> None:
+    reader.set_tag(feed, blacklist_name, "a")  # type: ignore
     assert has_black_tags(custom_reader=reader, feed=feed) is True
     reader.delete_tag(feed, blacklist_name)
     assert has_black_tags(custom_reader=reader, feed=feed) is False
 
 
-def test_should_be_skipped():
+def test_should_be_skipped() -> None:
     reader: Reader = get_reader()
 
     # Add feed and update entries
@@ -76,66 +70,25 @@ def test_should_be_skipped():
     reader.delete_tag(feed, "blacklist_title")
     assert should_be_skipped(reader, first_entry[0]) is False
 
+    reader.set_tag(feed, "blacklist_title", "åäö")  # type: ignore
+    assert should_be_skipped(reader, first_entry[0]) is False
+    reader.delete_tag(feed, "blacklist_title")
+    assert should_be_skipped(reader, first_entry[0]) is False
+
     reader.set_tag(feed, "blacklist_summary", "ffdnfdnfdnfdnfdndfn")  # type: ignore
     assert should_be_skipped(reader, first_entry[0]) is True
     reader.delete_tag(feed, "blacklist_summary")
     assert should_be_skipped(reader, first_entry[0]) is False
 
+    reader.set_tag(feed, "blacklist_summary", "åäö")  # type: ignore
+    assert should_be_skipped(reader, first_entry[0]) is False
+    reader.delete_tag(feed, "blacklist_summary")
+    assert should_be_skipped(reader, first_entry[0]) is False
+
     reader.set_tag(feed, "blacklist_content", "ffdnfdnfdnfdnfdndfn")  # type: ignore
-    # TODO: This is not impelemented yes
+    # TODO: This is not impelemented yet
     assert should_be_skipped(reader, first_entry[0]) is False
     reader.delete_tag(feed, "blacklist_content")
     assert should_be_skipped(reader, first_entry[0]) is False
 
     # TODO: Also add support for entry_text
-
-
-def test_get_blacklist_content():
-    reader: Reader = get_reader()
-
-    # Add feed and update entries
-    reader.add_feed(feed_url)
-    feed: Feed = reader.get_feed(feed_url)
-    reader.update_feeds()
-
-    assert get_blacklist_content(reader, feed) == ""  # type: ignore
-
-    reader.set_tag(feed, "blacklist_content", "ffdnfdnfdnfdnfdndfn")  # type: ignore
-    assert get_blacklist_content(reader, feed) == "ffdnfdnfdnfdnfdndfn"  # type: ignore
-
-    reader.delete_tag(feed, "blacklist_content")
-    assert get_blacklist_content(reader, feed) == ""  # type: ignore
-
-
-def test_get_blacklist_summary():
-    reader: Reader = get_reader()
-
-    # Add feed and update entries
-    reader.add_feed(feed_url)
-    feed: Feed = reader.get_feed(feed_url)
-    reader.update_feeds()
-
-    assert get_blacklist_summary(reader, feed) == ""  # type: ignore
-
-    reader.set_tag(feed, "blacklist_summary", "ffdnfdnfdnfdnfdndfn")  # type: ignore
-    assert get_blacklist_summary(reader, feed) == "ffdnfdnfdnfdnfdndfn"  # type: ignore
-
-    reader.delete_tag(feed, "blacklist_summary")
-    assert get_blacklist_summary(reader, feed) == ""  # type: ignore
-
-
-def test_get_blacklist_title():
-    reader: Reader = get_reader()
-
-    # Add feed and update entries
-    reader.add_feed(feed_url)
-    feed: Feed = reader.get_feed(feed_url)
-    reader.update_feeds()
-
-    assert get_blacklist_title(reader, feed) == ""  # type: ignore
-
-    reader.set_tag(feed, "blacklist_title", "ffdnfdnfdnfdnfdndfn")  # type: ignore
-    assert get_blacklist_title(reader, feed) == "ffdnfdnfdnfdnfdndfn"  # type: ignore
-
-    reader.delete_tag(feed, "blacklist_title")
-    assert get_blacklist_title(reader, feed) == ""  # type: ignore

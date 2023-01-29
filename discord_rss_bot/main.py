@@ -27,8 +27,6 @@ from discord_rss_bot.custom_message import (
     save_embed,
 )
 from discord_rss_bot.feeds import create_feed, send_entry_to_discord, send_to_discord
-from discord_rss_bot.filter.blacklist import get_blacklist_content, get_blacklist_summary, get_blacklist_title
-from discord_rss_bot.filter.whitelist import get_whitelist_content, get_whitelist_summary, get_whitelist_title
 from discord_rss_bot.markdown import convert_html_to_md
 from discord_rss_bot.missing_tags import add_missing_tags
 from discord_rss_bot.search import create_html_for_search_results
@@ -147,9 +145,9 @@ async def get_whitelist(feed_url: str, request: Request):
     feed: Feed = reader.get_feed(urllib.parse.unquote(clean_feed_url))
 
     # Get previous data, this is used when creating the form.
-    whitelist_title: str = get_whitelist_title(reader, feed)
-    whitelist_summary: str = get_whitelist_summary(reader, feed)
-    whitelist_content: str = get_whitelist_content(reader, feed)
+    whitelist_title: str = str(reader.get_tag(feed, "whitelist_title", ""))
+    whitelist_summary: str = str(reader.get_tag(feed, "whitelist_summary", ""))
+    whitelist_content: str = str(reader.get_tag(feed, "whitelist_content", ""))
 
     context = {
         "request": request,
@@ -193,9 +191,9 @@ async def get_blacklist(feed_url: str, request: Request):
     feed: Feed = reader.get_feed(urllib.parse.unquote(feed_url))
 
     # Get previous data, this is used when creating the form.
-    blacklist_title: str = get_blacklist_title(reader, feed)
-    blacklist_summary: str = get_blacklist_summary(reader, feed)
-    blacklist_content: str = get_blacklist_content(reader, feed)
+    blacklist_title: str = str(reader.get_tag(feed, "blacklist_title", ""))
+    blacklist_summary: str = str(reader.get_tag(feed, "blacklist_summary", ""))
+    blacklist_content: str = str(reader.get_tag(feed, "blacklist_content", ""))
 
     context = {
         "request": request,
