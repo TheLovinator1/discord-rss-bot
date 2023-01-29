@@ -129,7 +129,7 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
             webhook: DiscordWebhook = DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)
 
         # Check if the feed has a whitelist, and if it does, check if the entry is whitelisted.
-        if feed is not None and has_white_tags(reader, feed):
+        if has_white_tags(reader, entry.feed):
             if should_be_sent(reader, entry):
                 response: Response = webhook.execute()
                 reader.set_entry_read(entry, True)
@@ -137,7 +137,7 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
                     reader.set_entry_read(entry, False)
             else:
                 reader.set_entry_read(entry, True)
-                continue
+            continue
 
         # Check if the entry is blacklisted, if it is, mark it as read and continue.
         if should_be_skipped(reader, entry):
