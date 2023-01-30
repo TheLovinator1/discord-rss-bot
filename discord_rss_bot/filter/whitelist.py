@@ -38,12 +38,16 @@ def should_be_sent(custom_reader: Reader, entry: Entry) -> bool:
     feed: Feed = entry.feed
     whitelist_title: str = str(custom_reader.get_tag(feed, "whitelist_title", ""))
     whitelist_summary: str = str(custom_reader.get_tag(feed, "whitelist_summary", ""))
-    # whitelist_content: str = get_whitelist_content(custom_reader, feed)
-    # TODO: Fix content
-    # TODO: Check author
+    whitelist_content: str = str(custom_reader.get_tag(feed, "whitelist_content", ""))
+    whitelist_author: str = str(custom_reader.get_tag(feed, "whitelist_author", ""))
 
     if entry.title and whitelist_title and is_word_in_text(whitelist_title, entry.title):
         return True
     elif entry.summary and whitelist_summary and is_word_in_text(whitelist_summary, entry.summary):
         return True
+    elif entry.author and whitelist_author and is_word_in_text(whitelist_author, entry.author):
+        return True
+    elif entry.content:
+        if entry.content[0].value and whitelist_content and is_word_in_text(whitelist_content, entry.content[0].value):
+            return True
     return False

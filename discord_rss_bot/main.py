@@ -113,14 +113,16 @@ async def post_set_whitelist(
     whitelist_title: str = Form(None),
     whitelist_summary: str = Form(None),
     whitelist_content: str = Form(None),
+    whitelist_author: str = Form(None),
     feed_url: str = Form(),
 ):
     """Set what the whitelist should be sent, if you have this set only words in the whitelist will be sent.
 
     Args:
         whitelist_title: Whitelisted words for when checking the title.
-        whitelist_summary: Whitelisted words for when checking the title.
-        whitelist_content: Whitelisted words for when checking the title.
+        whitelist_summary: Whitelisted words for when checking the summary.
+        whitelist_content: Whitelisted words for when checking the content.
+        whitelist_author: Whitelisted words for when checking the author.
         feed_url: The feed we should set the whitelist for.
     """
     clean_feed_url: str = feed_url.strip()
@@ -130,6 +132,8 @@ async def post_set_whitelist(
         reader.set_tag(clean_feed_url, "whitelist_summary", whitelist_summary)  # type: ignore
     if whitelist_content:
         reader.set_tag(clean_feed_url, "whitelist_content", whitelist_content)  # type: ignore
+    if whitelist_author:
+        reader.set_tag(clean_feed_url, "whitelist_author", whitelist_author)  # type: ignore
 
     return RedirectResponse(url=f"/feed/?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
@@ -148,6 +152,7 @@ async def get_whitelist(feed_url: str, request: Request):
     whitelist_title: str = str(reader.get_tag(feed, "whitelist_title", ""))
     whitelist_summary: str = str(reader.get_tag(feed, "whitelist_summary", ""))
     whitelist_content: str = str(reader.get_tag(feed, "whitelist_content", ""))
+    whitelist_author: str = str(reader.get_tag(feed, "whitelist_author", ""))
 
     context = {
         "request": request,
@@ -155,6 +160,7 @@ async def get_whitelist(feed_url: str, request: Request):
         "whitelist_title": whitelist_title,
         "whitelist_summary": whitelist_summary,
         "whitelist_content": whitelist_content,
+        "whitelist_author": whitelist_author,
     }
     return templates.TemplateResponse("whitelist.html", context)
 
@@ -164,6 +170,7 @@ async def post_set_blacklist(
     blacklist_title: str = Form(None),
     blacklist_summary: str = Form(None),
     blacklist_content: str = Form(None),
+    blacklist_author: str = Form(None),
     feed_url: str = Form(),
 ):
     """Set the blacklist, if this is set we will check if words are in the title, summary or content
@@ -173,15 +180,18 @@ async def post_set_blacklist(
         blacklist_title: Blacklisted words for when checking the title.
         blacklist_summary: Blacklisted words for when checking the summary.
         blacklist_content: Blacklisted words for when checking the content.
+        blacklist_author: Blacklisted words for when checking the author.
         feed_url: What feed we should set the blacklist for.
     """
-    clean_feed_url = feed_url.strip()
+    clean_feed_url: str = feed_url.strip()
     if blacklist_title:
         reader.set_tag(clean_feed_url, "blacklist_title", blacklist_title)  # type: ignore
     if blacklist_summary:
         reader.set_tag(clean_feed_url, "blacklist_summary", blacklist_summary)  # type: ignore
     if blacklist_content:
         reader.set_tag(clean_feed_url, "blacklist_content", blacklist_content)  # type: ignore
+    if blacklist_author:
+        reader.set_tag(clean_feed_url, "blacklist_author", blacklist_author)  # type: ignore
 
     return RedirectResponse(url=f"/feed/?feed_url={urllib.parse.quote(feed_url)}", status_code=303)
 
@@ -194,6 +204,7 @@ async def get_blacklist(feed_url: str, request: Request):
     blacklist_title: str = str(reader.get_tag(feed, "blacklist_title", ""))
     blacklist_summary: str = str(reader.get_tag(feed, "blacklist_summary", ""))
     blacklist_content: str = str(reader.get_tag(feed, "blacklist_content", ""))
+    blacklist_author: str = str(reader.get_tag(feed, "blacklist_author", ""))
 
     context = {
         "request": request,
@@ -201,6 +212,7 @@ async def get_blacklist(feed_url: str, request: Request):
         "blacklist_title": blacklist_title,
         "blacklist_summary": blacklist_summary,
         "blacklist_content": blacklist_content,
+        "blacklist_author": blacklist_author,
     }
     return templates.TemplateResponse("blacklist.html", context)
 

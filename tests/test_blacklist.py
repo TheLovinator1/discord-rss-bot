@@ -86,9 +86,21 @@ def test_should_be_skipped() -> None:
     assert should_be_skipped(reader, first_entry[0]) is False
 
     reader.set_tag(feed, "blacklist_content", "ffdnfdnfdnfdnfdndfn")  # type: ignore
-    # TODO: This is not impelemented yet
+    assert should_be_skipped(reader, first_entry[0]) is True
+    reader.delete_tag(feed, "blacklist_content")
+    assert should_be_skipped(reader, first_entry[0]) is False
+
+    reader.set_tag(feed, "blacklist_content", "åäö")  # type: ignore
     assert should_be_skipped(reader, first_entry[0]) is False
     reader.delete_tag(feed, "blacklist_content")
     assert should_be_skipped(reader, first_entry[0]) is False
 
-    # TODO: Also add support for entry_text
+    reader.set_tag(feed, "blacklist_author", "TheLovinator")  # type: ignore
+    assert should_be_skipped(reader, first_entry[0]) is True
+    reader.delete_tag(feed, "blacklist_author")
+    assert should_be_skipped(reader, first_entry[0]) is False
+
+    reader.set_tag(feed, "blacklist_author", "åäö")  # type: ignore
+    assert should_be_skipped(reader, first_entry[0]) is False
+    reader.delete_tag(feed, "blacklist_author")
+    assert should_be_skipped(reader, first_entry[0]) is False
