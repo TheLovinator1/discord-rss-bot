@@ -35,33 +35,25 @@
                            type="text"
                            class="form-control bg-dark border-dark text-muted"
                            id="blacklist_title"
-                           value="{% if blacklist_title %}
-                                      {{- blacklist_title -}}
-                                  {% endif %}"/>
+                           value="{%- if blacklist_title -%}{{ blacklist_title }}{%- endif -%}"/>
                     <label for="blacklist_summary" class="col-sm-6 col-form-label">Blacklist - Summary</label>
                     <input name="blacklist_summary"
                            type="text"
                            class="form-control bg-dark border-dark text-muted"
                            id="blacklist_summary"
-                           value="{% if blacklist_summary %}
-                                      {{- blacklist_summary -}}
-                                  {% endif %}"/>
+                           value="{%- if blacklist_summary -%}{{ blacklist_summary }}{%- endif -%}"/>
                     <label for="blacklist_content" class="col-sm-6 col-form-label">Blacklist - Content</label>
                     <input name="blacklist_content"
                            type="text"
                            class="form-control bg-dark border-dark text-muted"
                            id="blacklist_content"
-                           value="{% if blacklist_content %}
-                                      {{- blacklist_content -}}
-                                  {% endif %}"/>
+                           value="{%- if blacklist_content -%}{{ blacklist_content }}{%- endif -%}"/>
                     <label for="blacklist_author" class="col-sm-6 col-form-label">Blacklist - Author</label>
                     <input name="blacklist_author"
                            type="text"
                            class="form-control bg-dark border-dark text-muted"
                            id="blacklist_author"
-                           value="{% if blacklist_author %}
-                                      {{- blacklist_author -}}
-                                  {% endif %}"/>
+                           value="{%- if blacklist_author -%}{{ blacklist_author }}{%- endif -%}"/>
                 </div>
             </div>
             <!-- Add a hidden feed_url field to the form -->
