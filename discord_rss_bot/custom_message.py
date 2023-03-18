@@ -22,31 +22,6 @@ class CustomEmbed:
     footer_icon_url: str
 
 
-def return_image(found_images) -> list[tuple[str, str]] | None:
-    soup: BeautifulSoup = BeautifulSoup(found_images, features="lxml")
-    images = soup.find_all("img")
-    for image in images:
-        image_src: str = str(image["src"]) or ""
-        image_alt: str = "Link to image"
-        if image.get("alt"):
-            image_alt = image.get("alt")
-        return [(image_src, image_alt)]
-
-
-def get_first_image_html(html: str):
-    """Get images from a entry.
-
-    Args:
-        html: The HTML to get the images from.
-
-    Returns:
-        Returns a list of images.
-    """
-    if images := BeautifulSoup(html, features="lxml").find_all("img"):
-        return images[0].attrs["src"]
-    return None
-
-
 def try_to_replace(custom_message: str, template: str, replace_with: str) -> str:
     """Try to replace a tag in custom_message.
 
@@ -84,7 +59,7 @@ def replace_tags_in_text_message(entry: Entry) -> str:
 
     summary: str = entry.summary or ""
 
-    first_image = get_image(summary, content)
+    first_image = get_first_image(summary, content)
 
     summary = convert_html_to_md(summary)
     content = convert_html_to_md(content)
@@ -127,8 +102,8 @@ def replace_tags_in_text_message(entry: Entry) -> str:
     return custom_message.replace("\\n", "\n")
 
 
-def get_image(summary, content):
-    """Get image from summary or content
+def get_first_image(summary, content):
+    """Get image from summary or content.
 
     Args:
         summary: The summary from the entry
@@ -137,12 +112,10 @@ def get_image(summary, content):
     Returns:
         The first image
     """
-    if content:
-        if images := BeautifulSoup(content, features="lxml").find_all("img"):
-            return images[0].attrs["src"]
-    if summary:
-        if images := BeautifulSoup(summary, features="lxml").find_all("img"):
-            return images[0].attrs["src"]
+    if content and (images := BeautifulSoup(content, features="lxml").find_all("img")):
+        return images[0].attrs["src"]
+    if summary and (images := BeautifulSoup(summary, features="lxml").find_all("img")):
+        return images[0].attrs["src"]
     return ""
 
 
@@ -156,7 +129,6 @@ def replace_tags_in_embed(feed: Feed, entry: Entry) -> CustomEmbed:
     Returns:
         Returns the embed with the tags replaced.
     """
-
     custom_reader: Reader = get_reader()
     embed: CustomEmbed = get_embed(feed=feed, custom_reader=custom_reader)
 
@@ -167,7 +139,7 @@ def replace_tags_in_embed(feed: Feed, entry: Entry) -> CustomEmbed:
 
     summary: str = entry.summary or ""
 
-    first_image = get_image(summary, content)
+    first_image = get_first_image(summary, content)
 
     summary = convert_html_to_md(summary)
     content = convert_html_to_md(content)
@@ -274,7 +246,6 @@ def get_embed(custom_reader: Reader, feed: Feed) -> CustomEmbed:
     Returns:
         Returns the contents from the embed tag.
     """
-
     if embed := custom_reader.get_tag(feed, "embed", ""):
         if type(embed) != str:
             return get_embed_data(embed)

@@ -28,7 +28,9 @@ def test_convert_to_md() -> None:
 
     # Test multiple tags
     assert (
-        convert_html_to_md('<b>bold</b> <i>italic</i> <a href="https://example.com">link</a> <code>code</code> <s>strikethrough</s>')  # noqa: E501
+        convert_html_to_md(
+            '<b>bold</b> <i>italic</i> <a href="https://example.com">link</a> <code>code</code> <s>strikethrough</s>',
+        )
         == "**bold** *italic* [link](https://example.com) `code` ~~strikethrough~~"
     )
 

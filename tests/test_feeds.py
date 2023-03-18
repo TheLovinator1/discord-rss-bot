@@ -13,11 +13,11 @@ def test_send_to_discord() -> None:
     """Test sending to Discord."""
     with tempfile.TemporaryDirectory() as temp_dir:
         # Create the temp directory.
-        os.makedirs(temp_dir, exist_ok=True)
-        assert os.path.exists(temp_dir)
+        Path.mkdir(Path(temp_dir), exist_ok=True)
+        assert Path.exists(Path(temp_dir))
 
         # Create a temporary reader.
-        reader: Reader = make_reader(url=str(Path(temp_dir, "test_db.sqlite")))
+        reader: Reader = make_reader(url=str(Path(temp_dir) / "test_db.sqlite"))
         assert reader is not None
 
         # Add a feed to the reader.
@@ -35,7 +35,8 @@ def test_send_to_discord() -> None:
         # Get the webhook.
         webhook_url: str | None = os.environ.get("TEST_WEBHOOK_URL")
 
-        if webhook_url is None:
+        if not webhook_url:
+            reader.close()
             pytest.skip("No webhook URL provided.")
 
         assert webhook_url is not None

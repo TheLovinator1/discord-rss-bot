@@ -4,11 +4,12 @@ from discord_rss_bot.filter.utils import is_word_in_text
 
 
 def has_white_tags(custom_reader: Reader, feed: Feed) -> bool:
-    """
-    Return True if the feed has any of the following tags:
+    """Return True if the feed has whitelist tags.
+
+    The following tags are checked:
     - whitelist_title
     - whitelist_summary
-    - whitelist_content
+    - whitelist_content.
 
     Args:
         custom_reader: The reader.
@@ -25,8 +26,7 @@ def has_white_tags(custom_reader: Reader, feed: Feed) -> bool:
 
 
 def should_be_sent(custom_reader: Reader, entry: Entry) -> bool:
-    """
-    Return True if the entry is in the whitelist.
+    """Return True if the entry is in the whitelist.
 
     Args:
         custom_reader: The reader.
@@ -43,11 +43,13 @@ def should_be_sent(custom_reader: Reader, entry: Entry) -> bool:
 
     if entry.title and whitelist_title and is_word_in_text(whitelist_title, entry.title):
         return True
-    elif entry.summary and whitelist_summary and is_word_in_text(whitelist_summary, entry.summary):
+    if entry.summary and whitelist_summary and is_word_in_text(whitelist_summary, entry.summary):
         return True
-    elif entry.author and whitelist_author and is_word_in_text(whitelist_author, entry.author):
+    if entry.author and whitelist_author and is_word_in_text(whitelist_author, entry.author):
         return True
-    elif entry.content:
-        if entry.content[0].value and whitelist_content and is_word_in_text(whitelist_content, entry.content[0].value):
-            return True
-    return False
+    return bool(
+        entry.content
+        and entry.content[0].value
+        and whitelist_content
+        and is_word_in_text(whitelist_content, entry.content[0].value),
+    )

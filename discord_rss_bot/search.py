@@ -1,8 +1,12 @@
 import urllib.parse
+from typing import TYPE_CHECKING
 
-from reader import Feed, HighlightedString, Reader
+from reader import EntrySearchResult, Feed, HighlightedString, Reader
 
 from discord_rss_bot.settings import get_reader
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 
 def create_html_for_search_results(query: str, custom_reader: Reader | None = None) -> str:
@@ -21,7 +25,7 @@ def create_html_for_search_results(query: str, custom_reader: Reader | None = No
     # Get the default reader if we didn't get a custom one.
     reader: Reader = get_reader() if custom_reader is None else custom_reader
 
-    search_results = reader.search_entries(query)
+    search_results: Iterable[EntrySearchResult] = reader.search_entries(query)
 
     html: str = ""
     for result in search_results:

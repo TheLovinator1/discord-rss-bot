@@ -1,6 +1,6 @@
-import os
 import pathlib
 import tempfile
+from pathlib import Path
 
 from reader import Reader
 
@@ -15,7 +15,7 @@ def test_reader() -> None:
     # Test the reader with a custom location.
     with tempfile.TemporaryDirectory() as temp_dir:
         # Create the temp directory
-        os.makedirs(temp_dir, exist_ok=True)
+        Path.mkdir(Path(temp_dir), exist_ok=True)
 
         custom_loc: pathlib.Path = pathlib.Path(temp_dir, "custom_loc_db.sqlite")
         custom_reader: Reader = get_reader(custom_location=str(custom_loc))
@@ -27,12 +27,12 @@ def test_reader() -> None:
 
 def test_data_dir() -> None:
     """Test the data directory."""
-    assert os.path.exists(data_dir)
+    assert Path.exists(Path(data_dir))
 
 
 def test_default_custom_message() -> None:
     """Test the default custom message."""
-    assert "{{entry_title}}\n{{entry_link}}" == default_custom_message
+    assert default_custom_message == "{{entry_title}}\n{{entry_link}}"
 
 
 def test_get_webhook_for_entry() -> None:
@@ -40,7 +40,7 @@ def test_get_webhook_for_entry() -> None:
     # Test with a custom reader.
     with tempfile.TemporaryDirectory() as temp_dir:
         # Create the temp directory
-        os.makedirs(temp_dir, exist_ok=True)
+        Path.mkdir(Path(temp_dir), exist_ok=True)
 
         custom_loc: pathlib.Path = pathlib.Path(temp_dir, "custom_loc_db.sqlite")
         custom_reader: Reader = get_reader(custom_location=str(custom_loc))

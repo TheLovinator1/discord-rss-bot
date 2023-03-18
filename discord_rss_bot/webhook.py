@@ -5,7 +5,7 @@ from discord_rss_bot.missing_tags import add_missing_tags
 from discord_rss_bot.settings import list_webhooks
 
 
-def add_webhook(reader: Reader, webhook_name: str, webhook_url: str):
+def add_webhook(reader: Reader, webhook_name: str, webhook_url: str) -> None:
     """Add new webhook.
 
     Args:
@@ -15,9 +15,6 @@ def add_webhook(reader: Reader, webhook_name: str, webhook_url: str):
 
     Raises:
         HTTPException: This is raised when the webhook already exists
-
-    Returns:
-        Returns True if everyting was succesful
     """
     # Get current webhooks from the database if they exist otherwise use an empty list.
     webhooks: list[dict[str, str]] = list_webhooks(reader)
@@ -31,13 +28,25 @@ def add_webhook(reader: Reader, webhook_name: str, webhook_url: str):
         reader.set_tag((), "webhooks", webhooks)  # type: ignore
 
         add_missing_tags(reader)
-        return True
+        return
 
     # TODO: Show this error on the page.
+    # TODO: Replace HTTPException with a custom exception.
     raise HTTPException(status_code=409, detail="Webhook already exists")
 
 
-def remove_webhook(reader: Reader, webhook_url: str):
+def remove_webhook(reader: Reader, webhook_url: str) -> None:
+    """Remove webhook.
+
+    Args:
+        reader (Reader): The Reader to use
+        webhook_url (str): The webhook URL to remove
+
+    Raises:
+        HTTPException: If webhook could not be deleted
+        HTTPException: Webhook not found
+    """
+    # TODO: Replace HTTPException with a custom exception for both of these.
     # Get current webhooks from the database if they exist otherwise use an empty list.
     webhooks: list[dict[str, str]] = list_webhooks(reader)
 
@@ -52,7 +61,7 @@ def remove_webhook(reader: Reader, webhook_url: str):
 
             # Add our new list of webhooks to the database.
             reader.set_tag((), "webhooks", webhooks)  # type: ignore
-            return True
+            return
 
     # TODO: Show this error on the page.
     raise HTTPException(status_code=404, detail="Webhook not found")

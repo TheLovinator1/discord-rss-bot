@@ -1,9 +1,11 @@
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from fastapi.testclient import TestClient
-from httpx import Response
 
 from discord_rss_bot.main import app, encode_url
+
+if TYPE_CHECKING:
+    from httpx import Response
 
 client: TestClient = TestClient(app)
 webhook_name: str = "Hello, I am a webhook!"
@@ -180,7 +182,7 @@ def test_unpause_feed() -> None:
     assert feed_url in response.text
 
 
-def test_remove_feed():
+def test_remove_feed() -> None:
     """Test the /remove page."""
     # Remove the feed if it already exists before we run the test.
     feeds: Response = client.get("/")
@@ -201,7 +203,7 @@ def test_remove_feed():
     assert feed_url not in response.text
 
 
-def test_delete_webhook():
+def test_delete_webhook() -> None:
     """Test the /delete_webhook page."""
     # Remove the feed if it already exists before we run the test.
     feeds: Response = client.get("/webhooks")

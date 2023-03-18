@@ -11,7 +11,7 @@ from discord_rss_bot.settings import get_reader
 reader: Reader = get_reader()
 
 
-@lru_cache()
+@lru_cache
 def encode_url(url_to_quote: str) -> str:
     """%-escape the URL so it can be used in a URL.
 
@@ -28,8 +28,7 @@ def encode_url(url_to_quote: str) -> str:
 
 
 def entry_is_whitelisted(entry_to_check: Entry) -> bool:
-    """
-    Check if the entry is whitelisted.
+    """Check if the entry is whitelisted.
 
     Args:
         entry_to_check: The feed to check.
@@ -42,8 +41,7 @@ def entry_is_whitelisted(entry_to_check: Entry) -> bool:
 
 
 def entry_is_blacklisted(entry_to_check: Entry) -> bool:
-    """
-    Check if the entry is blacklisted.
+    """Check if the entry is blacklisted.
 
     Args:
         entry_to_check: The feed to check.

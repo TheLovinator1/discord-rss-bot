@@ -1,22 +1,29 @@
-from typing import Iterable
+from typing import TYPE_CHECKING
 
 from discord_webhook import DiscordEmbed, DiscordWebhook
 from fastapi import HTTPException
 from reader import Entry, Feed, FeedExistsError, Reader, TagNotFoundError
-from requests import Response
 
 from discord_rss_bot import custom_message
 from discord_rss_bot.filter.blacklist import should_be_skipped
 from discord_rss_bot.filter.whitelist import has_white_tags, should_be_sent
 from discord_rss_bot.settings import default_custom_message, get_reader
 
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
-def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None):
-    """
-    Send a single entry to Discord.
+    from requests import Response
+
+
+def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None) -> str | None:
+    """Send a single entry to Discord.
 
     Args:
         entry: The entry to send to Discord.
+        custom_reader: The reader to use. If None, the default reader will be used.
+
+    Returns:
+        str | None: The error message if there was an error, otherwise None.
     """
     # Get the default reader if we didn't get a custom one.
     reader: Reader = get_reader() if custom_reader is None else custom_reader
@@ -27,7 +34,7 @@ def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None):
         return "No webhook URL found."
 
     # Try to get the custom message for the feed. If the user has none, we will use the default message.
-    if custom_message.get_custom_message(reader, entry.feed) != "":
+    if not custom_message.get_custom_message(reader, entry.feed):
         webhook_message = custom_message.replace_tags_in_text_message(entry=entry)
     else:
         webhook_message: str = default_custom_message
@@ -39,11 +46,19 @@ def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None):
         webhook: DiscordWebhook = DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)
 
     response: Response = webhook.execute()
-    if not response.ok:
-        return f"Error sending entry to Discord: {response.text}"
+    return None if response.ok else f"Error sending entry to Discord: {response.text}"
 
 
 def create_embed_webhook(webhook_url: str, entry: Entry) -> DiscordWebhook:
+    """Create a webhook with an embed.
+
+    Args:
+        webhook_url (str): The webhook URL.
+        entry (Entry): The entry to send to Discord.
+
+    Returns:
+        DiscordWebhook: The webhook with the embed.
+    """
     webhook: DiscordWebhook = DiscordWebhook(url=webhook_url, rate_limit_retry=True)
     feed: Feed = entry.feed
 
@@ -66,7 +81,11 @@ def create_embed_webhook(webhook_url: str, entry: Entry) -> DiscordWebhook:
     if custom_embed.author_name and not custom_embed.author_url and custom_embed.author_icon_url:
         discord_embed.set_author(name=custom_embed.author_name, icon_url=custom_embed.author_icon_url)
     if custom_embed.author_name and custom_embed.author_url and custom_embed.author_icon_url:
-        discord_embed.set_author(name=custom_embed.author_name, url=custom_embed.author_url, icon_url=custom_embed.author_icon_url)  # noqa: E501
+        discord_embed.set_author(
+            name=custom_embed.author_name,
+            url=custom_embed.author_url,
+            icon_url=custom_embed.author_icon_url,
+        )
     if custom_embed.thumbnail_url:
         discord_embed.set_thumbnail(url=custom_embed.thumbnail_url)
     if custom_embed.image_url:
@@ -85,8 +104,7 @@ def create_embed_webhook(webhook_url: str, entry: Entry) -> DiscordWebhook:
 
 
 def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = None, do_once: bool = False) -> None:
-    """
-    Send entries to Discord.
+    """Send entries to Discord.
 
     If response was not ok, we will log the error and mark the entry as unread, so it will be sent again next time.
 
@@ -120,7 +138,7 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
         else:
             # If the user has set the custom message to an empty string, we will use the default message, otherwise we
             # will use the custom message.
-            if custom_message.get_custom_message(reader, entry.feed) != "":
+            if not custom_message.get_custom_message(reader, entry.feed):
                 webhook_message = custom_message.replace_tags_in_text_message(entry)
             else:
                 webhook_message: str = default_custom_message

@@ -1,11 +1,13 @@
-import os
 import pathlib
 import tempfile
-
-from reader import Reader
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 from discord_rss_bot.custom_filters import encode_url, entry_is_blacklisted, entry_is_whitelisted
 from discord_rss_bot.settings import get_reader
+
+if TYPE_CHECKING:
+    from reader import Reader
 
 
 def test_encode_url() -> None:
@@ -19,16 +21,16 @@ def test_encode_url() -> None:
         == r"https%3A//www.example.com/my%20path%3Fq%3Dabc%26b%3D1"
     )
     # Test empty input
-    assert encode_url("") == ""
+    assert not encode_url("")
     # Test input as None
-    assert encode_url(None) == ""  # type: ignore
+    assert not encode_url(None)  # type: ignore
 
 
 def test_entry_is_whitelisted() -> None:
     # Test with a custom reader.
     with tempfile.TemporaryDirectory() as temp_dir:
         # Create the temp directory
-        os.makedirs(temp_dir, exist_ok=True)
+        Path.mkdir(Path(temp_dir), exist_ok=True)
 
         custom_loc: pathlib.Path = pathlib.Path(temp_dir, "custom_loc_db.sqlite")
         custom_reader: Reader = get_reader(custom_location=str(custom_loc))
@@ -69,7 +71,7 @@ def test_entry_is_blacklisted() -> None:
     # Test with a custom reader.
     with tempfile.TemporaryDirectory() as temp_dir:
         # Create the temp directory
-        os.makedirs(temp_dir, exist_ok=True)
+        Path.mkdir(Path(temp_dir), exist_ok=True)
 
         custom_loc: pathlib.Path = pathlib.Path(temp_dir, "custom_loc_db.sqlite")
         custom_reader: Reader = get_reader(custom_location=str(custom_loc))

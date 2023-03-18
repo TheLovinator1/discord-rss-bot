@@ -2,7 +2,8 @@ import re
 
 
 def is_word_in_text(words: str, text: str) -> bool:
-    """
+    """Check if the word is in the text.
+
     Args:
         words: The words to search for.
         text: The text to search in.

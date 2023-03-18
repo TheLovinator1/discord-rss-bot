@@ -1,10 +1,13 @@
 import tempfile
 from pathlib import Path
-from typing import Iterable
+from typing import TYPE_CHECKING
 
 from reader import Entry, Feed, Reader, make_reader
 
 from discord_rss_bot.filter.whitelist import has_white_tags, should_be_sent
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 feed_url: str = "https://lovinator.space/rss_test.xml"
 

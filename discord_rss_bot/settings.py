@@ -1,11 +1,11 @@
-import os
 from functools import lru_cache
+from pathlib import Path
 
 from platformdirs import user_data_dir
 from reader import Reader, make_reader  # type: ignore
 
 data_dir: str = user_data_dir(appname="discord_rss_bot", appauthor="TheLovinator", roaming=True)
-os.makedirs(data_dir, exist_ok=True)
+Path.mkdir(Path(data_dir), exist_ok=True)
 print(f"Data is stored in '{data_dir}'.")
 
 
@@ -19,23 +19,21 @@ default_custom_embed: dict[str, str] = {
 }
 
 
-@lru_cache()
-def get_reader(custom_location: str = "") -> Reader:
+@lru_cache
+def get_reader(custom_location: Path | None = None) -> Reader:
     """Get the reader.
 
     Args:
         custom_location: The location of the database file.
 
     """
+    db_location: Path = custom_location or Path(data_dir) / "db.sqlite"
 
-    db_location: str = custom_location or os.path.join(data_dir, "db.sqlite")
-
-    return make_reader(url=db_location)
+    return make_reader(url=str(db_location))
 
 
 def list_webhooks(reader: Reader) -> list[dict[str, str]]:
-    """
-    Get current webhooks from the database if they exist otherwise use an empty list.
+    """Get current webhooks from the database if they exist otherwise use an empty list.
 
     Args:
         reader: The reader to use.

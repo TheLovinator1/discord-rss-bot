@@ -10,8 +10,19 @@
         <br/>
         {% for hook in hooks_with_data %}
             <div class="p-2 border border-dark text-muted">
-                <img src="https://cdn.discordapp.com/avatars/{{ hook.id }}/{{ hook.avatar }}.webp"
-                     class="img-thumbnail">
+                {% if hook.avatar is not none %}
+                    <img src="https://cdn.discordapp.com/avatars/{{ hook.id }}/{{ hook.avatar }}.webp"
+                         class="img-thumbnail"
+                         height="128"
+                         width="128"
+                         alt="Webhook avatar"/>
+                {% else %}
+                    <img src="https://cdn.discordapp.com/embed/avatars/{{ hook.avatar_mod }}.png"
+                         class="img-thumbnail"
+                         height="128"
+                         width="128"
+                         alt="Default Discord avatar"/>
+                {% endif %}
                 <h3>{{ hook.custom_name }}</h3>
                 <li>
                     <strong>Name</strong>: {{ hook.name }}
@@ -23,13 +34,13 @@
                     <strong>Guild ID</strong>: {{ hook.guild_id }}
                 </li>
                 <li>
-                    <strong>Webhook ID</strong>: {{ hook.id }}
+                    <strong>Webhook ID</strong>: {{ hook.webhook_id }}
                 </li>
                 <li>
                     <strong>Webhook token</strong>: {{ hook.token }}
                 </li>
                 <li>
-                    <strong>Webhook type</strong>: {{ hook.type }}
+                    <strong>Webhook type</strong>: {{ hook.webhook_type }}
                 </li>
                 <li>
                     <strong>Webhook URL</strong>: <a href="{{ hook.url }}">{{ hook.url }}</a>

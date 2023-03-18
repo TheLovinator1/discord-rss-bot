@@ -1,11 +1,13 @@
-import os
 import tempfile
 from pathlib import Path
-from typing import Iterable
+from typing import TYPE_CHECKING
 
 from reader import Feed, Reader, make_reader
 
 from discord_rss_bot.search import create_html_for_search_results
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 
 def test_create_html_for_search_results() -> None:
@@ -13,8 +15,8 @@ def test_create_html_for_search_results() -> None:
     # Create a reader.
     with tempfile.TemporaryDirectory() as temp_dir:
         # Create the temp directory.
-        os.makedirs(temp_dir, exist_ok=True)
-        assert os.path.exists(temp_dir)
+        Path.mkdir(Path(temp_dir), exist_ok=True)
+        assert Path.exists(Path(temp_dir))
 
         # Create a temporary reader.
         reader: Reader = make_reader(url=str(Path(temp_dir, "test_db.sqlite")))
