@@ -34,7 +34,7 @@ target-version = ["py311"]
 preview = true
 
 [tool.djlint]
-ignore = "D004,D018,J018,T001"
+ignore = "D004,D018,J018,T001,J004"
 profile = "jinja"
 max_line_length = 120
 format_attribute_template_tags = true
@@ -90,17 +90,18 @@ select = [
     "RUF",
 ]
 ignore = [
-    "D100",  # pydocstyle - missing docstring in public module
-    "D101",  # pydocstyle - missing docstring in public class
-    "D102",  # pydocstyle - missing docstring in public method
-    "D103",  # pydocstyle - missing docstring in public function
-    "D104",  # pydocstyle - missing docstring in public package
-    "D105",  # pydocstyle - missing docstring in magic method
-    "D106",  # pydocstyle - missing docstring in public nested class
-    "D107",  # pydocstyle - missing docstring in __init__
-    "G002",  # Allow % in logging
-    "UP031", # Allow % in logging
-    "B008",  # Allow Form() as a default value
+    "D100",   # pydocstyle - missing docstring in public module
+    "D101",   # pydocstyle - missing docstring in public class
+    "D102",   # pydocstyle - missing docstring in public method
+    "D103",   # pydocstyle - missing docstring in public function
+    "D104",   # pydocstyle - missing docstring in public package
+    "D105",   # pydocstyle - missing docstring in magic method
+    "D106",   # pydocstyle - missing docstring in public nested class
+    "D107",   # pydocstyle - missing docstring in __init__
+    "G002",   # Allow % in logging
+    "UP031",  # Allow % in logging
+    "B008",   # Allow Form() as a default value
+    "PGH003", # Allow # type: ignore
 ]
 
 [tool.ruff.pydocstyle]
