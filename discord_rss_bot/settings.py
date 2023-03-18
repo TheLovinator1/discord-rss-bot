@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from platformdirs import user_data_dir
-from reader import Reader, make_reader  # type: ignore
+from reader import Reader, make_reader
 
 data_dir: str = user_data_dir(appname="discord_rss_bot", appauthor="TheLovinator", roaming=True)
 Path.mkdir(Path(data_dir), exist_ok=True)

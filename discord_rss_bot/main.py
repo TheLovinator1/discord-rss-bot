@@ -126,7 +126,7 @@ async def post_set_whitelist(
     """
     clean_feed_url: str = feed_url.strip()
     if whitelist_title:
-        reader.set_tag(clean_feed_url, "whitelist_title", [whitelist_title])
+        reader.set_tag(clean_feed_url, "whitelist_title", whitelist_title)  # type: ignore
     if whitelist_summary:
         reader.set_tag(clean_feed_url, "whitelist_summary", whitelist_summary)  # type: ignore
     if whitelist_content:

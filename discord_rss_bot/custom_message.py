@@ -249,7 +249,7 @@ def get_embed(custom_reader: Reader, feed: Feed) -> CustomEmbed:
     if embed := custom_reader.get_tag(feed, "embed", ""):
         if type(embed) != str:
             return get_embed_data(embed)
-        embed_data: dict[str, str | int] = json.loads(embed)  # type: ignore
+        embed_data: dict[str, str | int] = json.loads(embed)
         return get_embed_data(embed_data)
 
     return CustomEmbed(
