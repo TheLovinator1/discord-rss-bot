@@ -230,14 +230,14 @@ async = ["httpx (>=0.23.0,<0.24.0)"]
 
 [[package]]
 name = "djlint"
-version = "1.25.0"
+version = "1.25.1"
 description = "HTML Template Linter and Formatter"
 category = "dev"
 optional = false
 python-versions = ">=3.8.0,<4.0.0"
 files = [
-    {file = "djlint-1.25.0-py3-none-any.whl", hash = "sha256:5d4ca41b40e8986773043eb7b857654154da91337df7c6c9aeeca256d5f0459a"},
-    {file = "djlint-1.25.0.tar.gz", hash = "sha256:1b9e5265e51c224ef5c6b8d434151293943ddae8602fb544063f33039738d17c"},
+    {file = "djlint-1.25.1-py3-none-any.whl", hash = "sha256:a17e5637f91c1378fe38fffc3cb8738c4efacb76c6eb909ec24e44dc6aa69391"},
+    {file = "djlint-1.25.1.tar.gz", hash = "sha256:179fde940f08facc4ab7cd099a79bb4aaeda231eb20888c68ab54b8240a8c5f4"},
 ]
 
 [package.dependencies]
@@ -247,6 +247,7 @@ cssbeautifier = ">=1.14.4,<2.0.0"
 html-tag-names = ">=0.1.2,<0.2.0"
 html-void-elements = ">=0.1.0,<0.2.0"
 jsbeautifier = ">=1.14.4,<2.0.0"
+json5 = ">=0.9.11,<0.10.0"
 pathspec = ">=0.11.0,<0.12.0"
 PyYAML = ">=6.0,<7.0"
 regex = ">=2023.0.0,<2024.0.0"
@@ -521,6 +522,21 @@ files = [
 [package.dependencies]
 editorconfig = ">=0.12.2"
 six = ">=1.13.0"
+
+[[package]]
+name = "json5"
+version = "0.9.11"
+description = "A Python implementation of the JSON5 data format."
+category = "dev"
+optional = false
+python-versions = "*"
+files = [
+    {file = "json5-0.9.11-py2.py3-none-any.whl", hash = "sha256:1aa54b80b5e507dfe31d12b7743a642e2ffa6f70bf73b8e3d7d1d5fba83d99bd"},
+    {file = "json5-0.9.11.tar.gz", hash = "sha256:4f1e196acc55b83985a51318489f345963c7ba84aa37607e49073066c562e99b"},
+]
+
+[package.extras]
+dev = ["hypothesis"]
 
 [[package]]
 name = "lxml"
