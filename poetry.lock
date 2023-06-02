@@ -231,14 +231,14 @@ async = ["httpx (>=0.23.0,<0.24.0)"]
 
 [[package]]
 name = "djlint"
-version = "1.30.1"
+version = "1.30.2"
 description = "HTML Template Linter and Formatter"
 category = "dev"
 optional = false
 python-versions = ">=3.8.0,<4.0.0"
 files = [
-    {file = "djlint-1.30.1-py3-none-any.whl", hash = "sha256:c6bf6da8837b5a5ef148e9cb789e507e901d2ee7422d19500eeb041feab2dbb7"},
-    {file = "djlint-1.30.1.tar.gz", hash = "sha256:faf9bbaa0bba79bd272aa4bb60d33bb6c46f4da192a54f516077eff606de9b76"},
+    {file = "djlint-1.30.2-py3-none-any.whl", hash = "sha256:b265f66465c4a8b8e5195a6c0c6451a53695ad1094b239488c52c445bbf2f3c3"},
+    {file = "djlint-1.30.2.tar.gz", hash = "sha256:88f0ebb370ec30346151d59d306bac4fc77dc05ceeeb4952edaecee0f4778509"},
 ]
 
 [package.dependencies]
