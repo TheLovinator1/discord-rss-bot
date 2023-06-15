@@ -915,14 +915,14 @@ files = [
 
 [[package]]
 name = "reader"
-version = "3.5"
+version = "3.6"
 description = "A Python feed reader library."
 category = "main"
 optional = false
 python-versions = ">=3.9"
 files = [
-    {file = "reader-3.5-py3-none-any.whl", hash = "sha256:4f7089e9d7e3039a0ba58ba1e590853f9e6d87f110a98e2e7a399e41c63ca9ea"},
-    {file = "reader-3.5.tar.gz", hash = "sha256:ea1818c1f6a70eaaf84167d8dc43a43020efee3d05a82684d879b69434824a26"},
+    {file = "reader-3.6-py3-none-any.whl", hash = "sha256:b90faf180318c9e3c11a66f349c1e57641287bf97f37daa338d8e6fbd2d11852"},
+    {file = "reader-3.6.tar.gz", hash = "sha256:9744bf5527dc8c5c9e0f91103f0c03cbb819ed19c1d49a498070bb4883a0c6db"},
 ]
 
 [package.dependencies]
@@ -936,7 +936,7 @@ typing-extensions = ">=4"
 app = ["PyYAML", "flask (>=0.10)", "humanize"]
 cli = ["PyYAML", "click (>=7)"]
 dev = ["build", "pre-commit", "reader[app,cli,docs,tests,unstable-plugins]", "tox", "twine"]
-docs = ["click (>=7)", "setuptools", "sphinx", "sphinx-click", "sphinx-hoverxref", "sphinx-issues", "sphinx-rtd-theme (>=1.0,<2.0)", "sphinxcontrib-log-cabinet"]
+docs = ["click (>=7)", "setuptools", "sphinx", "sphinx-click", "sphinx-hoverxref", "sphinx-issues", "sphinx-rtd-theme", "sphinxcontrib-log-cabinet"]
 tests = ["coverage", "flaky", "html5lib", "lxml", "mechanicalsoup", "mypy", "pytest (>=4)", "pytest-cov", "pytest-randomly", "pytest-subtests", "requests-mock", "requests-wsgi-adapter", "types-requests", "werkzeug"]
 unstable-plugins = ["Jinja2 (>=3)", "beautifulsoup4", "blinker (>=1.4)", "mutagen", "requests", "tweepy"]
 
