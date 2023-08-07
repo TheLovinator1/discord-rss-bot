@@ -1,6 +1,6 @@
 # discord-rss-bot
 
-Subscribe to RSS feeds and get updates to a Discord webhook. Built with [reader](https://github.com/lemon24/reader).
+Subscribe to RSS feeds and get updates to a Discord webhook.
 
 ## Installation
 
@@ -52,9 +52,3 @@ This is not recommended if you don't have an init system (e.g., systemd)
     - You can stop the bot with <kbd>Ctrl</kbd> + <kbd>c</kbd>.
 
 Note: You will need to run `poetry install` again if [poetry.lock](poetry.lock) has been modified.
-
-## Need help?
-
-- Email: [tlovinator@gmail.com](mailto:tlovinator@gmail.com)
-- Discord: TheLovinator#9276
-- Send an issue: [discord-rss-bot/issues](https://github.com/TheLovinator1/discord-rss-bot/issues)

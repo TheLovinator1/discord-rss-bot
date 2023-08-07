@@ -96,8 +96,7 @@ def create_embed_webhook(webhook_url: str, entry: Entry) -> DiscordWebhook:
     if custom_embed.footer_icon_url and custom_embed.footer_text:
         discord_embed.set_footer(text=custom_embed.footer_text, icon_url=custom_embed.footer_icon_url)
     if custom_embed.footer_icon_url and not custom_embed.footer_text:
-        # TODO: Can this be done without a text?
-        discord_embed.set_footer(icon_url=custom_embed.footer_icon_url)
+        discord_embed.set_footer(text="-", icon_url=custom_embed.footer_icon_url)
 
     webhook.add_embed(discord_embed)
 
@@ -139,7 +138,7 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
         else:
             # If the user has set the custom message to an empty string, we will use the default message, otherwise we
             # will use the custom message.
-            if custom_message.get_custom_message(reader, entry.feed) != "":  # noqa: PLC1901
+            if custom_message.get_custom_message(reader, entry.feed) != "":
                 webhook_message = custom_message.replace_tags_in_text_message(entry)
             else:
                 webhook_message: str = default_custom_message
