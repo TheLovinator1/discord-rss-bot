@@ -17,7 +17,11 @@ from reader import Entry, Feed, FeedNotFoundError, Reader, TagNotFoundError
 from starlette.responses import RedirectResponse
 
 from discord_rss_bot import settings
-from discord_rss_bot.custom_filters import encode_url, entry_is_blacklisted, entry_is_whitelisted
+from discord_rss_bot.custom_filters import (
+    encode_url,
+    entry_is_blacklisted,
+    entry_is_whitelisted,
+)
 from discord_rss_bot.custom_message import (
     CustomEmbed,
     get_custom_message,
@@ -138,11 +142,12 @@ async def post_set_whitelist(
 
 
 @app.get("/whitelist", response_class=HTMLResponse)
-async def get_whitelist(feed_url: str, request: Request):
+async def get_whitelist(feed_url: str, request: Request):  # noqa: ANN201
     """Get the whitelist.
 
     Args:
         feed_url: What feed we should get the whitelist for.
+        request: The request object.
     """
     clean_feed_url: str = feed_url.strip()
     feed: Feed = reader.get_feed(urllib.parse.unquote(clean_feed_url))
@@ -198,7 +203,7 @@ async def post_set_blacklist(
 
 
 @app.get("/blacklist", response_class=HTMLResponse)
-async def get_blacklist(feed_url: str, request: Request):
+async def get_blacklist(feed_url: str, request: Request):  # noqa: ANN201
     feed: Feed = reader.get_feed(urllib.parse.unquote(feed_url))
 
     # Get previous data, this is used when creating the form.
@@ -236,11 +241,12 @@ async def post_set_custom(custom_message: str = Form(""), feed_url: str = Form()
 
 
 @app.get("/custom", response_class=HTMLResponse)
-async def get_custom(feed_url: str, request: Request):
+async def get_custom(feed_url: str, request: Request):  # noqa: ANN201
     """Get the custom message. This is used when sending the message to Discord.
 
     Args:
         feed_url: What feed we should get the custom message for.
+        request: The request object.
     """
     feed: Feed = reader.get_feed(urllib.parse.unquote(feed_url.strip()))
 
@@ -258,11 +264,12 @@ async def get_custom(feed_url: str, request: Request):
 
 
 @app.get("/embed", response_class=HTMLResponse)
-async def get_embed_page(feed_url: str, request: Request):
+async def get_embed_page(feed_url: str, request: Request):  # noqa: ANN201
     """Get the custom message. This is used when sending the message to Discord.
 
     Args:
         feed_url: What feed we should get the custom message for.
+        request: The request object.
     """
     feed: Feed = reader.get_feed(urllib.parse.unquote(feed_url.strip()))
 
@@ -293,7 +300,7 @@ async def get_embed_page(feed_url: str, request: Request):
 
 
 @app.post("/embed", response_class=HTMLResponse)
-async def post_embed(
+async def post_embed(  # noqa: PLR0913
     feed_url: str = Form(),
     title: str = Form(""),
     description: str = Form(""),
@@ -377,7 +384,7 @@ async def post_use_text(feed_url: str = Form()) -> RedirectResponse:
 
 
 @app.get("/add", response_class=HTMLResponse)
-def get_add(request: Request):
+def get_add(request: Request):  # noqa: ANN201
     """Page for adding a new feed."""
     context = {
         "request": request,
@@ -387,7 +394,7 @@ def get_add(request: Request):
 
 
 @app.get("/feed", response_class=HTMLResponse)
-async def get_feed(feed_url: str, request: Request):
+async def get_feed(feed_url: str, request: Request):  # noqa: ANN201
     """Get a feed by URL.
 
     Args:
@@ -470,7 +477,7 @@ def create_html_for_feed(entries: Iterable[Entry]) -> str:
 
 
 @app.get("/add_webhook", response_class=HTMLResponse)
-async def get_add_webhook(request: Request):
+async def get_add_webhook(request: Request):  # noqa: ANN201
     """Page for adding a new webhook.
 
     Args:
@@ -525,7 +532,7 @@ def get_data_from_hook_url(hook_name: str, hook_url: str) -> WebhookInfo:
 
 
 @app.get("/webhooks", response_class=HTMLResponse)
-async def get_webhooks(request: Request):
+async def get_webhooks(request: Request):  # noqa: ANN201
     """Page for adding a new webhook.
 
     Args:
@@ -536,7 +543,7 @@ async def get_webhooks(request: Request):
     """
     hooks_with_data = []
 
-    for hook in reader.get_tag((), "webhooks", ""):
+    for hook in list(reader.get_tag((), "webhooks", [])):
         our_hook: WebhookInfo = get_data_from_hook_url(hook_url=hook["url"], hook_name=hook["name"])  # type: ignore
         hooks_with_data.append(our_hook)
 
@@ -545,7 +552,7 @@ async def get_webhooks(request: Request):
 
 
 @app.get("/", response_class=HTMLResponse)
-def get_index(request: Request):
+def get_index(request: Request):  # noqa: ANN201
     """This is the root of the website.
 
     Args:
@@ -557,7 +564,7 @@ def get_index(request: Request):
     return templates.TemplateResponse("index.html", make_context_index(request))
 
 
-def make_context_index(request: Request):
+def make_context_index(request: Request):  # noqa: ANN201
     """Create the needed context for the index page.
 
     Args:
@@ -566,7 +573,7 @@ def make_context_index(request: Request):
     Returns:
             dict: The context for the index page.
     """
-    hooks: list[dict] = reader.get_tag((), "webhooks", [])  # type: ignore
+    hooks: list[dict] = list(reader.get_tag((), "webhooks", []))  # type: ignore
 
     feed_list = []
     broken_feeds = []
@@ -597,7 +604,7 @@ def make_context_index(request: Request):
 
 
 @app.post("/remove", response_class=HTMLResponse)
-async def remove_feed(feed_url: str = Form()):
+async def remove_feed(feed_url: str = Form()):  # noqa: ANN201
     """Get a feed by URL.
 
     Args:
@@ -615,7 +622,7 @@ async def remove_feed(feed_url: str = Form()):
 
 
 @app.get("/search", response_class=HTMLResponse)
-async def search(request: Request, query: str):
+async def search(request: Request, query: str):  # noqa: ANN201
     """Get entries matching a full-text search query.
 
     Args:
@@ -637,7 +644,7 @@ async def search(request: Request, query: str):
 
 
 @app.get("/post_entry", response_class=HTMLResponse)
-async def post_entry(entry_id: str):
+async def post_entry(entry_id: str):  # noqa: ANN201
     """Send single entry to Discord.
 
     Args:
@@ -677,4 +684,11 @@ def startup() -> None:
 
 if __name__ == "__main__":
     # TODO: Make this configurable.
-    uvicorn.run("main:app", log_level="info", host="0.0.0.0", port=5000, proxy_headers=True, forwarded_allow_ips="*")
+    uvicorn.run(
+        "main:app",
+        log_level="info",
+        host="0.0.0.0",  # noqa: S104
+        port=5000,
+        proxy_headers=True,
+        forwarded_allow_ips="*",
+    )
