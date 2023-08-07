@@ -7,13 +7,12 @@
         <form action="/add" method="post">
             <!-- Feed URL -->
             <div class="row pb-2">
-                <label for="feed_url" class="col-sm-2 col-form-label">Feed URL</label>
+                <label for="feed_url" class="col-sm-2 col-form-label">RSS feed URL</label>
                 <div class="col-sm-10">
                     <input name="feed_url"
                            type="text"
                            class="form-control bg-dark border-dark text-muted"
-                           id="feed_url"
-                           placeholder="https://www.reddit.com/r/FreeGameFindings.rss"/>
+                           id="feed_url" />
                 </div>
             </div>
             <!-- Webhook dropdown -->
@@ -23,18 +22,12 @@
                     <select class="col-auto form-select bg-dark border-dark text-muted"
                             id="webhook_dropdown"
                             name="webhook_dropdown">
-                        <option selected>
-                            Choose webhook...
-                        </option>
-                        {% for hook in webhooks %}
-                            <option value="{{ hook.name }}">
-                                {{- hook.name -}}
-                            </option>
-                        {% endfor %}
+                        <option selected>Choose webhook...</option>
+                        {% for hook in webhooks %}<option value="{{ hook.name }}">{{- hook.name -}}</option>{% endfor %}
                     </select>
                 </div>
                 <div class="form-text">
-                    You can add more feeds <a class="text-muted" href="/add_webhook">here</a>
+                    You can add more webhooks <a class="text-muted" href="/add_webhook">here</a>
                 </div>
             </div>
             <!-- Submit button -->
