@@ -29,23 +29,3 @@ def get_reader(custom_location: Path | None = None) -> Reader:
     db_location: Path = custom_location or Path(data_dir) / "db.sqlite"
 
     return make_reader(url=str(db_location))
-
-
-def list_webhooks(reader: Reader) -> list[dict[str, str]]:
-    """Get current webhooks from the database if they exist otherwise use an empty list.
-
-    Args:
-        reader: The reader to use.
-
-    Returns:
-        list[dict[str, str]]: The webhooks.
-    """
-    webhooks: list[dict[str, str]] = []
-
-    # Get global tags
-    if reader.get_tags(()) is not None:
-        for tag in reader.get_tag_keys(()):
-            if tag == "webhooks":
-                webhooks = reader.get_tag((), "webhooks")  # type: ignore
-
-    return webhooks

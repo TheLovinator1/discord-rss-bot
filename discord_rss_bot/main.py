@@ -4,6 +4,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from functools import lru_cache
+from typing import cast
 
 import httpx
 import uvicorn
@@ -664,6 +665,51 @@ async def post_entry(entry_id: str):  # noqa: ANN201
     # Redirect to the feed page.
     clean_feed_url: str = entry.feed.url.strip()
     return RedirectResponse(url=f"/feed/?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
+
+
+@app.post("/modify_webhook", response_class=HTMLResponse)
+def modify_webhook(old_hook: str = Form(), new_hook: str = Form()):  # noqa: ANN201
+    """Modify a webhook.
+
+    Args:
+        old_hook: The webhook to modify.
+        new_hook: The new webhook.
+
+    Raises:
+        HTTPException: Webhook could not be modified.
+    """
+    # Get current webhooks from the database if they exist otherwise use an empty list.
+    webhooks = list(reader.get_tag((), "webhooks", []))
+
+    # Webhooks are stored as a list of dictionaries.
+    # Example: [{"name": "webhook_name", "url": "webhook_url"}]  # noqa: ERA001
+    webhooks = cast(list[dict[str, str]], webhooks)
+
+    for hook in webhooks:
+        if hook["url"] in old_hook.strip():
+            hook["url"] = new_hook.strip()
+
+            # Check if it has been modified.
+            if hook["url"] != new_hook.strip():
+                raise HTTPException(status_code=500, detail="Webhook could not be modified")
+
+            # Add our new list of webhooks to the database.
+            reader.set_tag((), "webhooks", webhooks)  # type: ignore
+
+            # Loop through all feeds and update the webhook if it
+            # matches the old one.
+            feeds: Iterable[Feed] = reader.get_feeds()
+            for feed in feeds:
+                try:
+                    webhook = reader.get_tag(feed, "webhook")
+                except TagNotFoundError:
+                    continue
+
+                if webhook == old_hook.strip():
+                    reader.set_tag(feed.url, "webhook", new_hook.strip())  # type: ignore
+
+    # Redirect to the webhook page.
+    return RedirectResponse(url="/webhooks", status_code=303)
 
 
 @app.on_event("startup")

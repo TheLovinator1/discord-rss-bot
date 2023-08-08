@@ -7,7 +7,7 @@
     <h3>Available webhooks</h3>
     <ul class="list-inline">
         <a class="btn btn-primary" href="/add_webhook">Add new</a>
-        <br/>
+        <br />
         {% for hook in hooks_with_data %}
             <div class="p-2 border border-dark text-muted">
                 {% if hook.avatar is not none %}
@@ -15,43 +15,41 @@
                          class="img-thumbnail"
                          height="128"
                          width="128"
-                         alt="Webhook avatar"/>
+                         alt="Webhook avatar" />
                 {% else %}
                     <img src="https://cdn.discordapp.com/embed/avatars/{{ hook.avatar_mod }}.png"
                          class="img-thumbnail"
                          height="128"
                          width="128"
-                         alt="Default Discord avatar"/>
+                         alt="Default Discord avatar" />
                 {% endif %}
                 <h3>{{ hook.custom_name }}</h3>
                 <li>
                     <strong>Name</strong>: {{ hook.name }}
                 </li>
                 <li>
-                    <strong>Channel ID</strong>: {{ hook.channel_id }}
+                    <strong>Webhook URL</strong>: <a class="text-muted" href="{{ hook.url }}">{{ hook.url }}</a>
                 </li>
-                <li>
-                    <strong>Guild ID</strong>: {{ hook.guild_id }}
-                </li>
-                <li>
-                    <strong>Webhook ID</strong>: {{ hook.webhook_id }}
-                </li>
-                <li>
-                    <strong>Webhook token</strong>: {{ hook.token }}
-                </li>
-                <li>
-                    <strong>Webhook type</strong>: {{ hook.webhook_type }}
-                </li>
-                <li>
-                    <strong>Webhook URL</strong>: <a href="{{ hook.url }}">{{ hook.url }}</a>
-                </li>
-                <br/>
+                <br />
+                <form action="/modify_webhook" method="post">
+                    <input type="hidden" name="old_hook" value="{{- hook.url -}}" />
+                    <div class="row pb-2">
+                        <label for="new_hook" class="col-sm-1 col-form-label">Modify webhook</label>
+                        <div class="col-sm-9">
+                            <input name="new_hook"
+                                   type="text"
+                                   class="form-control bg-dark border-dark text-muted"
+                                   id="new_hook" />
+                        </div>
+                        <button type="submit" class="btn btn-primary col-sm-1 ">Modify</button>
+                    </div>
+                </form>
                 <form action="/delete_webhook" method="post">
-                    <input type="hidden" name="webhook_url" value="{{- hook.url -}}"/>
+                    <input type="hidden" name="webhook_url" value="{{- hook.url -}}" />
                     <button type="submit" class="btn btn-danger">Delete</button>
                 </form>
             </div>
-            <br/>
+            <br />
         {% endfor %}
     </ul>
 {% endblock content %}

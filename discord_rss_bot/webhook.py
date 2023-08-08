@@ -1,8 +1,9 @@
+from typing import cast
+
 from fastapi import HTTPException
 from reader import Reader
 
 from discord_rss_bot.missing_tags import add_missing_tags
-from discord_rss_bot.settings import list_webhooks
 
 
 def add_webhook(reader: Reader, webhook_name: str, webhook_url: str) -> None:
@@ -17,7 +18,11 @@ def add_webhook(reader: Reader, webhook_name: str, webhook_url: str) -> None:
         HTTPException: This is raised when the webhook already exists
     """
     # Get current webhooks from the database if they exist otherwise use an empty list.
-    webhooks: list[dict[str, str]] = list_webhooks(reader)
+    webhooks = list(reader.get_tag((), "webhooks", []))
+
+    # Webhooks are stored as a list of dictionaries.
+    # Example: [{"name": "webhook_name", "url": "webhook_url"}]  # noqa: ERA001
+    webhooks = cast(list[dict[str, str]], webhooks)
 
     # Only add the webhook if it doesn't already exist.
     if all(webhook["name"] != webhook_name.strip() for webhook in webhooks):
@@ -48,7 +53,11 @@ def remove_webhook(reader: Reader, webhook_url: str) -> None:
     """
     # TODO: Replace HTTPException with a custom exception for both of these.
     # Get current webhooks from the database if they exist otherwise use an empty list.
-    webhooks: list[dict[str, str]] = list_webhooks(reader)
+    webhooks = list(reader.get_tag((), "webhooks", []))
+
+    # Webhooks are stored as a list of dictionaries.
+    # Example: [{"name": "webhook_name", "url": "webhook_url"}]  # noqa: ERA001
+    webhooks = cast(list[dict[str, str]], webhooks)
 
     # Only add the webhook if it doesn't already exist.
     for webhook in webhooks:
