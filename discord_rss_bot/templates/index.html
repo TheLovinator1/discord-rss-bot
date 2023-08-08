@@ -32,7 +32,9 @@
             {% for hook_from_context in webhooks %}
                 <div class="p-2 mb-2 border border-dark">
                     <ul class="list-group">
-                        {{ hook_from_context.name }}
+                        <h1 class="h5">
+                            <a class="text-muted" href="/webhooks">{{ hook_from_context.name }}</a>
+                        </h1>
                         {% for feed_webhook in feeds %}
                             {% set feed = feed_webhook["feed"] %}
                             {% set hook_from_feed = feed_webhook["webhook"] %}
