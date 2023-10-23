@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 # Force the stdout and stderr streams to be unbuffered.
 # Will allow log messages to be immediately dumped instead of being buffered.
