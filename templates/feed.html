@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}
+    | {{ feed.title }}
+{% endblock title %}
+{% block content %}
+    <div class="p-2 mb-2 border border-dark">
+        <!-- The feed title. -->
+        <h2>
+            <a class="text-muted text-decoration-none" href="{{ feed.link }}">{{ feed.title }}</a>
+        </h2>
+        {% if not feed.updates_enabled %}<span class="text-danger">Disabled</span>{% endif %}
+        {% if feed.last_exception %}
+            <h3 class="text-danger">{{ feed.last_exception.type_name }}:</h3>
+            <code>{{ feed.last_exception.value_str }}</code>
+            <pre><code>{{ feed.last_exception.traceback_str }}</code></pre>
+        {% endif %}
+        <form action="/remove" method="post">
+            <button class="btn btn-danger btn-sm"
+                    name="feed_url"
+                    value="{{ feed.url }}"
+                    onclick="return confirm('Are you sure you want to delete this feed?')">Remove</button>
+        </form>
+        {% if not feed.updates_enabled %}
+            <form action="/unpause" method="post">
+                <button class="btn btn-dark btn-sm" name="feed_url" value="{{ feed.url }}">Unpause</button>
+            </form>
+        {% else %}
+            <form action="/pause" method="post">
+                <button class="btn btn-danger btn-sm" name="feed_url" value="{{ feed.url }}">Pause</button>
+            </form>
+        {% endif %}
+        {% if should_send_embed == True %}
+            <form action="/use_text" method="post">
+                <button class="btn btn-dark btn-sm" name="feed_url" value="{{ feed.url }}">
+                    Send text messages instead of embeds
+                </button>
+            </form>
+        {% else %}
+            <form action="/use_embed" method="post">
+                <button class="btn btn-dark btn-sm" name="feed_url" value="{{ feed.url }}">
+                    Send embeds instead of text messages
+                </button>
+            </form>
+        {% endif %}
+        <a class="text-muted"
+           href="/whitelist?feed_url={{ feed.url|encode_url }}">Whitelist</a>
+        <br />
+        <a class="text-muted"
+           href="/blacklist?feed_url={{ feed.url|encode_url }}">Blacklist</a>
+        <br />
+        <a class="text-muted" href="/custom?feed_url={{ feed.url|encode_url }}">Customize message
+            {% if not should_send_embed %}(Active){% endif %}
+        </a>
+        <br />
+        <a class="text-muted" href="/embed?feed_url={{ feed.url|encode_url }}">Customize embed
+            {% if should_send_embed %}(Active){% endif %}
+        </a>
+        <br />
+    </div>
+    {# HTML is created in main.create_html_for_feed #}
+    <pre>
+    {{ html|safe }}
+    </pre>
+{% endblock content %}

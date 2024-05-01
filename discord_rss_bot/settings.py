@@ -1,7 +1,16 @@
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
+
+from platformdirs import user_data_dir
+
+logger: logging.Logger = logging.getLogger("discord_rss_bot")
+
+data_dir: str = user_data_dir(appname="discord_rss_bot", appauthor="TheLovinator", roaming=True, ensure_exists=True)
+logger.info("Data is stored in %s", data_dir)
+
 
 BASE_DIR: Path = Path(__file__).resolve().parent.parent
 SECRET_KEY: str = os.environ.get("SECRET_KEY", os.urandom(24).hex())
@@ -17,12 +26,14 @@ ROOT_URLCONF = "discord_rss_bot.urls"
 WSGI_APPLICATION = "discord_rss_bot.wsgi.application"
 
 INSTALLED_APPS: list[str] = [
+    "feeds.apps.FeedsConfig",
     # "django.contrib.admin",
     # "django.contrib.auth",
     # "django.contrib.contenttypes",
     # "django.contrib.sessions",
     # "django.contrib.messages",
     "django.contrib.staticfiles",
+    "background_task",
 ]
 
 MIDDLEWARE: list[str] = [
@@ -56,6 +67,24 @@ TEMPLATES = [
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "NAME": Path(data_dir) / "django.sqlite3",
+    },
+    "reader": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": Path(data_dir) / "db.sqlite",
+    },
+    "search": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": Path(data_dir) / "search.sqlite",
+    },
+}
+
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {"console": {"level": "DEBUG", "class": "logging.StreamHandler"}},
+    "loggers": {
+        "": {"handlers": ["console"], "level": "DEBUG", "propagate": True},
     },
 }

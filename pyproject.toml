@@ -5,17 +5,12 @@ description = "RSS bot for Discord"
 authors = ["Joakim Hellsén <tlovinator@gmail.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.10"
-apscheduler = "^3.10.4"
-beautifulsoup4 = "^4.12.3"
+python = "^3.12"
 discord-webhook = "^1.3.1"
 django = "^5.0.4"
-httpx = "^0.27.0"
-lxml = "^4.9.4"
 platformdirs = "^3.11.0"
 python-dotenv = "^1.0.1"
 reader = "^3.12"
-tomlkit = "^0.12.0"
 uvicorn = { extras = ["standard"], version = "^0.29.0" }
 
 [tool.poetry.group.dev.dependencies]
@@ -23,9 +18,7 @@ djlint = "^1.34.1"
 
 [build-system]
 build-backend = "poetry.core.masonry.api"
-requires = [
-  "poetry-core",
-]
+requires = ["poetry-core"]
 
 [tool.ruff]
 exclude = ["migrations"]
@@ -35,19 +28,19 @@ preview = true
 line-length = 120
 lint.select = ["ALL"]
 lint.ignore = [
-    "CPY001",  # Missing copyright notice at top of file
-    "ERA001",  # Found commented-out code
-    "FIX002",  # Line contains TODO
-    "D100",    # Checks for undocumented public module definitions.
-    "D101",    # Checks for undocumented public class definitions.
-    "D102",    # Checks for undocumented public method definitions.
-    "D104",    # Missing docstring in public package.
-    "D105",    # Missing docstring in magic method.
-    "D106",    # Checks for undocumented public class definitions, for nested classes.
-    "COM812",  # Checks for the absence of trailing commas.
-    "ISC001",  # Checks for implicitly concatenated strings on a single line.
-    "PLR6301", # Checks for the presence of unused self parameter in methods definitions.
-    "ARG001",  # Checks for the presence of unused arguments in function definitions.
+  "CPY001",  # Missing copyright notice at top of file
+  "ERA001",  # Found commented-out code
+  "FIX002",  # Line contains TODO
+  "D100",    # Checks for undocumented public module definitions.
+  "D101",    # Checks for undocumented public class definitions.
+  "D102",    # Checks for undocumented public method definitions.
+  "D104",    # Missing docstring in public package.
+  "D105",    # Missing docstring in magic method.
+  "D106",    # Checks for undocumented public class definitions, for nested classes.
+  "COM812",  # Checks for the absence of trailing commas.
+  "ISC001",  # Checks for implicitly concatenated strings on a single line.
+  "PLR6301", # Checks for the presence of unused self parameter in methods definitions.
+  "ARG001",  # Checks for the presence of unused arguments in function definitions.
 ]
 
 [tool.ruff.lint.pydocstyle]
@@ -55,12 +48,12 @@ convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
 "**/tests.py" = [
-    "S101",    # Allow asserts
-    "ARG",     # Allow unused arguments
-    "FBT",     # Don't care about booleans as positional arguments in tests, e.g. via @pytest.mark.parametrize()
-    "PLR2004", # Allow "assert response.status_code == 200" when testing views
-    "D102",    # Allow missing docstrings in tests
-    "PLR6301", # Checks for the presence of unused self parameter in methods definitions.
+  "S101",    # Allow asserts
+  "ARG",     # Allow unused arguments
+  "FBT",     # Don't care about booleans as positional arguments in tests, e.g. via @pytest.mark.parametrize()
+  "PLR2004", # Allow "assert response.status_code == 200" when testing views
+  "D102",    # Allow missing docstrings in tests
+  "PLR6301", # Checks for the presence of unused self parameter in methods definitions.
 ]
 
 [tool.djlint]
