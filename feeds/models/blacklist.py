@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import typing
-
 from django.db import models
 
 
@@ -13,13 +11,8 @@ class Blacklist(models.Model):
 
     url = models.TextField(primary_key=True)
 
-    class Meta:
-        ordering: typing.ClassVar[list] = ["url"]
-        verbose_name: str = "Blacklist"
-        verbose_name_plural: str = "Blacklist"
-
     def __str__(self: Blacklist) -> str:
-        return self.url
+        return f"{self.url}"
 
 
 class BlacklistTitle(models.Model):
@@ -28,16 +21,11 @@ class BlacklistTitle(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    blacklist = models.ForeignKey("Blacklist", on_delete=models.CASCADE)
+    blacklist = models.ForeignKey(Blacklist, on_delete=models.CASCADE)
     title = models.TextField(primary_key=True)
 
-    class Meta:
-        ordering: typing.ClassVar[list] = ["title"]
-        verbose_name: str = "Blacklist Title"
-        verbose_name_plural: str = "Blacklist Titles"
-
     def __str__(self: BlacklistTitle) -> str:
-        return self.title
+        return f"{self.blacklist.url} - {self.title}"
 
 
 class BlacklistSummary(models.Model):
@@ -46,16 +34,11 @@ class BlacklistSummary(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    blacklist = models.ForeignKey("Blacklist", on_delete=models.CASCADE)
+    blacklist = models.ForeignKey(Blacklist, on_delete=models.CASCADE)
     summary = models.TextField(primary_key=True)
 
-    class Meta:
-        ordering: typing.ClassVar[list] = ["summary"]
-        verbose_name: str = "Blacklist Summary"
-        verbose_name_plural: str = "Blacklist Summaries"
-
     def __str__(self: BlacklistSummary) -> str:
-        return self.summary
+        return f"{self.blacklist.url} - {self.summary}"
 
 
 class BlacklistContent(models.Model):
@@ -64,16 +47,11 @@ class BlacklistContent(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    blacklist = models.ForeignKey("Blacklist", on_delete=models.CASCADE)
+    blacklist = models.ForeignKey(Blacklist, on_delete=models.CASCADE)
     content = models.TextField(primary_key=True)
 
-    class Meta:
-        ordering: typing.ClassVar[list] = ["content"]
-        verbose_name: str = "Blacklist Content"
-        verbose_name_plural: str = "Blacklist Contents"
-
     def __str__(self: BlacklistContent) -> str:
-        return self.content
+        return f"{self.blacklist.url} - {self.content}"
 
 
 class BlacklistAuthor(models.Model):
@@ -82,13 +60,8 @@ class BlacklistAuthor(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    blacklist = models.ForeignKey("Blacklist", on_delete=models.CASCADE)
+    blacklist = models.ForeignKey(Blacklist, on_delete=models.CASCADE)
     author = models.TextField(primary_key=True)
 
-    class Meta:
-        ordering: typing.ClassVar[list] = ["author"]
-        verbose_name: str = "Blacklist Author"
-        verbose_name_plural: str = "Blacklist Authors"
-
     def __str__(self: BlacklistAuthor) -> str:
-        return self.author
+        return f"{self.blacklist.url} - {self.author}"

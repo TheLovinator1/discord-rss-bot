@@ -1,13 +1,11 @@
-from __future__ import annotations
+"""For reading the db from https://github.com/lemon24/reader."""
 
-import typing
+from __future__ import annotations
 
 from django.db import models
 
 
 class LemonFeed(models.Model):
-    """For reading the db from https://github.com/lemon24/reader."""
-
     url = models.TextField()
     title = models.TextField()
     link = models.TextField()
@@ -28,17 +26,12 @@ class LemonFeed(models.Model):
     class Meta:
         db_table: str = "feeds"
         managed = False
-        ordering: typing.ClassVar[list] = ["-last_updated"]
-        verbose_name: str = "Feed"
-        verbose_name_plural: str = "Feeds"
 
     def __str__(self) -> str:
-        return self.title
+        return f"{self.title} - {self.url}"
 
 
 class LemonEntry(models.Model):
-    """For reading the db from https://github.com/lemon24/reader."""
-
     id = models.TextField(primary_key=True)
     feed = models.TextField()
     title = models.TextField()
@@ -67,12 +60,9 @@ class LemonEntry(models.Model):
     class Meta:
         db_table: str = "entries"
         managed = False
-        ordering: typing.ClassVar[list] = ["-updated"]
-        verbose_name: str = "Entry"
-        verbose_name_plural: str = "Entries"
 
     def __str__(self) -> str:
-        return self.title
+        return f"{self.title} - {self.link}"
 
 
 class LemonFeedTags(models.Model):
@@ -83,7 +73,6 @@ class LemonFeedTags(models.Model):
     class Meta:
         db_table: str = "feed_tags"
         managed = False
-        ordering: typing.ClassVar[list] = ["feed", "key"]
 
     def __str__(self) -> str:
         return f"{self.feed} - {self.key}: {self.value}"
@@ -96,7 +85,6 @@ class LemonGlobalTags(models.Model):
     class Meta:
         db_table: str = "global_tags"
         managed = False
-        ordering: typing.ClassVar[list] = ["key"]
 
     def __str__(self) -> str:
         return f"{self.key}: {self.value}"

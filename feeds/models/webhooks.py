@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import typing
-
 from django.db import models
 
 
@@ -16,13 +14,8 @@ class Webhook(models.Model):
 
     is_deleted = models.BooleanField(default=False)
 
-    class Meta:
-        ordering: typing.ClassVar[list] = ["name"]
-        verbose_name: str = "Webhook"
-        verbose_name_plural: str = "Webhooks"
-
     def __str__(self: Webhook) -> str:
-        return self.name
+        return f"{self.name=}, {self.url=} ({self.is_deleted=}) ({self.created_at=}) ({self.updated_at=})"
 
     def delete(self, using=None, keep_parents=False) -> None:  # type: ignore # noqa: ANN001, FBT002, ARG002, PGH003
         self.is_deleted = True
