@@ -5,20 +5,9 @@
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         {% block title %}<title>rss-bot</title>{% endblock %}
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
-              rel="stylesheet"
-              integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
-              crossorigin="anonymous">
-        <style>
-            .card-body {
-                overflow: auto;
-            }
-
-            .card-body img {
-                max-width: 100%;
-                height: auto;
-            }
-        </style>
+        <link href="{% static 'bootstrap.min.css' %}" rel="stylesheet">
+        <link href="{% static 'style.css' %}" rel="stylesheet">
+        <link href="{% static 'favicon.ico' %}" rel="icon">
     </head>
     <body>
         {% include "navbar.html" %}
@@ -36,9 +25,7 @@
             <main>
                 {% block content %}<!-- default content -->{% endblock %}
             </main>
-            <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
-                    integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
-                    crossorigin="anonymous"></script>
+            <script src="{% static 'bootstrap.min.js' %}"></script>
         </div>
     </body>
 </html>

@@ -15,13 +15,14 @@ logger.info("Data is stored in %s", DATA_DIR)
 
 BASE_DIR: Path = Path(__file__).resolve().parent.parent
 SECRET_KEY: str = os.environ.get("SECRET_KEY", os.urandom(24).hex())
-DEBUG: bool = os.environ.get("DEBUG", "False").lower() == "true"
+DEBUG: bool = True
 ALLOWED_HOSTS: list[str] = ["*"]
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
 STATIC_URL = "static/"
+STATICFILES_DIRS: list[Path] = [BASE_DIR / "static"]
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 ROOT_URLCONF = "discord_rss_bot.urls"
 WSGI_APPLICATION = "discord_rss_bot.wsgi.application"

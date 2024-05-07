@@ -1,0 +1,8 @@
+.card-body {
+    overflow: auto;
+}
+
+.card-body img {
+    max-width: 100%;
+    height: auto;
+}
