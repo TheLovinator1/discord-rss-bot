@@ -1,77 +1,114 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from urllib.parse import quote, unquote
 
+from django.contrib import messages
+from django.core.paginator import Page, Paginator
+from django.db.models.manager import BaseManager
 from django.http import HttpResponse, HttpResponseRedirect
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 from django.views.generic.base import View
-from reader import Entry, EntrySearchCounts, FeedExistsError
+from reader.core import Reader
 
 from discord_rss_bot.reader import get_reader
+from feeds.forms import WebhookForm
 from feeds.models import LemonFeed, Webhook
 from feeds.models.blacklist import Blacklist
+from feeds.models.lemon import LemonEntry
 from feeds.models.message import MessageCustomization
 from feeds.models.whitelist import Whitelist
 from feeds.webhooks import send_entry_to_webhook
 
 if TYPE_CHECKING:
     from django.db.models.manager import BaseManager
+    from django.db.models.query import ValuesQuerySet
     from django.http import HttpRequest
-    from reader import Reader
+    from reader import Entry, EntrySearchCounts, Reader
 
 logger: logging.Logger = logging.getLogger(__name__)
 
 
-class FeedView(View):
-    def get(self: FeedView, request: HttpRequest, feed_url: str) -> HttpResponse:
-        feed_url = unquote(feed_url)
+def list_feeds(request: HttpRequest) -> HttpResponse:
+    """List all feeds."""
+    feed_url: str = request.GET.get("feed_url", "")
+    page_number: int = int(request.GET.get("page", 1))
+    if feed_url:
+        feed_url = unquote(feed_url).strip()
+        if not feed_url:
+            return redirect("/feeds/")
+
         feed: LemonFeed = get_object_or_404(LemonFeed, url=feed_url)
-        return render(request=request, template_name="feeds/feed.html", context={"feed": feed})
+        entries: BaseManager[LemonEntry] = LemonEntry.objects.filter(feed=feed.url)
+        total_amount: int = entries.count()
+        current_url: str = f"/feed/?feed_url={quote(feed.url)}"
 
-    def post(self: FeedView, request: HttpRequest, feed_url: str) -> HttpResponse | HttpResponseRedirect:
-        feed_url = unquote(feed_url)
-        reader: Reader = get_reader()
-        try:
-            reader.add_feed(feed_url)
-        except FeedExistsError:
-            return self.get(request, feed_url)
-        return HttpResponseRedirect("/")
+        paginator = Paginator(entries, 100)
+        page_entries: Page = paginator.get_page(page_number)
 
-    def delete(self: FeedView, request: HttpRequest, feed_url: str) -> HttpResponse:  # noqa: ARG002
-        feed_url = unquote(feed_url)
-        LemonFeed.objects.filter(url=feed_url).delete()
-        return HttpResponseRedirect("/")
+        return render(
+            request=request,
+            template_name="feed.html",
+            context={"feed": feed, "entries": page_entries, "total_amount": total_amount, "current_url": current_url},
+        )
+
+    feeds: ValuesQuerySet[LemonFeed, dict[str, Any]] = LemonFeed.objects.all().values(
+        "url",
+        "title",
+        "subtitle",
+        "last_exception",
+        "updated",
+    )
+    return render(request=request, template_name="feeds.html", context={"feeds": feeds})
 
 
-class WebhooksView(View):
-    def get(self: WebhooksView, request: HttpRequest) -> HttpResponse:
-        webhooks: BaseManager[Webhook] = Webhook.objects.all()
-        return render(request=request, template_name="feeds/webhooks.html", context={"webhooks": webhooks})
+@require_POST
+def delete_feed(request: HttpRequest) -> HttpResponse:
+    """Delete a feed."""
+    feed_url: str = request.POST.get("feed_url", "")
+    if not feed_url:
+        return redirect("/feeds/")
 
-    def post(self: WebhooksView, request: HttpRequest) -> HttpResponse:
-        webhook_name: str | None = request.POST.get("webhook_name")
-        if webhook_name is None:
-            return self.get(request)
+    feed_url = unquote(feed_url).strip()
 
-        webhook_url: str | None = request.POST.get("webhook_url")
-        if webhook_url is None:
-            return self.get(request)
+    reader: Reader = get_reader()
+    reader.delete_feed(feed_url)
+    messages.success(request, "Feed deleted successfully.")
+    return redirect("/feeds/")
 
-        webhook_name = webhook_name.strip()
-        webhook_url = webhook_url.strip()
 
-        Webhook.objects.update_or_create(name=webhook_name, url=webhook_url)
-        return self.get(request)
+def webhooks_view(request: HttpRequest) -> HttpResponse:
+    """This is the view for the webhooks page."""
+    if request.method == "POST":
+        form = WebhookForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect("/webhooks/")
+    else:
+        form = WebhookForm()
 
-    def delete(self: WebhooksView, request: HttpRequest) -> HttpResponse:
-        webhook_url: str | None = request.POST.get("webhook_url")
-        if webhook_url is None:
-            return self.get(request)
+    context: dict[str, WebhookForm | BaseManager[Webhook]] = {
+        "form": form,
+        "webhooks": Webhook.objects.all().filter(is_deleted=False),
+        "deleted_webhooks": Webhook.objects.all().filter(is_deleted=True),
+    }
+    return render(request, "webhooks.html", context)
 
-        Webhook.objects.filter(url=webhook_url).delete()
-        return self.get(request)
+
+def delete_webhook(request: HttpRequest, webhook_id: str) -> HttpResponse:
+    """This is the view for deleting a webhook."""
+    Webhook.objects.get(pk=webhook_id).delete()
+    messages.success(request, "Webhook deleted successfully.")
+    return redirect("/webhooks/")
+
+
+def undelete_webhook(request: HttpRequest, webhook_id: str) -> HttpResponse:
+    """This is the view for undeleting a webhook."""
+    Webhook.objects.get(pk=webhook_id).undelete()
+    messages.success(request, "Webhook undeleted successfully.")
+    return redirect("/webhooks/")
 
 
 class PauseView(View):
@@ -166,7 +203,7 @@ class CustomMessageView(View):
 
 class SearchView(View):
     def get(self: SearchView, request: HttpRequest) -> HttpResponse:
-        return render(request=request, template_name="feeds/search.html")
+        return render(request=request, template_name="search.html")
 
     def post(self: SearchView, request: HttpRequest) -> HttpResponse:
         reader: Reader = get_reader()
@@ -175,14 +212,14 @@ class SearchView(View):
         search_query: str = request.POST.get("search_query", "")
         if not search_query:
             # TODO(TheLovinator): Show all feeds  # noqa: TD003
-            return render(request=request, template_name="feeds/search.html")
+            return render(request=request, template_name="search.html")
 
         search_amount: EntrySearchCounts = reader.search_entry_counts(search_query)
         if search_amount == 0:
-            return render(request=request, template_name="feeds/search.html", context={"no_results": True})
+            return render(request=request, template_name="search.html", context={"no_results": True})
 
         feeds = list(reader.search_entries(search_query))
-        return render(request=request, template_name="feeds/search.html", context={"feeds": feeds})
+        return render(request=request, template_name="search.html", context={"feeds": feeds})
 
 
 class SendPostToDiscordView(View):
@@ -207,3 +244,13 @@ class SendPostToDiscordView(View):
 
         response: str = send_entry_to_webhook(entry=entry, webhook_url=webhook_url)
         return HttpResponse(content=response)
+
+
+def get_index_view(request: HttpRequest) -> HttpResponse:
+    """Get home page."""
+    return render(request=request, template_name="index.html")
+
+
+def get_add_view(request: HttpRequest) -> HttpResponse:
+    """Add a feed."""
+    return render(request=request, template_name="add.html")

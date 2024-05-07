@@ -20,7 +20,7 @@ def get_reader(custom_location: Path | None = None) -> Reader:
     Returns:
         The reader.
     """
-    data_dir = settings.data_dir
+    data_dir = settings.DATA_DIR
     if not data_dir:
         msg = "Failed to get data directory from Django settings."
         raise ValueError(msg)

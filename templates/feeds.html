@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load quote_filter %}
+{% load parse_json_filter %}
+{% block title %}<title>rss-bot</title>{% endblock %}
+{% block content %}
+    <h1>Feeds</h1>
+    <p>Here are the current feeds:</p>
+    {% if feeds %}
+        <ul>
+            {% for feed in feeds %}
+                <div class="row row-cols-1 row-cols-md-3 g-4">
+                    <div class="col">
+                        <div class="card h-100">
+                            <div class="card-body
+                                        {% if feed.last_exception %}bg-danger text-white{% endif %}">
+                                <h5 class="card-title">
+                                    <a href="{% url 'feeds' %}?feed_url={{ feed.url|urlencode }}">{{ feed.title|default:feed.url }}</a>
+                                </h5>
+                                <p class="card-text">
+                                    {% if feed.subtitle %}{{ feed.subtitle|safe }}{% endif %}
+                                    <br />
+                                    {% if feed.last_exception %}
+                                        {% with exception=feed.last_exception|parse_json %}
+                                            <br />
+                                            {{ exception.value_str }}
+                                            <details>
+                                                <summary>Traceback</summary>
+                                                {{ exception.traceback_str|safe }}
+                                            </details>
+                                        {% endwith %}
+                                    {% endif %}
+                                    <br />
+                                    {% if feed.updated %}
+                                        <span class="text-muted text-nowrap">Updated: {{ feed.updated|date:"Y-m-d H:i:s" }}</span>
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>No feeds found.</p>
+    {% endif %}
+{% endblock %}

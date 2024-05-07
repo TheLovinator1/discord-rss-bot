@@ -11,7 +11,7 @@ class MessageCustomization(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    custom_message = models.TextField(primary_key=True, default="{{entry_title}}\n{{entry_link}}")
+    custom_message = models.TextField(default="{{entry_title}}\n{{entry_link}}")
 
     should_be_embed = models.BooleanField(default=False)
     custom_embed_title = models.TextField(default="{{entry_title}}")

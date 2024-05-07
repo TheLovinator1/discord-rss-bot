@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import logging
+
 from django.db import models
+
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 class Webhook(models.Model):
@@ -9,8 +13,10 @@ class Webhook(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    name = models.TextField()
-    url = models.TextField()
+    name = models.TextField(help_text="The name of the webhook. This is used to identify the webhook.")
+    url = models.TextField(
+        help_text="The URL of the webhook. This is where the feed updates are sent to.",
+    )
 
     is_deleted = models.BooleanField(default=False)
 
@@ -18,5 +24,11 @@ class Webhook(models.Model):
         return f"{self.name=}, {self.url=} ({self.is_deleted=}) ({self.created_at=}) ({self.updated_at=})"
 
     def delete(self, using=None, keep_parents=False) -> None:  # type: ignore # noqa: ANN001, FBT002, ARG002, PGH003
+        logger.debug("Setting is_deleted to True for %s", self)
         self.is_deleted = True
         self.save(using=using)
+
+    def undelete(self) -> None:
+        logger.debug("Setting is_deleted to False for %s", self)
+        self.is_deleted = False
+        self.save()

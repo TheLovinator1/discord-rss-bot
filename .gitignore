@@ -135,3 +135,5 @@ dmypy.json
 
 *.pyi
 *.sqlite3
+discord_rss_bot_fast/
+tests_fast/

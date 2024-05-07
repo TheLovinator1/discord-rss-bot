@@ -2,11 +2,24 @@
 
 from __future__ import annotations
 
+import typing
+from typing import TYPE_CHECKING, Any
+
 from django.db import models
+
+if TYPE_CHECKING:
+    from django.db.models.query import QuerySet
+
+
+class LemonFeedManager(models.Manager):
+    """Use the reader database for this model."""
+
+    def get_queryset(self) -> QuerySet[Any]:
+        return super().get_queryset().using("reader")
 
 
 class LemonFeed(models.Model):
-    url = models.TextField()
+    url = models.TextField(primary_key=True)
     title = models.TextField()
     link = models.TextField()
     updated = models.TextField()
@@ -23,7 +36,10 @@ class LemonFeed(models.Model):
     added = models.TextField()
     last_exception = models.TextField()
 
+    objects = LemonFeedManager()
+
     class Meta:
+        ordering: typing.ClassVar[list[str]] = ["title"]
         db_table: str = "feeds"
         managed = False
 
@@ -57,7 +73,10 @@ class LemonEntry(models.Model):
     recent_sort = models.TextField()
     sequence = models.TextField()
 
+    objects = LemonFeedManager()
+
     class Meta:
+        ordering: typing.ClassVar[list[str]] = ["-read_modified"]
         db_table: str = "entries"
         managed = False
 
@@ -70,6 +89,8 @@ class LemonFeedTags(models.Model):
     key = models.TextField()
     value = models.TextField()
 
+    objects = LemonFeedManager()
+
     class Meta:
         db_table: str = "feed_tags"
         managed = False
@@ -81,6 +102,8 @@ class LemonFeedTags(models.Model):
 class LemonGlobalTags(models.Model):
     key = models.TextField()
     value = models.TextField()
+
+    objects = LemonFeedManager()
 
     class Meta:
         db_table: str = "global_tags"

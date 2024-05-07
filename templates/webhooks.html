@@ -1,61 +1,35 @@
 {% extends "base.html" %}
-{% block title %}
-    | Webhooks
-{% endblock title %}
+{% load crispy_forms_tags %}
+{% block title %}<title>Add webhook</title>{% endblock %}
 {% block content %}
-    {# List all available webhooks #}
-    <h3>Available webhooks</h3>
-    <ul class="list-inline">
-        <a class="btn btn-primary" href="/add_webhook">Add new</a>
-        <br />
-        {% for hook in hooks_with_data %}
-            <div class="p-2 border border-dark text-muted">
-                {% if hook.avatar is not none %}
-                    <img src="https://cdn.discordapp.com/avatars/{{ hook.id }}/{{ hook.avatar }}.webp"
-                         class="img-thumbnail"
-                         height="128"
-                         width="128"
-                         alt="Webhook avatar" />
-                {% else %}
-                    <img src="https://cdn.discordapp.com/embed/avatars/{{ hook.avatar_mod }}.png"
-                         class="img-thumbnail"
-                         height="128"
-                         width="128"
-                         alt="Default Discord avatar" />
-                {% endif %}
-                <h3>{{ hook.custom_name }}</h3>
-                <li>
-                    <strong>Name</strong>: {{ hook.name }}
-                </li>
-                <li>
-                    <strong>Webhook URL</strong>: <a class="text-muted" href="{{ hook.url }}">{{ hook.url }}</a>
-                </li>
-                <br />
-                <form action="/modify_webhook" method="post">
-                    <input type="hidden" name="old_hook" value="{{- hook.url -}}" />
-                    <div class="row pb-2">
-                        <label for="new_hook" class="col-sm-1 col-form-label">Modify webhook</label>
-                        <div class="col-sm-9">
-                            <input name="new_hook"
-                                   type="text"
-                                   class="form-control bg-dark border-dark text-muted"
-                                   id="new_hook" />
-                        </div>
-                        <button type="submit" class="btn btn-primary col-sm-1 ">Modify</button>
-                        <div class="form-text">
-                            You can append ?thread_id=THREAD_ID to the end
-                            of the URL to send messages to a thread. You can get
-                            the thread ID by right-clicking on the thread and
-                            Copy Thread ID.
-                        </div>
-                    </div>
-                </form>
-                <form action="/delete_webhook" method="post">
-                    <input type="hidden" name="webhook_url" value="{{- hook.url -}}" />
-                    <button type="submit" class="btn btn-danger">Delete</button>
-                </form>
-            </div>
+    <h1>Add webhook</h1>
+    {% crispy form %}
+    <h2>Current webhooks</h2>
+    <p>Here are the current webhooks:</p>
+    {% if webhooks|length == 0 %}<p>No webhooks found.</p>{% endif %}
+    {% for webhook in webhooks %}
+        <p>
+            Name: {{ webhook.name }}
             <br />
-        {% endfor %}
-    </ul>
-{% endblock content %}
+            URL: {{ webhook.url }}
+            <form action="{% url 'delete_webhook' webhook.pk %}" method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-danger">Delete {{ webhook.name|default:"webhook" }}</button>
+            </form>
+        </p>
+    {% endfor %}
+    <h2>Deleted webhooks</h2>
+    <p>Here are the deleted webhooks:</p>
+    {% if deleted_webhooks|length == 0 %}<p>No deleted webhooks found.</p>{% endif %}
+    {% for webhook in deleted_webhooks %}
+        <p>
+            Name: {{ webhook.name }}
+            <br />
+            URL: {{ webhook.url }}
+            <form action="{% url 'undelete_webhook' webhook.pk %}" method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-success">Undelete {{ webhook.name|default:"webhook" }}</button>
+            </form>
+        </p>
+    {% endfor %}
+{% endblock %}
