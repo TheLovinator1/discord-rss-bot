@@ -12,7 +12,6 @@ logger: logging.Logger = logging.getLogger("discord_rss_bot")
 DATA_DIR: str = user_data_dir(appname="discord_rss_bot", appauthor="TheLovinator", roaming=True, ensure_exists=True)
 logger.info("Data is stored in %s", DATA_DIR)
 
-
 BASE_DIR: Path = Path(__file__).resolve().parent.parent
 SECRET_KEY: str = os.environ.get("SECRET_KEY", os.urandom(24).hex())
 DEBUG: bool = True
