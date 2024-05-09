@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import auto_prefetch
 from django.db import models
 
 
-class Whitelist(models.Model):
+class Whitelist(auto_prefetch.Model):
     """For whitelisting feeds.
 
     It has a one-to-many relationship with WhitelistTitle, WhitelistAuthor, WhitelistSummary, and WhitelistContent.
@@ -18,7 +19,7 @@ class Whitelist(models.Model):
         return f"{self.url}"
 
 
-class WhitelistTitle(models.Model):
+class WhitelistTitle(auto_prefetch.Model):
     """For whitelisting feed titles."""
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -31,7 +32,7 @@ class WhitelistTitle(models.Model):
         return self.title
 
 
-class WhitelistAuthor(models.Model):
+class WhitelistAuthor(auto_prefetch.Model):
     """For whitelisting feed authors."""
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -44,7 +45,7 @@ class WhitelistAuthor(models.Model):
         return f"{self.whitelist.url} - {self.author}"
 
 
-class WhitelistSummary(models.Model):
+class WhitelistSummary(auto_prefetch.Model):
     """For whitelisting feed summaries."""
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -57,7 +58,7 @@ class WhitelistSummary(models.Model):
         return f"{self.whitelist.url} - {self.summary}"
 
 
-class WhitelistContent(models.Model):
+class WhitelistContent(auto_prefetch.Model):
     """For whitelisting feed content."""
 
     created_at = models.DateTimeField(auto_now_add=True)

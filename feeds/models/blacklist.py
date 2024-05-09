@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import auto_prefetch
 from django.db import models
 
 
-class Blacklist(models.Model):
+class Blacklist(auto_prefetch.Model):
     """For blacklisting feeds."""
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -15,52 +16,52 @@ class Blacklist(models.Model):
         return f"{self.url}"
 
 
-class BlacklistTitle(models.Model):
+class BlacklistTitle(auto_prefetch.Model):
     """For blacklisting feed titles."""
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    blacklist = models.ForeignKey(Blacklist, on_delete=models.CASCADE)
+    blacklist = auto_prefetch.ForeignKey(Blacklist, on_delete=models.CASCADE)
     title = models.TextField(primary_key=True)
 
     def __str__(self: BlacklistTitle) -> str:
         return f"{self.blacklist.url} - {self.title}"
 
 
-class BlacklistSummary(models.Model):
+class BlacklistSummary(auto_prefetch.Model):
     """For blacklisting feed summaries."""
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    blacklist = models.ForeignKey(Blacklist, on_delete=models.CASCADE)
+    blacklist = auto_prefetch.ForeignKey(Blacklist, on_delete=models.CASCADE)
     summary = models.TextField(primary_key=True)
 
     def __str__(self: BlacklistSummary) -> str:
         return f"{self.blacklist.url} - {self.summary}"
 
 
-class BlacklistContent(models.Model):
+class BlacklistContent(auto_prefetch.Model):
     """For blacklisting feed content."""
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    blacklist = models.ForeignKey(Blacklist, on_delete=models.CASCADE)
+    blacklist = auto_prefetch.ForeignKey(Blacklist, on_delete=models.CASCADE)
     content = models.TextField(primary_key=True)
 
     def __str__(self: BlacklistContent) -> str:
         return f"{self.blacklist.url} - {self.content}"
 
 
-class BlacklistAuthor(models.Model):
+class BlacklistAuthor(auto_prefetch.Model):
     """For blacklisting feed authors."""
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    blacklist = models.ForeignKey(Blacklist, on_delete=models.CASCADE)
+    blacklist = auto_prefetch.ForeignKey(Blacklist, on_delete=models.CASCADE)
     author = models.TextField(primary_key=True)
 
     def __str__(self: BlacklistAuthor) -> str:

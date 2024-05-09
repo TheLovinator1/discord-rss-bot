@@ -261,6 +261,20 @@ argon2 = ["argon2-cffi (>=19.1.0)"]
 bcrypt = ["bcrypt"]
 
 [[package]]
+name = "django-auto-prefetch"
+version = "1.8.0"
+description = "Automatically prefetch foreign key values as needed."
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "django_auto_prefetch-1.8.0-py3-none-any.whl", hash = "sha256:46a45a1cadae6d82d0b83294b0195203d514d6d65f24b10a163b3cd70bb84dc1"},
+    {file = "django_auto_prefetch-1.8.0.tar.gz", hash = "sha256:f466d4d512885c929e24362104e76f02547bacde0d9eab9b8ef8fd4a2a24a960"},
+]
+
+[package.dependencies]
+Django = ">=3.2"
+
+[[package]]
 name = "django-crispy-forms"
 version = "2.1"
 description = "Best way to have Django DRY forms"
@@ -1314,4 +1328,4 @@ watchdog = ["watchdog (>=2.3)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "8a5b61aeb9dcd091647db69cf333834d0b7f3c3877e8902ea7cafec814cef35b"
+content-hash = "9fad0d434dc7d8484e4dbbbdd0548a329d28084885388ff114e3232d68c9fc9d"

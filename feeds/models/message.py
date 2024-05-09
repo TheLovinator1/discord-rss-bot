@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import auto_prefetch
 from django.db import models
 
 
-class MessageCustomization(models.Model):
+class MessageCustomization(auto_prefetch.Model):
     """For customizing the message sent to the webhooks."""
 
     feed_url = models.TextField(primary_key=True)

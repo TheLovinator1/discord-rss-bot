@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import logging
 
+import auto_prefetch
 from django.db import models
 
 logger: logging.Logger = logging.getLogger(__name__)
 
 
-class Webhook(models.Model):
+class Webhook(auto_prefetch.Model):
     """Where we send the feed updates to."""
 
     created_at = models.DateTimeField(auto_now_add=True)

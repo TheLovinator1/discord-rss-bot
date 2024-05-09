@@ -5,6 +5,7 @@ from __future__ import annotations
 import typing
 from typing import TYPE_CHECKING, Any
 
+import auto_prefetch
 from django.db import models
 
 if TYPE_CHECKING:
@@ -18,7 +19,7 @@ class LemonFeedManager(models.Manager):
         return super().get_queryset().using("reader")
 
 
-class LemonFeed(models.Model):
+class LemonFeed(auto_prefetch.Model):
     url = models.TextField(primary_key=True)
     title = models.TextField()
     link = models.TextField()
@@ -38,7 +39,7 @@ class LemonFeed(models.Model):
 
     objects = LemonFeedManager()
 
-    class Meta:
+    class Meta(auto_prefetch.Model.Meta):
         ordering: typing.ClassVar[list[str]] = ["title"]
         db_table: str = "feeds"
         managed = False
@@ -47,7 +48,7 @@ class LemonFeed(models.Model):
         return f"{self.title} - {self.url}"
 
 
-class LemonEntry(models.Model):
+class LemonEntry(auto_prefetch.Model):
     id = models.TextField(primary_key=True)
     feed = models.TextField()
     title = models.TextField()
@@ -75,7 +76,7 @@ class LemonEntry(models.Model):
 
     objects = LemonFeedManager()
 
-    class Meta:
+    class Meta(auto_prefetch.Model.Meta):
         ordering: typing.ClassVar[list[str]] = ["-read_modified"]
         db_table: str = "entries"
         managed = False
@@ -84,14 +85,14 @@ class LemonEntry(models.Model):
         return f"{self.title} - {self.link}"
 
 
-class LemonFeedTags(models.Model):
+class LemonFeedTags(auto_prefetch.Model):
     feed = models.TextField()
     key = models.TextField()
     value = models.TextField()
 
     objects = LemonFeedManager()
 
-    class Meta:
+    class Meta(auto_prefetch.Model.Meta):
         db_table: str = "feed_tags"
         managed = False
 
@@ -99,13 +100,13 @@ class LemonFeedTags(models.Model):
         return f"{self.feed} - {self.key}: {self.value}"
 
 
-class LemonGlobalTags(models.Model):
+class LemonGlobalTags(auto_prefetch.Model):
     key = models.TextField()
     value = models.TextField()
 
     objects = LemonFeedManager()
 
-    class Meta:
+    class Meta(auto_prefetch.Model.Meta):
         db_table: str = "global_tags"
         managed = False
 
