@@ -1,13 +1,6 @@
 default_language_version:
   python: python3.12
 repos:
-  # Apply a consistent format to pyproject.toml files.
-  # https://pyproject-fmt.readthedocs.io/en/latest/
-  - repo: https://github.com/tox-dev/pyproject-fmt
-    rev: "1.8.0"
-    hooks:
-      - id: pyproject-fmt
-
   # Automatically add trailing commas to calls and literals.
   - repo: https://github.com/asottile/add-trailing-comma
     rev: v3.1.0
@@ -40,7 +33,7 @@ repos:
 
   # Automatically upgrade your Django project code
   - repo: https://github.com/adamchainz/django-upgrade
-    rev: "1.16.0"
+    rev: "1.17.0"
     hooks:
       - id: django-upgrade
         args: [--target-version, "5.0"]
@@ -54,7 +47,7 @@ repos:
 
   # An extremely fast Python linter and formatter.
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.3
+    rev: v0.4.4
     hooks:
       - id: ruff-format
       - id: ruff
@@ -62,6 +55,6 @@ repos:
 
   # Static checker for GitHub Actions workflow files.
   - repo: https://github.com/rhysd/actionlint
-    rev: v1.6.27
+    rev: v1.7.0
     hooks:
       - id: actionlint
