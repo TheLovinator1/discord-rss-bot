@@ -25,7 +25,7 @@ class WhitelistTitle(auto_prefetch.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    whitelist = models.ForeignKey(Whitelist, on_delete=models.CASCADE)
+    whitelist = auto_prefetch.ForeignKey(Whitelist, on_delete=models.CASCADE)
     title = models.TextField(primary_key=True)
 
     def __str__(self: WhitelistTitle) -> str:
@@ -38,7 +38,7 @@ class WhitelistAuthor(auto_prefetch.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    whitelist = models.ForeignKey(Whitelist, on_delete=models.CASCADE)
+    whitelist = auto_prefetch.ForeignKey(Whitelist, on_delete=models.CASCADE)
     author = models.TextField(primary_key=True)
 
     def __str__(self: WhitelistAuthor) -> str:
@@ -51,7 +51,7 @@ class WhitelistSummary(auto_prefetch.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    whitelist = models.ForeignKey(Whitelist, on_delete=models.CASCADE)
+    whitelist = auto_prefetch.ForeignKey(Whitelist, on_delete=models.CASCADE)
     summary = models.TextField(primary_key=True)
 
     def __str__(self: WhitelistSummary) -> str:
@@ -64,7 +64,7 @@ class WhitelistContent(auto_prefetch.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    whitelist = models.ForeignKey(Whitelist, on_delete=models.CASCADE)
+    whitelist = auto_prefetch.ForeignKey(Whitelist, on_delete=models.CASCADE)
     content = models.TextField(primary_key=True)
 
     def __str__(self: WhitelistContent) -> str:
