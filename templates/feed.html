@@ -9,29 +9,30 @@
     {% if entries %}
         <div class="row row-cols-1 row-cols-md-3 g-4">
             {% for item in entries %}
-                <div class="col">
+                <article class="col">
                     <div class="card h-100">
                         <div class="card-body">
                             <h5 class="card-title">
-                                <a href="{{ item.link }}">{{ item.title }}</a>
+                                <a href="{{ item.link }}">{{ item.title|default:'No title' }}</a>
                             </h5>
-                            <h6 class="card-subtitle mb-2 text-muted">{{ item.author }}</h6>
-                            <p class="card-text">{{ item.summary|safe }}</p>
+                            <h6 class="card-subtitle mb-2 text-muted">{{ item.author|default:'No author' }}</h6>
+                            <p class="card-text">{{ item.summary|safe|default:'No summary' }}</p>
                         </div>
                         <ul class="list-group list-group-flush">
-                            <li class="list-group-item">ID: {{ item.id }}</li>
+                            {% if item.content %}
+                                <li class="list-group-item">
+                                    <details>
+                                        <summary>Content</summary>
+                                        <p>{{ item.content }}</p>
+                                    </details>
+                                </li>
+                            {% endif %}
                             <li class="list-group-item">
-                                <details>
-                                    <summary>Content</summary>
-                                    <p>{{ item.content }}</p>
-                                </details>
-                            </li>
-                            <li class="list-group-item">
-                                Sent to Discord at {{ item.read_modified|date:"Y-m-d H:i:s" }} ({{ item.read_modified|timesince }} ago)
+                                <abbr title="Sent to Discord at {{ item.read_modified|date:'Y-m-d H:i:s' }}">{{ item.read_modified|timesince|default:'Not sent yet' }} ago</abbr>
                             </li>
                         </ul>
                     </div>
-                </div>
+                </article>
             {% endfor %}
         </div>
         <nav aria-label="Page navigation">
