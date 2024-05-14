@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}<title>Whitelist</title>{% endblock %}
+    {% block content %}
+        <form action="{% url 'whitelist' %}" method="post">
+            {% csrf_token %}
+            <p>
+                <label for="feed_url">RSS feed URL</label>
+                <input name="feed_url" type="text"  id="feed_url" />
+            </p>
+            <!-- Webhook dropdown -->
+            <p>
+                <label for="webhook_dropdown">Which webhook should we send entries to?</label>
+                <select id="webhook_dropdown" name="webhook_dropdown">
+                    <option selected>Choose webhook...</option>
+                    {% for hook in webhooks %}<option value="{{ hook.name }}">{{ hook.name }}</option>{% endfor %}
+                </select>
+            </p>
+            <p>
+                You can add more webhooks <a href="{% url 'webhooks' %}">here</a>.
+            </p>
+            <!-- Submit button -->
+            <p>
+                <button>Add feed</button>
+            </p>
+        </form>
+    {% endblock %}

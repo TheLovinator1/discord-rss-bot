@@ -1,32 +1,31 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from urllib.parse import quote, unquote
 
 from django.contrib import messages
 from django.core.paginator import Page, Paginator
 from django.db.models.manager import BaseManager
 from django.http import HttpResponse, HttpResponseRedirect
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 from django.views.generic.base import View
 from reader.core import Reader
+from reader.types import Entry
 
 from discord_rss_bot.reader import get_reader
 from feeds.forms import WebhookForm
-from feeds.models import LemonFeed, Webhook
+from feeds.models import Webhook
 from feeds.models.blacklist import Blacklist
-from feeds.models.lemon import LemonEntry
 from feeds.models.message import MessageCustomization
 from feeds.models.whitelist import Whitelist
 from feeds.webhooks import send_entry_to_webhook
 
 if TYPE_CHECKING:
     from django.db.models.manager import BaseManager
-    from django.db.models.query import ValuesQuerySet
     from django.http import HttpRequest
-    from reader import Entry, EntrySearchCounts, Reader
+    from reader import Entry, EntrySearchCounts, Feed, Reader
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -40,9 +39,13 @@ def list_feeds(request: HttpRequest) -> HttpResponse:
         if not feed_url:
             return redirect("/feeds/")
 
-        feed: LemonFeed = get_object_or_404(LemonFeed, url=feed_url)
-        entries: BaseManager[LemonEntry] = LemonEntry.objects.filter(feed=feed.url)
-        total_amount: int = entries.count()
+        reader: Reader = get_reader()
+        feed: Feed = reader.get_feed(feed_url)
+        if not feed:
+            return redirect("/feeds/")
+
+        entries = list(reader.get_entries(feed=feed))
+
         current_url: str = f"/feed/?feed_url={quote(feed.url)}"
 
         paginator = Paginator(entries, 100)
@@ -51,16 +54,10 @@ def list_feeds(request: HttpRequest) -> HttpResponse:
         return render(
             request=request,
             template_name="feed.html",
-            context={"feed": feed, "entries": page_entries, "total_amount": total_amount, "current_url": current_url},
+            context={"feed": feed, "entries": page_entries, "total_amount": len(entries), "current_url": current_url},
         )
 
-    feeds: ValuesQuerySet[LemonFeed, dict[str, Any]] = LemonFeed.objects.all().values(
-        "url",
-        "title",
-        "subtitle",
-        "last_exception",
-        "updated",
-    )
+    feeds = list(get_reader().get_feeds())
     return render(request=request, template_name="feeds.html", context={"feeds": feeds})
 
 
@@ -115,7 +112,8 @@ class PauseView(View):
     def post(self: PauseView, request: HttpRequest, feed_url: str) -> HttpResponse:  # noqa: ARG002
         feed_url = unquote(feed_url)
 
-        feed: LemonFeed = get_object_or_404(LemonFeed, url=feed_url)
+        reader = get_reader()
+        feed = reader.get_feed(feed_url)
 
         reader: Reader = get_reader()
         if feed.updates_enabled:

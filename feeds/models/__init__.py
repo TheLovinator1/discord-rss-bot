@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .blacklist import Blacklist, BlacklistContent, BlacklistSummary, BlacklistTitle
-from .lemon import LemonEntry, LemonFeed, LemonFeedTags, LemonGlobalTags
+from .feed import FeedInfo
 from .webhooks import Webhook
 from .whitelist import Whitelist, WhitelistContent, WhitelistSummary, WhitelistTitle
 
@@ -10,10 +10,7 @@ __all__: list[str] = [
     "BlacklistContent",
     "BlacklistSummary",
     "BlacklistTitle",
-    "LemonEntry",
-    "LemonFeed",
-    "LemonFeedTags",
-    "LemonGlobalTags",
+    "FeedInfo",
     "Webhook",
     "Whitelist",
     "WhitelistContent",

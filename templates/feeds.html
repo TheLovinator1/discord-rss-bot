@@ -8,7 +8,7 @@
     {% if feeds %}
         <ul>
             {% for feed in feeds %}
-                <div class="row row-cols-1 row-cols-md-3 g-4">
+                <div class="row row-cols-1 g-4">
                     <div class="col">
                         <div class="card h-100">
                             <div class="card-body
@@ -20,14 +20,12 @@
                                     {% if feed.subtitle %}{{ feed.subtitle|safe }}{% endif %}
                                     <br />
                                     {% if feed.last_exception %}
-                                        {% with exception=feed.last_exception|parse_json %}
-                                            <br />
-                                            {{ exception.value_str }}
-                                            <details>
-                                                <summary>Traceback</summary>
-                                                {{ exception.traceback_str|safe }}
-                                            </details>
-                                        {% endwith %}
+                                        <br />
+                                        {{ feed.last_exception.value_str }}
+                                        <details>
+                                            <summary>Traceback</summary>
+                                            {{ feed.last_exception.traceback_str|linebreaks }}
+                                        </details>
                                     {% endif %}
                                     <br />
                                     {% if feed.updated %}

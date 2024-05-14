@@ -11,22 +11,18 @@ class Whitelist(auto_prefetch.Model):
     """
 
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    url = models.TextField(primary_key=True)
+    feed_url = models.TextField(help_text="The URL of the feed to whitelist.")
 
     def __str__(self: Whitelist) -> str:
-        return f"{self.url}"
+        return f"{self.feed_url}"
 
 
 class WhitelistTitle(auto_prefetch.Model):
     """For whitelisting feed titles."""
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    whitelist = auto_prefetch.ForeignKey(Whitelist, on_delete=models.CASCADE)
-    title = models.TextField(primary_key=True)
+    whitelist = auto_prefetch.ForeignKey(Whitelist, on_delete=models.CASCADE, related_name="titles")
+    created_at = models.DateTimeField(auto_now_add=True, help_text="The time the title was added to the whitelist.")
+    title = models.TextField(help_text="Title to whitelist.")
 
     def __str__(self: WhitelistTitle) -> str:
         return self.title
@@ -35,37 +31,31 @@ class WhitelistTitle(auto_prefetch.Model):
 class WhitelistAuthor(auto_prefetch.Model):
     """For whitelisting feed authors."""
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    whitelist = auto_prefetch.ForeignKey(Whitelist, on_delete=models.CASCADE)
-    author = models.TextField(primary_key=True)
+    whitelist = auto_prefetch.ForeignKey(Whitelist, on_delete=models.CASCADE, related_name="authors")
+    created_at = models.DateTimeField(auto_now_add=True, help_text="The time the author was added to the whitelist.")
+    author = models.TextField(help_text="Author to whitelist.")
 
     def __str__(self: WhitelistAuthor) -> str:
-        return f"{self.whitelist.url} - {self.author}"
+        return f"{self.whitelist} - {self.author}"
 
 
 class WhitelistSummary(auto_prefetch.Model):
     """For whitelisting feed summaries."""
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    whitelist = auto_prefetch.ForeignKey(Whitelist, on_delete=models.CASCADE)
-    summary = models.TextField(primary_key=True)
+    whitelist = auto_prefetch.ForeignKey(Whitelist, on_delete=models.CASCADE, related_name="summaries")
+    created_at = models.DateTimeField(auto_now_add=True, help_text="The time the summary was added to the whitelist.")
+    summary = models.TextField(help_text="Summary to whitelist.")
 
     def __str__(self: WhitelistSummary) -> str:
-        return f"{self.whitelist.url} - {self.summary}"
+        return f"{self.whitelist} - {self.summary}"
 
 
 class WhitelistContent(auto_prefetch.Model):
     """For whitelisting feed content."""
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    whitelist = auto_prefetch.ForeignKey(Whitelist, on_delete=models.CASCADE)
-    content = models.TextField(primary_key=True)
+    whitelist = auto_prefetch.ForeignKey(Whitelist, on_delete=models.CASCADE, related_name="contents")
+    created_at = models.DateTimeField(auto_now_add=True, help_text="The time the content was added to the whitelist.")
+    content = models.TextField(help_text="Content to whitelist.")
 
     def __str__(self: WhitelistContent) -> str:
-        return f"{self.whitelist.url} - {self.content}"
+        return f"{self.whitelist} - {self.content}"

@@ -42,6 +42,7 @@ lint.ignore = [
   "D104",    # Missing docstring in public package.
   "D105",    # Missing docstring in magic method.
   "D106",    # Checks for undocumented public class definitions, for nested classes.
+  "DJ001",   # # Checks nullable string-based fields (like CharField and TextField) in Django models.
   "ERA001",  # Found commented-out code
   "FIX002",  # Line contains TODO
   "ISC001",  # Checks for implicitly concatenated strings on a single line.
