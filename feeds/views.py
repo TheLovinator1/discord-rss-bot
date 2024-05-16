@@ -11,8 +11,9 @@ from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 from django.views.generic.base import View
+from reader import SearchError
 from reader.core import Reader
-from reader.types import Entry
+from reader.types import Feed
 
 from discord_rss_bot.reader import get_reader
 from feeds.forms import WebhookForm
@@ -20,12 +21,11 @@ from feeds.models import Webhook
 from feeds.models.blacklist import Blacklist
 from feeds.models.message import MessageCustomization
 from feeds.models.whitelist import Whitelist
-from feeds.webhooks import send_entry_to_webhook
 
 if TYPE_CHECKING:
     from django.db.models.manager import BaseManager
     from django.http import HttpRequest
-    from reader import Entry, EntrySearchCounts, Feed, Reader
+    from reader import Feed, Reader
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -76,22 +76,37 @@ def delete_feed(request: HttpRequest) -> HttpResponse:
     return redirect("/feeds/")
 
 
-def webhooks_view(request: HttpRequest) -> HttpResponse:
-    """This is the view for the webhooks page."""
-    if request.method == "POST":
+class WebhookView(View):
+    def post(self: WebhookView, request: HttpRequest) -> HttpResponse:
         form = WebhookForm(request.POST)
         if form.is_valid():
             form.save()
             return redirect("/webhooks/")
-    else:
-        form = WebhookForm()
+        return HttpResponse(status=400)
 
-    context: dict[str, WebhookForm | BaseManager[Webhook]] = {
-        "form": form,
-        "webhooks": Webhook.objects.all().filter(is_deleted=False),
-        "deleted_webhooks": Webhook.objects.all().filter(is_deleted=True),
-    }
-    return render(request, "webhooks.html", context)
+    def get(self: WebhookView, request: HttpRequest) -> HttpResponse:
+        form = WebhookForm()
+        context: dict[str, WebhookForm | BaseManager[Webhook]] = {
+            "form": form,
+            "webhooks": Webhook.objects.all().filter(is_deleted=False),
+            "deleted_webhooks": Webhook.objects.all().filter(is_deleted=True),
+        }
+        return render(request, "webhooks.html", context)
+
+
+class ToggleWebhookView(View):
+    def get(self: ToggleWebhookView, request: HttpRequest) -> HttpResponse:
+        webhook_id: str | None = request.GET.get("webhook_id")
+        if not webhook_id:
+            return HttpResponse(status=400)
+
+        is_deleted: bool = Webhook.objects.get(pk=webhook_id).is_deleted
+        if is_deleted:
+            Webhook.objects.get(pk=webhook_id).undelete()
+        else:
+            Webhook.objects.get(pk=webhook_id).delete()
+
+        return redirect("/webhooks/")
 
 
 def delete_webhook(request: HttpRequest, webhook_id: str) -> HttpResponse:
@@ -205,50 +220,40 @@ class SearchView(View):
 
     def post(self: SearchView, request: HttpRequest) -> HttpResponse:
         reader: Reader = get_reader()
-        reader.update_search()
 
-        search_query: str = request.POST.get("search_query", "")
+        search_query: str = request.POST.get("search_query", default="")
         if not search_query:
             # TODO(TheLovinator): Show all feeds  # noqa: TD003
             return render(request=request, template_name="search.html")
 
-        search_amount: EntrySearchCounts = reader.search_entry_counts(search_query)
-        if search_amount == 0:
-            return render(request=request, template_name="search.html", context={"no_results": True})
+        # Enable search if it is not already enabled.
+        # Update the search index.
+        reader.enable_search()
+        reader.update_search()
 
-        feeds = list(reader.search_entries(search_query))
+        # Search for entries.
+        try:
+            feeds = list(reader.search_entries(search_query))
+        except SearchError as e:
+            return HttpResponse(status=500, content=str(e))
+
         return render(request=request, template_name="search.html", context={"feeds": feeds})
 
 
-class SendPostToDiscordView(View):
-    def post(self: SendPostToDiscordView, request: HttpRequest) -> HttpResponse:
-        entry_id: str | None = request.POST.get("entry_id")
-        entry_id = entry_id.strip() if entry_id else None
-        if not entry_id:
-            return HttpResponse(status=404, content="Entry ID not provided")
+class IndexView(View):
+    def get(self: IndexView, request: HttpRequest) -> HttpResponse:
+        return render(request=request, template_name="index.html")
 
-        webhook_name: str | None = request.POST.get("webhook_name")
-        webhook_name = webhook_name.strip() if webhook_name else None
-        if not webhook_name:
-            return HttpResponse(status=404, content="Webhook name not provided")
 
-        # Get the webhook URL from the webhook name
-        webhook_url: str | None = Webhook.objects.get(name=webhook_name).url
+class AddFeedView(View):
+    def post(self: AddFeedView, request: HttpRequest) -> HttpResponse:
+        feed_url: str | None = request.POST.get("feed_url")
+        if not feed_url:
+            return HttpResponse(status=400, content="Feed URL not provided")
 
         reader: Reader = get_reader()
-        entry: Entry | None = next((entry for entry in reader.get_entries() if entry.id == entry_id), None)
-        if entry is None:
-            return HttpResponse(status=404, content=f"Entry {entry_id} not found")
+        reader.add_feed(feed_url, exist_ok=True)
+        return HttpResponseRedirect("/feeds/")
 
-        response: str = send_entry_to_webhook(entry=entry, webhook_url=webhook_url)
-        return HttpResponse(content=response)
-
-
-def get_index_view(request: HttpRequest) -> HttpResponse:
-    """Get home page."""
-    return render(request=request, template_name="index.html")
-
-
-def get_add_view(request: HttpRequest) -> HttpResponse:
-    """Add a feed."""
-    return render(request=request, template_name="add.html")
+    def get(self: AddFeedView, request: HttpRequest) -> HttpResponse:
+        return render(request=request, template_name="add.html")

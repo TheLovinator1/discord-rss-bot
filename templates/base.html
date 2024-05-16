@@ -25,7 +25,8 @@
             <main>
                 {% block content %}<!-- default content -->{% endblock %}
             </main>
-            <script src="{% static 'bootstrap.min.js' %}"></script>
+            <script src="{% static 'bootstrap.min.js' %}" defer></script>
+            <script src="{% static 'htmx.min.js' %}" defer></script>
         </div>
     </body>
 </html>

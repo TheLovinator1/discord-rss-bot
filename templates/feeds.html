@@ -14,7 +14,7 @@
                             <div class="card-body
                                         {% if feed.last_exception %}bg-danger text-white{% endif %}">
                                 <h5 class="card-title">
-                                    <a href="{% url 'feeds' %}?feed_url={{ feed.url|urlencode }}">{{ feed.title|default:feed.url }}</a>
+                                    <a href="{% url 'list_feeds' %}?feed_url={{ feed.url|urlencode }}">{{ feed.title|default:feed.url }}</a>
                                 </h5>
                                 <p class="card-text">
                                     {% if feed.subtitle %}{{ feed.subtitle|safe }}{% endif %}

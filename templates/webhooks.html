@@ -12,8 +12,8 @@
             Name: {{ webhook.name }}
             <br />
             URL: {{ webhook.url }}
-            <form action="{% url 'delete_webhook' webhook.pk %}" method="post">
-                {% csrf_token %}
+            <form action="{% url 'toggle_webhook' %}">
+                <input type="hidden" name="webhook_id" value="{{ webhook.pk }}" />
                 <button type="submit" class="btn btn-danger">Delete {{ webhook.name|default:"webhook" }}</button>
             </form>
         </p>
@@ -26,8 +26,8 @@
             Name: {{ webhook.name }}
             <br />
             URL: {{ webhook.url }}
-            <form action="{% url 'undelete_webhook' webhook.pk %}" method="post">
-                {% csrf_token %}
+            <form action="{% url 'toggle_webhook' %}">
+                <input type="hidden" name="webhook_id" value="{{ webhook.pk }}" />
                 <button type="submit" class="btn btn-success">Undelete {{ webhook.name|default:"webhook" }}</button>
             </form>
         </p>

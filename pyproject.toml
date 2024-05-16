@@ -17,6 +17,7 @@ platformdirs = "^3.11.0"
 python-dotenv = "^1.0.1"
 reader = "^3.12"
 uvicorn = { extras = ["standard"], version = "^0.29.0" }
+django-htmx = "^1.17.3"
 
 [tool.poetry.group.dev.dependencies]
 djlint = "^1.34.1"
