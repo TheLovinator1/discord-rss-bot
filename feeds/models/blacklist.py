@@ -28,7 +28,7 @@ class BlacklistTitle(auto_prefetch.Model):
     title = models.TextField(help_text="Title to blacklist.")
 
     def __str__(self: BlacklistTitle) -> str:
-        return f"{self.blacklist.url} - {self.title}"
+        return f"{self.blacklist.feed_url} - {self.title}"
 
 
 class BlacklistSummary(auto_prefetch.Model):

@@ -8,28 +8,32 @@
     <p>Here are the current webhooks:</p>
     {% if webhooks|length == 0 %}<p>No webhooks found.</p>{% endif %}
     {% for webhook in webhooks %}
-        <p>
-            Name: {{ webhook.name }}
-            <br />
-            URL: {{ webhook.url }}
+        <div class="p-3">
+            <h5 class="mb-3">Webhook Details</h5>
+            <p class="mb-1">Name: {{ webhook.name }}</p>
+            <p class="mb-1">URL: {{ webhook.url }}</p>
             <form action="{% url 'toggle_webhook' %}">
                 <input type="hidden" name="webhook_id" value="{{ webhook.pk }}" />
-                <button type="submit" class="btn btn-danger">Delete {{ webhook.name|default:"webhook" }}</button>
+                <button type="submit" class="btn btn-danger mt-3">Delete {{ webhook.name|default:"Webhook" }}</button>
             </form>
-        </p>
+        </div>
     {% endfor %}
     <h2>Deleted webhooks</h2>
     <p>Here are the deleted webhooks:</p>
     {% if deleted_webhooks|length == 0 %}<p>No deleted webhooks found.</p>{% endif %}
     {% for webhook in deleted_webhooks %}
-        <p>
-            Name: {{ webhook.name }}
-            <br />
-            URL: {{ webhook.url }}
+        <div class="p-3">
+            <h5>Webhook Details</h5>
+            <p>
+                <strong>Name:</strong> {{ webhook.name }}
+            </p>
+            <p>
+                <strong>URL:</strong> {{ webhook.url }}
+            </p>
             <form action="{% url 'toggle_webhook' %}">
                 <input type="hidden" name="webhook_id" value="{{ webhook.pk }}" />
-                <button type="submit" class="btn btn-success">Undelete {{ webhook.name|default:"webhook" }}</button>
+                <button type="submit" class="btn btn-success mt-3">Undelete {{ webhook.name|default:"Webhook" }}</button>
             </form>
-        </p>
+        </div>
     {% endfor %}
 {% endblock %}
