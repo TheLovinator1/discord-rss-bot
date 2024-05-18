@@ -110,7 +110,7 @@ async def post_create_feed(feed_url: str = Form(), webhook_dropdown: str = Form(
     """
     clean_feed_url: str = feed_url.strip()
     create_feed(reader, feed_url, webhook_dropdown)
-    return RedirectResponse(url=f"/feed/?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
+    return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
 
 @app.post("/pause")
@@ -122,7 +122,7 @@ async def post_pause_feed(feed_url: str = Form()) -> RedirectResponse:
     """
     clean_feed_url: str = feed_url.strip()
     reader.disable_feed_updates(clean_feed_url)
-    return RedirectResponse(url=f"/feed/?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
+    return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
 
 @app.post("/unpause")
@@ -134,7 +134,7 @@ async def post_unpause_feed(feed_url: str = Form()) -> RedirectResponse:
     """
     clean_feed_url: str = feed_url.strip()
     reader.enable_feed_updates(clean_feed_url)
-    return RedirectResponse(url=f"/feed/?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
+    return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
 
 @app.post("/whitelist")
@@ -164,7 +164,7 @@ async def post_set_whitelist(
     if whitelist_author:
         reader.set_tag(clean_feed_url, "whitelist_author", whitelist_author)  # type: ignore[call-overload]
 
-    return RedirectResponse(url=f"/feed/?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
+    return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
 
 @app.get("/whitelist", response_class=HTMLResponse)
@@ -225,7 +225,7 @@ async def post_set_blacklist(
     if blacklist_author:
         reader.set_tag(clean_feed_url, "blacklist_author", blacklist_author)  # type: ignore[call-overload]
 
-    return RedirectResponse(url=f"/feed/?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
+    return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
 
 @app.get("/blacklist", response_class=HTMLResponse)
@@ -278,7 +278,7 @@ async def post_set_custom(custom_message: str = Form(""), feed_url: str = Form()
         reader.set_tag(feed_url, "custom_message", default_custom_message)
 
     clean_feed_url: str = feed_url.strip()
-    return RedirectResponse(url=f"/feed/?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
+    return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
 
 @app.get("/custom", response_class=HTMLResponse)
@@ -391,7 +391,7 @@ async def post_embed(  # noqa: PLR0913, PLR0917
     # Save the data.
     save_embed(reader, feed, custom_embed)
 
-    return RedirectResponse(url=f"/feed/?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
+    return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
 
 @app.post("/use_embed")
@@ -406,7 +406,7 @@ async def post_use_embed(feed_url: str = Form()) -> RedirectResponse:
     """
     clean_feed_url: str = feed_url.strip()
     reader.set_tag(clean_feed_url, "should_send_embed", True)  # type: ignore
-    return RedirectResponse(url=f"/feed/?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
+    return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
 
 @app.post("/use_text")
@@ -421,7 +421,7 @@ async def post_use_text(feed_url: str = Form()) -> RedirectResponse:
     """
     clean_feed_url: str = feed_url.strip()
     reader.set_tag(clean_feed_url, "should_send_embed", False)  # type: ignore
-    return RedirectResponse(url=f"/feed/?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
+    return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
 
 @app.get("/add", response_class=HTMLResponse)
@@ -746,7 +746,7 @@ async def post_entry(entry_id: str):
 
     # Redirect to the feed page.
     clean_feed_url: str = entry.feed.url.strip()
-    return RedirectResponse(url=f"/feed/?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
+    return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
 
 @app.post("/modify_webhook", response_class=HTMLResponse)
