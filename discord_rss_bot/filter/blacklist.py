@@ -40,7 +40,7 @@ def should_be_skipped(custom_reader: Reader, entry: Entry) -> bool:
     blacklist_summary: str = str(custom_reader.get_tag(feed, "blacklist_summary", ""))
     blacklist_content: str = str(custom_reader.get_tag(feed, "blacklist_content", ""))
     blacklist_author: str = str(custom_reader.get_tag(feed, "blacklist_author", ""))
-    # TODO: Also add support for entry_text and more.
+    # TODO(TheLovinator): Also add support for entry_text and more.
 
     if entry.title and blacklist_title and is_word_in_text(blacklist_title, entry.title):
         return True

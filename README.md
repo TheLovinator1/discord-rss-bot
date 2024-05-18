@@ -2,9 +2,8 @@
 
 Subscribe to RSS feeds and get updates to a Discord webhook.
 
-## This bot is not ready for production use.
-
-You should use [MonitoRSS](https://github.com/synzen/monitorss) instead.
+> [!NOTE]
+> You should look at [MonitoRSS](https://github.com/synzen/monitorss) for a more feature-rich project.
 
 ## Installation
 

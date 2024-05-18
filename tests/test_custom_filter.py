@@ -40,7 +40,7 @@ def test_entry_is_whitelisted() -> None:
         custom_reader.update_feed("https://lovinator.space/rss_test.xml")
 
         # whitelist_title
-        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "whitelist_title", "fvnnnfnfdnfdnfd")  # type: ignore # noqa: E501
+        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "whitelist_title", "fvnnnfnfdnfdnfd")  # type: ignore
         for entry in custom_reader.get_entries():
             if entry_is_whitelisted(entry) is True:
                 assert entry.title == "fvnnnfnfdnfdnfd"
@@ -48,7 +48,7 @@ def test_entry_is_whitelisted() -> None:
         custom_reader.delete_tag("https://lovinator.space/rss_test.xml", "whitelist_title")
 
         # whitelist_summary
-        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "whitelist_summary", "fvnnnfnfdnfdnfd")  # type: ignore # noqa: E501
+        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "whitelist_summary", "fvnnnfnfdnfdnfd")  # type: ignore
         for entry in custom_reader.get_entries():
             if entry_is_whitelisted(entry) is True:
                 assert entry.summary == "fvnnnfnfdnfdnfd"
@@ -56,7 +56,7 @@ def test_entry_is_whitelisted() -> None:
         custom_reader.delete_tag("https://lovinator.space/rss_test.xml", "whitelist_summary")
 
         # whitelist_content
-        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "whitelist_content", "fvnnnfnfdnfdnfd")  # type: ignore # noqa: E501
+        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "whitelist_content", "fvnnnfnfdnfdnfd")  # type: ignore
         for entry in custom_reader.get_entries():
             if entry_is_whitelisted(entry) is True:
                 assert entry.content[0].value == "<p>ffdnfdnfdnfdnfdndfn</p>"
@@ -81,7 +81,7 @@ def test_entry_is_blacklisted() -> None:
         custom_reader.update_feed("https://lovinator.space/rss_test.xml")
 
         # blacklist_title
-        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "blacklist_title", "fvnnnfnfdnfdnfd")  # type: ignore # noqa: E501
+        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "blacklist_title", "fvnnnfnfdnfdnfd")  # type: ignore
         for entry in custom_reader.get_entries():
             if entry_is_blacklisted(entry) is True:
                 assert entry.title == "fvnnnfnfdnfdnfd"
@@ -89,7 +89,7 @@ def test_entry_is_blacklisted() -> None:
         custom_reader.delete_tag("https://lovinator.space/rss_test.xml", "blacklist_title")
 
         # blacklist_summary
-        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "blacklist_summary", "fvnnnfnfdnfdnfd")  # type: ignore # noqa: E501
+        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "blacklist_summary", "fvnnnfnfdnfdnfd")  # type: ignore
         for entry in custom_reader.get_entries():
             if entry_is_blacklisted(entry) is True:
                 assert entry.summary == "fvnnnfnfdnfdnfd"
@@ -97,7 +97,7 @@ def test_entry_is_blacklisted() -> None:
         custom_reader.delete_tag("https://lovinator.space/rss_test.xml", "blacklist_summary")
 
         # blacklist_content
-        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "blacklist_content", "fvnnnfnfdnfdnfd")  # type: ignore # noqa: E501
+        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "blacklist_content", "fvnnnfnfdnfdnfd")  # type: ignore
         for entry in custom_reader.get_entries():
             if entry_is_blacklisted(entry) is True:
                 assert entry.content[0].value == "<p>ffdnfdnfdnfdnfdndfn</p>"

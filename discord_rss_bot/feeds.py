@@ -1,3 +1,8 @@
+from __future__ import annotations
+
+import datetime
+import pprint
+import textwrap
 from typing import TYPE_CHECKING
 
 from discord_webhook import DiscordEmbed, DiscordWebhook
@@ -7,7 +12,8 @@ from reader import Entry, Feed, FeedExistsError, Reader, TagNotFoundError
 from discord_rss_bot import custom_message
 from discord_rss_bot.filter.blacklist import should_be_skipped
 from discord_rss_bot.filter.whitelist import has_white_tags, should_be_sent
-from discord_rss_bot.settings import default_custom_message, get_reader
+from discord_rss_bot.is_url_valid import is_url_valid
+from discord_rss_bot.settings import default_custom_message, get_reader, logger
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -38,7 +44,10 @@ def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None) -> 
     if custom_message.get_custom_message(reader, entry.feed) != "":  # noqa: PLC1901
         webhook_message = custom_message.replace_tags_in_text_message(entry=entry)
     else:
-        webhook_message: str = default_custom_message
+        webhook_message: str = str(default_custom_message)
+
+    if not webhook_message:
+        webhook_message = "No message found."
 
     # Create the webhook.
     if bool(reader.get_tag(entry.feed, "should_send_embed")):
@@ -47,7 +56,10 @@ def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None) -> 
         webhook: DiscordWebhook = DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)
 
     response: Response = webhook.execute()
-    return None if response.ok else f"Error sending entry to Discord: {response.text}"
+    if response.status_code not in {200, 204}:
+        logger.error("Error sending entry to Discord: %s\n%s", response.text, pprint.pformat(webhook.json))
+        return f"Error sending entry to Discord: {response.text}"
+    return None
 
 
 def create_embed_webhook(webhook_url: str, entry: Entry) -> DiscordWebhook:
@@ -68,42 +80,57 @@ def create_embed_webhook(webhook_url: str, entry: Entry) -> DiscordWebhook:
 
     discord_embed: DiscordEmbed = DiscordEmbed()
 
-    if custom_embed.title:
-        discord_embed.set_title(custom_embed.title)
-    if custom_embed.description:
-        discord_embed.set_description(custom_embed.description)
-    if custom_embed.color and type(custom_embed.color) == str and custom_embed.color.startswith("#"):
-        custom_embed.color = custom_embed.color[1:]
-        discord_embed.set_color(int(custom_embed.color, 16))
-    if custom_embed.author_name and not custom_embed.author_url and not custom_embed.author_icon_url:
+    embed_title: str = textwrap.shorten(custom_embed.title, width=200, placeholder="...")
+    discord_embed.set_title(embed_title) if embed_title else None
+
+    webhook_message: str = textwrap.shorten(custom_embed.description, width=2000, placeholder="...")
+    discord_embed.set_description(webhook_message) if webhook_message else None
+
+    custom_embed_author_url: str | None = custom_embed.author_url
+    if not is_url_valid(custom_embed_author_url):
+        custom_embed_author_url = None
+
+    custom_embed_color: str | None = custom_embed.color or None
+    if custom_embed_color and custom_embed_color.startswith("#"):
+        custom_embed_color = custom_embed_color[1:]
+        discord_embed.set_color(int(custom_embed_color, 16))
+
+    if custom_embed.author_name and not custom_embed_author_url and not custom_embed.author_icon_url:
         discord_embed.set_author(name=custom_embed.author_name)
-    if custom_embed.author_name and custom_embed.author_url and not custom_embed.author_icon_url:
-        discord_embed.set_author(name=custom_embed.author_name, url=custom_embed.author_url)
-    if custom_embed.author_name and not custom_embed.author_url and custom_embed.author_icon_url:
+
+    if custom_embed.author_name and custom_embed_author_url and not custom_embed.author_icon_url:
+        discord_embed.set_author(name=custom_embed.author_name, url=custom_embed_author_url)
+
+    if custom_embed.author_name and not custom_embed_author_url and custom_embed.author_icon_url:
         discord_embed.set_author(name=custom_embed.author_name, icon_url=custom_embed.author_icon_url)
-    if custom_embed.author_name and custom_embed.author_url and custom_embed.author_icon_url:
+
+    if custom_embed.author_name and custom_embed_author_url and custom_embed.author_icon_url:
         discord_embed.set_author(
             name=custom_embed.author_name,
-            url=custom_embed.author_url,
+            url=custom_embed_author_url,
             icon_url=custom_embed.author_icon_url,
         )
+
     if custom_embed.thumbnail_url:
         discord_embed.set_thumbnail(url=custom_embed.thumbnail_url)
+
     if custom_embed.image_url:
         discord_embed.set_image(url=custom_embed.image_url)
+
     if custom_embed.footer_text:
         discord_embed.set_footer(text=custom_embed.footer_text)
+
     if custom_embed.footer_icon_url and custom_embed.footer_text:
         discord_embed.set_footer(text=custom_embed.footer_text, icon_url=custom_embed.footer_icon_url)
+
     if custom_embed.footer_icon_url and not custom_embed.footer_text:
         discord_embed.set_footer(text="-", icon_url=custom_embed.footer_icon_url)
 
     webhook.add_embed(discord_embed)
-
     return webhook
 
 
-def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = None, do_once: bool = False) -> None:
+def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = None, *, do_once: bool = False) -> None:  # noqa: PLR0912
     """Send entries to Discord.
 
     If response was not ok, we will log the error and mark the entry as unread, so it will be sent again next time.
@@ -125,6 +152,11 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
     # Loop through the unread entries.
     entries: Iterable[Entry] = reader.get_entries(feed=feed, read=False)
     for entry in entries:
+        if entry.added < datetime.datetime.now(tz=entry.added.tzinfo) - datetime.timedelta(days=1):
+            logger.info("Entry is older than 24 hours: %s from %s", entry.id, entry.feed.url)
+            reader.set_entry_read(entry, True)
+            continue
+
         # Set the webhook to read, so we don't send it again.
         reader.set_entry_read(entry, True)
 
@@ -138,10 +170,13 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
         else:
             # If the user has set the custom message to an empty string, we will use the default message, otherwise we
             # will use the custom message.
-            if custom_message.get_custom_message(reader, entry.feed) != "":
+            if custom_message.get_custom_message(reader, entry.feed) != "":  # noqa: PLC1901
                 webhook_message = custom_message.replace_tags_in_text_message(entry)
             else:
-                webhook_message: str = default_custom_message
+                webhook_message: str = str(default_custom_message)
+
+            # Truncate the webhook_message to 2000 characters
+            webhook_message = textwrap.shorten(webhook_message, width=2000, placeholder="...")
 
             # Create the webhook.
             webhook: DiscordWebhook = DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)
@@ -150,25 +185,30 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
         if has_white_tags(reader, entry.feed):
             if should_be_sent(reader, entry):
                 response: Response = webhook.execute()
+                if response.status_code not in {200, 204}:
+                    logger.error("Error sending entry to Discord: %s\n%s", response.text, pprint.pformat(webhook.json))
+
                 reader.set_entry_read(entry, True)
-                if not response.ok:
-                    reader.set_entry_read(entry, False)
-            else:
-                reader.set_entry_read(entry, True)
+                return
+            reader.set_entry_read(entry, True)
             continue
 
         # Check if the entry is blacklisted, if it is, mark it as read and continue.
         if should_be_skipped(reader, entry):
+            logger.info("Entry was blacklisted: %s", entry.id)
             reader.set_entry_read(entry, True)
             continue
 
         # It was not blacklisted, and not forced through whitelist, so we will send it to Discord.
         response: Response = webhook.execute()
-        if not response.ok:
-            reader.set_entry_read(entry, False)
+        if response.status_code not in {200, 204}:
+            logger.error("Error sending entry to Discord: %s\n%s", response.text, pprint.pformat(webhook.json))
+            reader.set_entry_read(entry, True)
+            return
 
         # If we only want to send one entry, we will break the loop. This is used when testing this function.
         if do_once:
+            logger.info("Sent one entry to Discord.")
             break
 
     # Update the search index.
@@ -196,11 +236,10 @@ def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:
                 break
 
     if not webhook_url:
-        # TODO: Show this error on the page.
         raise HTTPException(status_code=404, detail="Webhook not found")
 
     try:
-        # TODO: Check if the feed is valid
+        # TODO(TheLovinator): Check if the feed is valid
         reader.add_feed(clean_feed_url)
     except FeedExistsError:
         # Add the webhook to an already added feed if it doesn't have a webhook instead of trying to create a new.
@@ -217,7 +256,7 @@ def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:
         reader.set_entry_read(entry, True)
 
     if not default_custom_message:
-        # TODO: Show this error on the page.
+        # TODO(TheLovinator): Show this error on the page.
         raise HTTPException(status_code=404, detail="Default custom message couldn't be found.")
 
     # This is the webhook that will be used to send the feed to Discord.

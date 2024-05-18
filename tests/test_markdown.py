@@ -57,13 +57,13 @@ def test_convert_to_md() -> None:
         '<div class="field field-name-field-short-description field-type-text-long field-label-hidden">'
         '<div class="field-items"><div class="field-item even">Plus new options to mirror your camera and take a selfie.</div>'  # noqa: E501
         '</div></div><div class="field field-name-field-thumbnail-image field-type-image field-label-hidden">'
-        '<div class="field-items"><div class="field-item even"><a href="https://www.nvidia.com/en-us/geforce/news/jan-2023-nvidia-broadcast-update/">'  # noqa: E501
-        '<img width="210" src="https://www.nvidia.com/content/dam/en-zz/Solutions/geforce/news/jan-2023-nvidia-broadcast-update/broadcast-owned-asset-625x330-newsfeed.png"'  # noqa: E501
+        '<div class="field-items"><div class="field-item even"><a href="https://www.nvidia.com/en-us/geforce/news/jan-2023-nvidia-broadcast-update/">'
+        '<img width="210" src="https://www.nvidia.com/content/dam/en-zz/Solutions/geforce/news/jan-2023-nvidia-broadcast-update/broadcast-owned-asset-625x330-newsfeed.png"'
         ' title="NVIDIA Broadcast 1.4 Adds Eye Contact and Vignette Effects With Virtual Background Enhancements" '
         'alt="NVIDIA Broadcast 1.4 Adds Eye Contact and Vignette Effects With Virtual Background Enhancements"></a></div></div></div>'  # noqa: E501
     )
     assert (
         convert_html_to_md(nvidia_entry)
-        == "[NVIDIA Broadcast 1.4 Adds Eye Contact and Vignette Effects With Virtual Background Enhancements](https://www.nvidia.com/en-us/geforce/news/jan-2023-nvidia-broadcast-update/)\n"  # noqa: E501
+        == "[NVIDIA Broadcast 1.4 Adds Eye Contact and Vignette Effects With Virtual Background Enhancements](https://www.nvidia.com/en-us/geforce/news/jan-2023-nvidia-broadcast-update/)\n"
         "Plus new options to mirror your camera and take a selfie."
     )

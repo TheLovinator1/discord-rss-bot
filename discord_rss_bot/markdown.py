@@ -35,6 +35,7 @@ def convert_html_to_md(html: str) -> str:
             link.decompose()
         else:
             link_text: str = link.text or link.get("href")
+            link_text = link_text.replace("http://", "").replace("https://", "")
             link.replace_with(f"[{link_text}]({link.get('href')})")
 
     for strikethrough in soup.find_all("s") + soup.find_all("del") + soup.find_all("strike"):

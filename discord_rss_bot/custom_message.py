@@ -1,25 +1,32 @@
+from __future__ import annotations
+
 import json
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from bs4 import BeautifulSoup
 from reader import Entry, Feed, Reader, TagNotFoundError
 
+from discord_rss_bot.is_url_valid import is_url_valid
 from discord_rss_bot.markdown import convert_html_to_md
-from discord_rss_bot.settings import get_reader
+from discord_rss_bot.settings import get_reader, logger
+
+if TYPE_CHECKING:
+    from reader.types import JSONType
 
 
-@dataclass()
+@dataclass(slots=True)
 class CustomEmbed:
-    title: str
-    description: str
-    color: str
-    author_name: str
-    author_url: str
-    author_icon_url: str
-    image_url: str
-    thumbnail_url: str
-    footer_text: str
-    footer_icon_url: str
+    title: str = ""
+    description: str = ""
+    color: str = ""
+    author_name: str = ""
+    author_url: str = ""
+    author_icon_url: str = ""
+    image_url: str = ""
+    thumbnail_url: str = ""
+    footer_text: str = ""
+    footer_icon_url: str = ""
 
 
 def try_to_replace(custom_message: str, template: str, replace_with: str) -> str:
@@ -59,7 +66,7 @@ def replace_tags_in_text_message(entry: Entry) -> str:
 
     summary: str = entry.summary or ""
 
-    first_image = get_first_image(summary, content)
+    first_image: str = get_first_image(summary, content)
 
     summary = convert_html_to_md(summary)
     content = convert_html_to_md(content)
@@ -102,7 +109,7 @@ def replace_tags_in_text_message(entry: Entry) -> str:
     return custom_message.replace("\\n", "\n")
 
 
-def get_first_image(summary, content):
+def get_first_image(summary: str | None, content: str | None) -> str:
     """Get image from summary or content.
 
     Args:
@@ -112,10 +119,25 @@ def get_first_image(summary, content):
     Returns:
         The first image
     """
+    # TODO(TheLovinator): We should find a better way to get the image.
     if content and (images := BeautifulSoup(content, features="lxml").find_all("img")):
-        return images[0].attrs["src"]
+        for image in images:
+            if not is_url_valid(image.attrs["src"]):
+                logger.warning(f"Invalid URL: {image.attrs['src']}")
+                continue
+
+            # Genshins first image is a divider, so we ignore it.
+            if not image.attrs["src"].startswith("https://img-os-static.hoyolab.com/divider_config"):
+                return str(image.attrs["src"])
     if summary and (images := BeautifulSoup(summary, features="lxml").find_all("img")):
-        return images[0].attrs["src"]
+        for image in images:
+            if not is_url_valid(image.attrs["src"]):
+                logger.warning(f"Invalid URL: {image.attrs['src']}")
+                continue
+
+            # Genshins first image is a divider, so we ignore it.
+            if not image.attrs["src"].startswith("https://img-os-static.hoyolab.com/divider_config"):
+                return str(image.attrs["src"])
     return ""
 
 
@@ -139,42 +161,47 @@ def replace_tags_in_embed(feed: Feed, entry: Entry) -> CustomEmbed:
 
     summary: str = entry.summary or ""
 
-    first_image = get_first_image(summary, content)
+    first_image: str = get_first_image(summary, content)
 
     summary = convert_html_to_md(summary)
     content = convert_html_to_md(content)
 
-    entry_text: str = content or summary
+    feed_added: str = feed.added.strftime("%Y-%m-%d %H:%M:%S") if feed.added else "Never"
+    feed_last_updated: str = feed.last_updated.strftime("%Y-%m-%d %H:%M:%S") if feed.last_updated else "Never"
+    feed_updated: str = feed.updated.strftime("%Y-%m-%d %H:%M:%S") if feed.updated else "Never"
+    entry_added: str = entry.added.strftime("%Y-%m-%d %H:%M:%S") if entry.added else "Never"
+    entry_published: str = entry.published.strftime("%Y-%m-%d %H:%M:%S") if entry.published else "Never"
+    entry_read_modified: str = entry.read_modified.strftime("%Y-%m-%d %H:%M:%S") if entry.read_modified else "Never"
+    entry_updated: str = entry.updated.strftime("%Y-%m-%d %H:%M:%S") if entry.updated else "Never"
 
-    list_of_replacements = [
-        {"{{feed_author}}": feed.author},
-        {"{{feed_added}}": feed.added},
-        {"{{feed_last_exception}}": feed.last_exception},
-        {"{{feed_last_updated}}": feed.last_updated},
-        {"{{feed_link}}": feed.link},
-        {"{{feed_subtitle}}": feed.subtitle},
-        {"{{feed_title}}": feed.title},
-        {"{{feed_updated}}": feed.updated},
-        {"{{feed_updates_enabled}}": str(feed.updates_enabled)},
-        {"{{feed_url}}": feed.url},
-        {"{{feed_user_title}}": feed.user_title},
-        {"{{feed_version}}": feed.version},
-        {"{{entry_added}}": entry.added},
-        {"{{entry_author}}": entry.author},
-        {"{{entry_content}}": content},
+    list_of_replacements: list[dict[str, str]] = [
+        {"{{feed_author}}": feed.author or ""},
+        {"{{feed_added}}": feed_added or ""},
+        {"{{feed_last_updated}}": feed_last_updated or ""},
+        {"{{feed_link}}": feed.link or ""},
+        {"{{feed_subtitle}}": feed.subtitle or ""},
+        {"{{feed_title}}": feed.title or ""},
+        {"{{feed_updated}}": feed_updated or ""},
+        {"{{feed_updates_enabled}}": "True" if feed.updates_enabled else "False"},
+        {"{{feed_url}}": feed.url or ""},
+        {"{{feed_user_title}}": feed.user_title or ""},
+        {"{{feed_version}}": feed.version or ""},
+        {"{{entry_added}}": entry_added or ""},
+        {"{{entry_author}}": entry.author or ""},
+        {"{{entry_content}}": content or ""},
         {"{{entry_content_raw}}": entry.content[0].value if entry.content else ""},
         {"{{entry_id}}": entry.id},
-        {"{{entry_important}}": str(entry.important)},
-        {"{{entry_link}}": entry.link},
-        {"{{entry_published}}": entry.published},
-        {"{{entry_read}}": str(entry.read)},
-        {"{{entry_read_modified}}": entry.read_modified},
-        {"{{entry_summary}}": summary},
+        {"{{entry_important}}": "True" if entry.important else "False"},
+        {"{{entry_link}}": entry.link or ""},
+        {"{{entry_published}}": entry_published},
+        {"{{entry_read}}": "True" if entry.read else "False"},
+        {"{{entry_read_modified}}": entry_read_modified or ""},
+        {"{{entry_summary}}": summary or ""},
         {"{{entry_summary_raw}}": entry.summary or ""},
-        {"{{entry_title}}": entry.title},
-        {"{{entry_text}}": entry_text},
-        {"{{entry_updated}}": entry.updated},
-        {"{{image_1}}": first_image},
+        {"{{entry_text}}": content or summary or ""},
+        {"{{entry_title}}": entry.title or ""},
+        {"{{entry_updated}}": entry_updated or ""},
+        {"{{image_1}}": first_image or ""},
     ]
 
     for replacement in list_of_replacements:
@@ -246,9 +273,10 @@ def get_embed(custom_reader: Reader, feed: Feed) -> CustomEmbed:
     Returns:
         Returns the contents from the embed tag.
     """
-    if embed := custom_reader.get_tag(feed, "embed", ""):
-        if type(embed) != str:
-            return get_embed_data(embed)
+    embed: str | JSONType = custom_reader.get_tag(feed, "embed", "")
+    if embed:
+        if not isinstance(embed, str):
+            return get_embed_data(embed)  # type: ignore
         embed_data: dict[str, str | int] = json.loads(embed)
         return get_embed_data(embed_data)
 
@@ -266,7 +294,7 @@ def get_embed(custom_reader: Reader, feed: Feed) -> CustomEmbed:
     )
 
 
-def get_embed_data(embed_data) -> CustomEmbed:
+def get_embed_data(embed_data: dict[str, str | int]) -> CustomEmbed:
     """Get embed data from embed_data.
 
     Args:
@@ -275,16 +303,16 @@ def get_embed_data(embed_data) -> CustomEmbed:
     Returns:
         Returns the embed data.
     """
-    title: str = embed_data.get("title", "")
-    description: str = embed_data.get("description", "")
-    color: str = embed_data.get("color", "")
-    author_name: str = embed_data.get("author_name", "")
-    author_url: str = embed_data.get("author_url", "")
-    author_icon_url: str = embed_data.get("author_icon_url", "")
-    image_url: str = embed_data.get("image_url", "")
-    thumbnail_url: str = embed_data.get("thumbnail_url", "")
-    footer_text: str = embed_data.get("footer_text", "")
-    footer_icon_url: str = embed_data.get("footer_icon_url", "")
+    title: str = str(embed_data.get("title", ""))
+    description: str = str(embed_data.get("description", ""))
+    color: str = str(embed_data.get("color", ""))
+    author_name: str = str(embed_data.get("author_name", ""))
+    author_url: str = str(embed_data.get("author_url", ""))
+    author_icon_url: str = str(embed_data.get("author_icon_url", ""))
+    image_url: str = str(embed_data.get("image_url", ""))
+    thumbnail_url: str = str(embed_data.get("thumbnail_url", ""))
+    footer_text: str = str(embed_data.get("footer_text", ""))
+    footer_icon_url: str = str(embed_data.get("footer_icon_url", ""))
 
     return CustomEmbed(
         title=title,

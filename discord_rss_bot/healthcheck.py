@@ -9,7 +9,7 @@ def healthcheck() -> None:
     sys.exit(0): success - the container is healthy and ready for use.
     sys.exit(1): unhealthy - the container is not working correctly.
     """
-    # TODO: We should check more than just that the website is up.
+    # TODO(TheLovinator): We should check more than just that the website is up.
     try:
         r: requests.Response = requests.get(url="http://localhost:5000", timeout=5)
         if r.ok:

@@ -61,4 +61,8 @@
     <pre>
     {{ html|safe }}
     </pre>
+    {% if show_more_button %}
+        <a class="btn btn-dark"
+           href="/feed_more?feed_url={{ feed.url|encode_url }}">Show more (Note: This view is not optimized at all, so be ready to wait a while)</a>
+    {% endif %}
 {% endblock content %}

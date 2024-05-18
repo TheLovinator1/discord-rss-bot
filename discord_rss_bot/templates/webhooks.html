@@ -10,19 +10,6 @@
         <br />
         {% for hook in hooks_with_data %}
             <div class="p-2 border border-dark text-muted">
-                {% if hook.avatar is not none %}
-                    <img src="https://cdn.discordapp.com/avatars/{{ hook.id }}/{{ hook.avatar }}.webp"
-                         class="img-thumbnail"
-                         height="128"
-                         width="128"
-                         alt="Webhook avatar" />
-                {% else %}
-                    <img src="https://cdn.discordapp.com/embed/avatars/{{ hook.avatar_mod }}.png"
-                         class="img-thumbnail"
-                         height="128"
-                         width="128"
-                         alt="Default Discord avatar" />
-                {% endif %}
                 <h3>{{ hook.custom_name }}</h3>
                 <li>
                     <strong>Name</strong>: {{ hook.name }}

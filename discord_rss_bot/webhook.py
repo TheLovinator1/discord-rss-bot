@@ -21,7 +21,7 @@ def add_webhook(reader: Reader, webhook_name: str, webhook_url: str) -> None:
     webhooks = list(reader.get_tag((), "webhooks", []))
 
     # Webhooks are stored as a list of dictionaries.
-    # Example: [{"name": "webhook_name", "url": "webhook_url"}]  # noqa: ERA001
+    # Example: [{"name": "webhook_name", "url": "webhook_url"}]
     webhooks = cast(list[dict[str, str]], webhooks)
 
     # Only add the webhook if it doesn't already exist.
@@ -35,8 +35,8 @@ def add_webhook(reader: Reader, webhook_name: str, webhook_url: str) -> None:
         add_missing_tags(reader)
         return
 
-    # TODO: Show this error on the page.
-    # TODO: Replace HTTPException with a custom exception.
+    # TODO(TheLovinator): Show this error on the page.
+    # TODO(TheLovinator): Replace HTTPException with a custom exception.
     raise HTTPException(status_code=409, detail="Webhook already exists")
 
 
@@ -51,12 +51,12 @@ def remove_webhook(reader: Reader, webhook_url: str) -> None:
         HTTPException: If webhook could not be deleted
         HTTPException: Webhook not found
     """
-    # TODO: Replace HTTPException with a custom exception for both of these.
+    # TODO(TheLovinator): Replace HTTPException with a custom exception for both of these.
     # Get current webhooks from the database if they exist otherwise use an empty list.
     webhooks = list(reader.get_tag((), "webhooks", []))
 
     # Webhooks are stored as a list of dictionaries.
-    # Example: [{"name": "webhook_name", "url": "webhook_url"}]  # noqa: ERA001
+    # Example: [{"name": "webhook_name", "url": "webhook_url"}]
     webhooks = cast(list[dict[str, str]], webhooks)
 
     # Only add the webhook if it doesn't already exist.
@@ -72,5 +72,5 @@ def remove_webhook(reader: Reader, webhook_url: str) -> None:
             reader.set_tag((), "webhooks", webhooks)  # type: ignore
             return
 
-    # TODO: Show this error on the page.
+    # TODO(TheLovinator): Show this error on the page.
     raise HTTPException(status_code=404, detail="Webhook not found")

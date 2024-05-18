@@ -1,12 +1,14 @@
+from __future__ import annotations
+
 import urllib.parse
 from typing import TYPE_CHECKING
-
-from reader import EntrySearchResult, Feed, HighlightedString, Reader
 
 from discord_rss_bot.settings import get_reader
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+
+    from reader import EntrySearchResult, Feed, HighlightedString, Reader
 
 
 def create_html_for_search_results(query: str, custom_reader: Reader | None = None) -> str:
@@ -19,8 +21,8 @@ def create_html_for_search_results(query: str, custom_reader: Reader | None = No
     Returns:
         str: The HTML.
     """
-    # TODO: There is a .content that also contains text, we should use that if .summary is not available.
-    # TODO: We should also add <span> tags to the title.
+    # TODO(TheLovinator): There is a .content that also contains text, we should use that if .summary is not available.
+    # TODO(TheLovinator): We should also add <span> tags to the title.
 
     # Get the default reader if we didn't get a custom one.
     reader: Reader = get_reader() if custom_reader is None else custom_reader
@@ -55,12 +57,12 @@ def add_span_with_slice(highlighted_string: HighlightedString) -> str:
     Returns:
         str: The string with added <span> tags.
     """
-    # TODO: We are looping through the highlights and only using the last one. We should use all of them.
+    # TODO(TheLovinator): We are looping through the highlights and only using the last one. We should use all of them.
     before_span, span_part, after_span = "", "", ""
 
     for txt_slice in highlighted_string.highlights:
         before_span: str = f"{highlighted_string.value[: txt_slice.start]}"
-        span_part: str = f"<span class='bg-warning'>{highlighted_string.value[txt_slice.start: txt_slice.stop]}</span>"
-        after_span: str = f"{highlighted_string.value[txt_slice.stop:]}"
+        span_part: str = f"<span class='bg-warning'>{highlighted_string.value[txt_slice.start : txt_slice.stop]}</span>"
+        after_span: str = f"{highlighted_string.value[txt_slice.stop :]}"
 
     return f"{before_span}{span_part}{after_span}"

@@ -5,3 +5,11 @@ body {
 .border {
     background: #161616;
 }
+
+.text-muted {
+    color: #888888 !important;
+}
+
+.form-text {
+    color: #888888;
+}

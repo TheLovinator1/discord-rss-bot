@@ -1,15 +1,32 @@
+from __future__ import annotations
+
+import logging
+import sys
+import typing
 from functools import lru_cache
 from pathlib import Path
 
 from platformdirs import user_data_dir
 from reader import Reader, make_reader
 
+if typing.TYPE_CHECKING:
+    from reader.types import JSONType
+
 data_dir: str = user_data_dir(appname="discord_rss_bot", appauthor="TheLovinator", roaming=True, ensure_exists=True)
-print(f"Data is stored in '{data_dir}'.")
 
 
-# TODO: Add default things to the database and make the edible.
-default_custom_message: str = "{{entry_title}}\n{{entry_link}}"
+logger: logging.Logger = logging.getLogger("discord_rss_bot")
+logger.setLevel(logging.DEBUG)
+stream_handler = logging.StreamHandler(sys.stdout)
+log_formatter = logging.Formatter(
+    "%(asctime)s [%(processName)s: %(process)d] [%(threadName)s: %(thread)d] [%(levelname)s] %(name)s: %(message)s",
+)
+stream_handler.setFormatter(log_formatter)
+logger.addHandler(stream_handler)
+
+
+# TODO(TheLovinator): Add default things to the database and make the edible.
+default_custom_message: JSONType | str = "{{entry_title}}\n{{entry_link}}"
 default_custom_embed: dict[str, str] = {
     "title": "{{entry_title}}",
     "description": "{{entry_text}}",
