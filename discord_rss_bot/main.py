@@ -64,7 +64,7 @@ async def lifespan(app: FastAPI) -> typing.AsyncGenerator[None, None]:
     scheduler.shutdown(wait=True)
 
 
-app: FastAPI = FastAPI()
+app: FastAPI = FastAPI(lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="discord_rss_bot/static"), name="static")
 templates: Jinja2Templates = Jinja2Templates(directory="discord_rss_bot/templates")
 
