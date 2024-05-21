@@ -6,7 +6,7 @@
     <div class="p-2 mb-2 border border-dark">
         <!-- The feed title. -->
         <h2>
-            <a class="text-muted text-decoration-none" href="{{ feed.link }}">{{ feed.title }}</a>
+            <a class="text-muted text-decoration-none" href="{{ feed.url }}">{{ feed.title }}</a>
         </h2>
         {% if not feed.updates_enabled %}<span class="text-danger">Disabled</span>{% endif %}
         {% if feed.last_exception %}
