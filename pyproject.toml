@@ -19,6 +19,7 @@ python-multipart = "^0.0.9"
 reader = "^3.12"
 tomlkit = "^0.12.0"
 uvicorn = { extras = ["standard"], version = "^0.29.0" }
+markdownify = "^0.12.1"
 
 [tool.poetry.group.dev.dependencies]
 djlint = "^1.34.1"

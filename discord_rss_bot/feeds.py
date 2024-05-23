@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import datetime
 import pprint
-import textwrap
 from typing import TYPE_CHECKING
 
 from discord_webhook import DiscordEmbed, DiscordWebhook
 from fastapi import HTTPException
-from reader import Entry, Feed, FeedExistsError, Reader, TagNotFoundError
+from reader import Entry, EntryNotFoundError, Feed, FeedExistsError, Reader, StorageError, TagNotFoundError
 
 from discord_rss_bot import custom_message
 from discord_rss_bot.filter.blacklist import should_be_skipped
@@ -43,8 +42,6 @@ def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None) -> 
     # This has to be a string for some reason so don't change it to "not custom_message.get_custom_message()"
     if custom_message.get_custom_message(reader, entry.feed) != "":  # noqa: PLC1901
         webhook_message = custom_message.replace_tags_in_text_message(entry=entry)
-    else:
-        webhook_message: str = str(default_custom_message)
 
     if not webhook_message:
         webhook_message = "No message found."
@@ -60,6 +57,38 @@ def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None) -> 
         logger.error("Error sending entry to Discord: %s\n%s", response.text, pprint.pformat(webhook.json))
         return f"Error sending entry to Discord: {response.text}"
     return None
+
+
+def set_description(custom_embed: custom_message.CustomEmbed, discord_embed: DiscordEmbed) -> None:
+    """Set the description of the embed.
+
+    Args:
+        custom_embed (custom_message.CustomEmbed): The custom embed to get the description from.
+        discord_embed (DiscordEmbed): The Discord embed to set the description on.
+    """
+    # Its actually 2048, but we will use 2000 to be safe.
+    max_description_length: int = 2000
+    embed_description: str = custom_embed.description
+    embed_description = (
+        embed_description[:max_description_length] + "..."
+        if len(embed_description) > max_description_length
+        else embed_description
+    )
+    discord_embed.set_description(embed_description) if embed_description else None
+
+
+def set_title(custom_embed: custom_message.CustomEmbed, discord_embed: DiscordEmbed) -> None:
+    """Set the title of the embed.
+
+    Args:
+        custom_embed: The custom embed to get the title from.
+        discord_embed: The Discord embed to set the title on.
+    """
+    # Its actually 256, but we will use 200 to be safe.
+    max_title_length: int = 200
+    embed_title: str = custom_embed.title
+    embed_title = embed_title[:max_title_length] + "..." if len(embed_title) > max_title_length else embed_title
+    discord_embed.set_title(embed_title) if embed_title else None
 
 
 def create_embed_webhook(webhook_url: str, entry: Entry) -> DiscordWebhook:
@@ -80,11 +109,8 @@ def create_embed_webhook(webhook_url: str, entry: Entry) -> DiscordWebhook:
 
     discord_embed: DiscordEmbed = DiscordEmbed()
 
-    embed_title: str = textwrap.shorten(custom_embed.title, width=200, placeholder="...")
-    discord_embed.set_title(embed_title) if embed_title else None
-
-    webhook_message: str = textwrap.shorten(custom_embed.description, width=2000, placeholder="...")
-    discord_embed.set_description(webhook_message) if webhook_message else None
+    set_description(custom_embed=custom_embed, discord_embed=discord_embed)
+    set_title(custom_embed=custom_embed, discord_embed=discord_embed)
 
     custom_embed_author_url: str | None = custom_embed.author_url
     if not is_url_valid(custom_embed_author_url):
@@ -158,7 +184,14 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
             continue
 
         # Set the webhook to read, so we don't send it again.
-        reader.set_entry_read(entry, True)
+        try:
+            reader.set_entry_read(entry, True)
+        except EntryNotFoundError as e:
+            logger.error("Error setting entry to read: %s", e)
+            continue
+        except StorageError as e:
+            logger.error("Error setting entry to read: %s", e)
+            continue
 
         # Get the webhook URL for the entry. If it is None, we will continue to the next entry.
         webhook_url: str = str(reader.get_tag(entry.feed_url, "webhook", ""))
@@ -175,8 +208,13 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
             else:
                 webhook_message: str = str(default_custom_message)
 
-            # Truncate the webhook_message to 2000 characters
-            webhook_message = textwrap.shorten(webhook_message, width=2000, placeholder="...")
+            # Its actually 4096, but we will use 4000 to be safe.
+            max_content_length: int = 4000
+            webhook_message = (
+                webhook_message[:max_content_length] + "..."
+                if len(webhook_message) > max_content_length
+                else webhook_message
+            )
 
             # Create the webhook.
             webhook: DiscordWebhook = DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)

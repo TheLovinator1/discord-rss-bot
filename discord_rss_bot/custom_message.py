@@ -5,10 +5,10 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from bs4 import BeautifulSoup
+from markdownify import markdownify
 from reader import Entry, Feed, Reader, TagNotFoundError
 
 from discord_rss_bot.is_url_valid import is_url_valid
-from discord_rss_bot.markdown import convert_html_to_md
 from discord_rss_bot.settings import get_reader, logger
 
 if TYPE_CHECKING:
@@ -68,8 +68,8 @@ def replace_tags_in_text_message(entry: Entry) -> str:
 
     first_image: str = get_first_image(summary, content)
 
-    summary = convert_html_to_md(summary)
-    content = convert_html_to_md(content)
+    summary = markdownify(summary)
+    content = markdownify(content)
 
     list_of_replacements = [
         {"{{feed_author}}": feed.author},
@@ -96,7 +96,7 @@ def replace_tags_in_text_message(entry: Entry) -> str:
         {"{{entry_read_modified}}": entry.read_modified},
         {"{{entry_summary}}": summary},
         {"{{entry_summary_raw}}": entry.summary or ""},
-        {"{{entry_text}}": content or summary},
+        {"{{entry_text}}": summary or content},
         {"{{entry_title}}": entry.title},
         {"{{entry_updated}}": entry.updated},
         {"{{image_1}}": first_image},
@@ -106,7 +106,8 @@ def replace_tags_in_text_message(entry: Entry) -> str:
         for template, replace_with in replacement.items():
             custom_message = try_to_replace(custom_message, template, replace_with)
 
-    return custom_message.replace("\\n", "\n")
+    our_custom_message = custom_message.replace("\\n", "\n")
+    return our_custom_message  # noqa: RET504
 
 
 def get_first_image(summary: str | None, content: str | None) -> str:
@@ -163,8 +164,8 @@ def replace_tags_in_embed(feed: Feed, entry: Entry) -> CustomEmbed:
 
     first_image: str = get_first_image(summary, content)
 
-    summary = convert_html_to_md(summary)
-    content = convert_html_to_md(content)
+    summary = markdownify(summary)
+    content = markdownify(content)
 
     feed_added: str = feed.added.strftime("%Y-%m-%d %H:%M:%S") if feed.added else "Never"
     feed_last_updated: str = feed.last_updated.strftime("%Y-%m-%d %H:%M:%S") if feed.last_updated else "Never"
@@ -198,7 +199,7 @@ def replace_tags_in_embed(feed: Feed, entry: Entry) -> CustomEmbed:
         {"{{entry_read_modified}}": entry_read_modified or ""},
         {"{{entry_summary}}": summary or ""},
         {"{{entry_summary_raw}}": entry.summary or ""},
-        {"{{entry_text}}": content or summary or ""},
+        {"{{entry_text}}": summary or content or ""},
         {"{{entry_title}}": entry.title or ""},
         {"{{entry_updated}}": entry_updated or ""},
         {"{{image_1}}": first_image or ""},

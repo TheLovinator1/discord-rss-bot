@@ -17,6 +17,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from httpx import Response
+from markdownify import markdownify
 from reader import Entry, Feed, FeedNotFoundError, Reader, TagNotFoundError
 from reader.types import JSONType
 from starlette.responses import RedirectResponse
@@ -36,7 +37,6 @@ from discord_rss_bot.custom_message import (
     save_embed,
 )
 from discord_rss_bot.feeds import create_feed, send_entry_to_discord, send_to_discord
-from discord_rss_bot.markdown import convert_html_to_md
 from discord_rss_bot.missing_tags import add_missing_tags
 from discord_rss_bot.search import create_html_for_search_results
 from discord_rss_bot.settings import get_reader
@@ -73,7 +73,7 @@ templates: Jinja2Templates = Jinja2Templates(directory="discord_rss_bot/template
 templates.env.filters["encode_url"] = encode_url
 templates.env.filters["entry_is_whitelisted"] = entry_is_whitelisted
 templates.env.filters["entry_is_blacklisted"] = entry_is_blacklisted
-templates.env.filters["discord_markdown"] = convert_html_to_md
+templates.env.filters["discord_markdown"] = markdownify
 
 
 @app.post("/add_webhook")
