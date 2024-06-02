@@ -68,8 +68,8 @@ def replace_tags_in_text_message(entry: Entry) -> str:
 
     first_image: str = get_first_image(summary, content)
 
-    summary = markdownify(summary)
-    content = markdownify(content)
+    summary = markdownify(summary, strip=["img", "table", "td", "tr", "tbody", "thead"])
+    content = markdownify(content, strip=["img", "table", "td", "tr", "tbody", "thead"])
 
     list_of_replacements = [
         {"{{feed_author}}": feed.author},
@@ -164,8 +164,8 @@ def replace_tags_in_embed(feed: Feed, entry: Entry) -> CustomEmbed:
 
     first_image: str = get_first_image(summary, content)
 
-    summary = markdownify(summary)
-    content = markdownify(content)
+    summary = markdownify(summary, strip=["img", "table", "td", "tr", "tbody", "thead"])
+    content = markdownify(content, strip=["img", "table", "td", "tr", "tbody", "thead"])
 
     feed_added: str = feed.added.strftime("%Y-%m-%d %H:%M:%S") if feed.added else "Never"
     feed_last_updated: str = feed.last_updated.strftime("%Y-%m-%d %H:%M:%S") if feed.last_updated else "Never"
