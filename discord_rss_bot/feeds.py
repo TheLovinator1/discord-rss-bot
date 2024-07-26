@@ -41,7 +41,7 @@ def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None) -> 
     # Try to get the custom message for the feed. If the user has none, we will use the default message.
     # This has to be a string for some reason so don't change it to "not custom_message.get_custom_message()"
     if custom_message.get_custom_message(reader, entry.feed) != "":  # noqa: PLC1901
-        webhook_message = custom_message.replace_tags_in_text_message(entry=entry)
+        webhook_message: str = custom_message.replace_tags_in_text_message(entry=entry)
 
     if not webhook_message:
         webhook_message = "No message found."

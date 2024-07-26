@@ -71,6 +71,14 @@ def replace_tags_in_text_message(entry: Entry) -> str:
     summary = markdownify(summary, strip=["img", "table", "td", "tr", "tbody", "thead"])
     content = markdownify(content, strip=["img", "table", "td", "tr", "tbody", "thead"])
 
+    if "[https://" in content or "[https://www." in content:
+        content = content.replace("[https://", "[")
+        content = content.replace("[https://www.", "[")
+
+    if "[https://" in summary or "[https://www." in summary:
+        summary = summary.replace("[https://", "[")
+        summary = summary.replace("[https://www.", "[")
+
     list_of_replacements = [
         {"{{feed_author}}": feed.author},
         {"{{feed_added}}": feed.added},
@@ -166,6 +174,14 @@ def replace_tags_in_embed(feed: Feed, entry: Entry) -> CustomEmbed:
 
     summary = markdownify(summary, strip=["img", "table", "td", "tr", "tbody", "thead"])
     content = markdownify(content, strip=["img", "table", "td", "tr", "tbody", "thead"])
+
+    if "[https://" in content or "[https://www." in content:
+        content = content.replace("[https://", "[")
+        content = content.replace("[https://www.", "[")
+
+    if "[https://" in summary or "[https://www." in summary:
+        summary = summary.replace("[https://", "[")
+        summary = summary.replace("[https://www.", "[")
 
     feed_added: str = feed.added.strftime("%Y-%m-%d %H:%M:%S") if feed.added else "Never"
     feed_last_updated: str = feed.last_updated.strftime("%Y-%m-%d %H:%M:%S") if feed.last_updated else "Never"
