@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
+import logging.config
 import typing
 import urllib.parse
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from functools import lru_cache
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Annotated, cast
 
 import httpx
 import uvicorn
@@ -46,6 +48,40 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
 
+LOGGING_CONFIG = {
+    "version": 1,
+    "disable_existing_loggers": True,
+    "formatters": {
+        "standard": {"format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s"},
+    },
+    "handlers": {
+        "default": {
+            "level": "INFO",
+            "formatter": "standard",
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stdout",  # Default is stderr
+        },
+    },
+    "loggers": {
+        "": {  # root logger
+            "level": "INFO",
+            "handlers": ["default"],
+            "propagate": False,
+        },
+        "uvicorn.error": {
+            "level": "DEBUG",
+            "handlers": ["default"],
+        },
+        "uvicorn.access": {
+            "level": "DEBUG",
+            "handlers": ["default"],
+        },
+    },
+}
+
+logging.config.dictConfig(LOGGING_CONFIG)
+
+logger: logging.Logger = logging.getLogger(__name__)
 reader: Reader = get_reader()
 
 
@@ -59,6 +95,7 @@ async def lifespan(app: FastAPI) -> typing.AsyncGenerator[None, None]:
     # TODO(TheLovinator): Make this configurable.
     scheduler.add_job(send_to_discord, "interval", minutes=15, next_run_time=datetime.now(tz=timezone.utc))
     scheduler.start()
+    logger.info("Scheduler started.")
     yield
     reader.close()
     scheduler.shutdown(wait=True)
@@ -77,7 +114,10 @@ templates.env.filters["discord_markdown"] = markdownify
 
 
 @app.post("/add_webhook")
-async def post_add_webhook(webhook_name: str = Form(), webhook_url: str = Form()) -> RedirectResponse:
+async def post_add_webhook(
+    webhook_name: Annotated[str, Form()],
+    webhook_url: Annotated[str, Form()],
+) -> RedirectResponse:
     """Add a feed to the database.
 
     Args:
@@ -89,7 +129,7 @@ async def post_add_webhook(webhook_name: str = Form(), webhook_url: str = Form()
 
 
 @app.post("/delete_webhook")
-async def post_delete_webhook(webhook_url: str = Form()) -> RedirectResponse:
+async def post_delete_webhook(webhook_url: Annotated[str, Form()]) -> RedirectResponse:
     """Delete a webhook from the database.
 
     Args:
@@ -101,7 +141,10 @@ async def post_delete_webhook(webhook_url: str = Form()) -> RedirectResponse:
 
 
 @app.post("/add")
-async def post_create_feed(feed_url: str = Form(), webhook_dropdown: str = Form()) -> RedirectResponse:
+async def post_create_feed(
+    feed_url: Annotated[str, Form()],
+    webhook_dropdown: Annotated[str, Form()],
+) -> RedirectResponse:
     """Add a feed to the database.
 
     Args:
@@ -114,7 +157,7 @@ async def post_create_feed(feed_url: str = Form(), webhook_dropdown: str = Form(
 
 
 @app.post("/pause")
-async def post_pause_feed(feed_url: str = Form()) -> RedirectResponse:
+async def post_pause_feed(feed_url: Annotated[str, Form()]) -> RedirectResponse:
     """Pause a feed.
 
     Args:
@@ -126,7 +169,7 @@ async def post_pause_feed(feed_url: str = Form()) -> RedirectResponse:
 
 
 @app.post("/unpause")
-async def post_unpause_feed(feed_url: str = Form()) -> RedirectResponse:
+async def post_unpause_feed(feed_url: Annotated[str, Form()]) -> RedirectResponse:
     """Unpause a feed.
 
     Args:
@@ -139,11 +182,11 @@ async def post_unpause_feed(feed_url: str = Form()) -> RedirectResponse:
 
 @app.post("/whitelist")
 async def post_set_whitelist(
-    whitelist_title: str = Form(None),
-    whitelist_summary: str = Form(None),
-    whitelist_content: str = Form(None),
-    whitelist_author: str = Form(None),
-    feed_url: str = Form(),
+    whitelist_title: Annotated[str, Form()],
+    whitelist_summary: Annotated[str, Form()],
+    whitelist_content: Annotated[str, Form()],
+    whitelist_author: Annotated[str, Form()],
+    feed_url: Annotated[str, Form()],
 ) -> RedirectResponse:
     """Set what the whitelist should be sent, if you have this set only words in the whitelist will be sent.
 
@@ -197,11 +240,11 @@ async def get_whitelist(feed_url: str, request: Request):
 
 @app.post("/blacklist")
 async def post_set_blacklist(
-    blacklist_title: str = Form(None),
-    blacklist_summary: str = Form(None),
-    blacklist_content: str = Form(None),
-    blacklist_author: str = Form(None),
-    feed_url: str = Form(),
+    blacklist_title: Annotated[str, Form()],
+    blacklist_summary: Annotated[str, Form()],
+    blacklist_content: Annotated[str, Form()],
+    blacklist_author: Annotated[str, Form()],
+    feed_url: Annotated[str, Form()],
 ) -> RedirectResponse:
     """Set the blacklist.
 
@@ -259,7 +302,10 @@ async def get_blacklist(feed_url: str, request: Request):
 
 
 @app.post("/custom")
-async def post_set_custom(custom_message: str = Form(""), feed_url: str = Form()) -> RedirectResponse:
+async def post_set_custom(
+    custom_message: Annotated[str, Form()],
+    feed_url: Annotated[str, Form()],
+) -> RedirectResponse:
     """Set the custom message, this is used when sending the message.
 
     Args:
@@ -342,17 +388,17 @@ async def get_embed_page(feed_url: str, request: Request):
 
 @app.post("/embed", response_class=HTMLResponse)
 async def post_embed(  # noqa: PLR0913, PLR0917
-    feed_url: str = Form(),
-    title: str = Form(""),
-    description: str = Form(""),
-    color: str = Form(""),
-    image_url: str = Form(""),
-    thumbnail_url: str = Form(""),
-    author_name: str = Form(""),
-    author_url: str = Form(""),
-    author_icon_url: str = Form(""),
-    footer_text: str = Form(""),
-    footer_icon_url: str = Form(""),
+    feed_url: Annotated[str, Form()],
+    title: Annotated[str, Form()],
+    description: Annotated[str, Form()],
+    color: Annotated[str, Form()],
+    image_url: Annotated[str, Form()],
+    thumbnail_url: Annotated[str, Form()],
+    author_name: Annotated[str, Form()],
+    author_url: Annotated[str, Form()],
+    author_icon_url: Annotated[str, Form()],
+    footer_text: Annotated[str, Form()],
+    footer_icon_url: Annotated[str, Form()],
 ) -> RedirectResponse:
     """Set the embed settings.
 
@@ -395,7 +441,7 @@ async def post_embed(  # noqa: PLR0913, PLR0917
 
 
 @app.post("/use_embed")
-async def post_use_embed(feed_url: str = Form()) -> RedirectResponse:
+async def post_use_embed(feed_url: Annotated[str, Form()]) -> RedirectResponse:
     """Use embed instead of text.
 
     Args:
@@ -410,7 +456,7 @@ async def post_use_embed(feed_url: str = Form()) -> RedirectResponse:
 
 
 @app.post("/use_text")
-async def post_use_text(feed_url: str = Form()) -> RedirectResponse:
+async def post_use_text(feed_url: Annotated[str, Form()]) -> RedirectResponse:
     """Use text instead of embed.
 
     Args:
@@ -687,11 +733,14 @@ def make_context_index(request: Request):
 
 
 @app.post("/remove", response_class=HTMLResponse)
-async def remove_feed(feed_url: str = Form()):
+async def remove_feed(feed_url: Annotated[str, Form()]):
     """Get a feed by URL.
 
     Args:
         feed_url: The feed to add.
+
+    Raises:
+        HTTPException: Feed not found
 
     Returns:
         RedirectResponse: Redirect to the index page.
@@ -750,7 +799,7 @@ async def post_entry(entry_id: str):
 
 
 @app.post("/modify_webhook", response_class=HTMLResponse)
-def modify_webhook(old_hook: str = Form(), new_hook: str = Form()):
+def modify_webhook(old_hook: Annotated[str, Form()], new_hook: Annotated[str, Form()]):
     """Modify a webhook.
 
     Args:

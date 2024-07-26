@@ -40,7 +40,7 @@ repos:
 
   # An extremely fast Python linter and formatter.
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.9
+    rev: v0.5.5
     hooks:
       - id: ruff-format
       - id: ruff

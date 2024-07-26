@@ -60,17 +60,15 @@ def remove_webhook(reader: Reader, webhook_url: str) -> None:
     webhooks = cast(list[dict[str, str]], webhooks)
 
     # Only add the webhook if it doesn't already exist.
-    for webhook in webhooks:
-        if webhook["url"] in webhook_url.strip():
-            webhooks.remove(webhook)
+    webhooks_to_remove = [webhook for webhook in webhooks if webhook["url"] in webhook_url.strip()]
 
-            # Check if it has been removed.
-            if webhook in webhooks:
-                raise HTTPException(status_code=500, detail="Webhook could not be deleted")
+    # Remove the webhooks outside of the loop.
+    for webhook in webhooks_to_remove:
+        webhooks.remove(webhook)
 
-            # Add our new list of webhooks to the database.
-            reader.set_tag((), "webhooks", webhooks)  # type: ignore
-            return
+    # Check if any webhooks were removed.
+    if any(webhook in webhooks for webhook in webhooks_to_remove):
+        raise HTTPException(status_code=500, detail="Webhook could not be deleted")
 
-    # TODO(TheLovinator): Show this error on the page.
-    raise HTTPException(status_code=404, detail="Webhook not found")
+    # Add our new list of webhooks to the database.
+    reader.set_tag((), "webhooks", webhooks)  # type: ignore
