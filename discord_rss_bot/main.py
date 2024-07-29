@@ -182,11 +182,11 @@ async def post_unpause_feed(feed_url: Annotated[str, Form()]) -> RedirectRespons
 
 @app.post("/whitelist")
 async def post_set_whitelist(
-    whitelist_title: Annotated[str | None, Form()] = None,
-    whitelist_summary: Annotated[str | None, Form()] = None,
-    whitelist_content: Annotated[str | None, Form()] = None,
-    whitelist_author: Annotated[str | None, Form()] = None,
-    feed_url: Annotated[str | None, Form()] = None,
+    whitelist_title: Annotated[str, Form()] = "",
+    whitelist_summary: Annotated[str, Form()] = "",
+    whitelist_content: Annotated[str, Form()] = "",
+    whitelist_author: Annotated[str, Form()] = "",
+    feed_url: Annotated[str, Form()] = "",
 ) -> RedirectResponse:
     """Set what the whitelist should be sent, if you have this set only words in the whitelist will be sent.
 
@@ -198,14 +198,10 @@ async def post_set_whitelist(
         feed_url: The feed we should set the whitelist for.
     """
     clean_feed_url: str = feed_url.strip() if feed_url else ""
-    if whitelist_title:
-        reader.set_tag(clean_feed_url, "whitelist_title", whitelist_title)  # type: ignore[call-overload]
-    if whitelist_summary:
-        reader.set_tag(clean_feed_url, "whitelist_summary", whitelist_summary)  # type: ignore[call-overload]
-    if whitelist_content:
-        reader.set_tag(clean_feed_url, "whitelist_content", whitelist_content)  # type: ignore[call-overload]
-    if whitelist_author:
-        reader.set_tag(clean_feed_url, "whitelist_author", whitelist_author)  # type: ignore[call-overload]
+    reader.set_tag(clean_feed_url, "whitelist_title", whitelist_title)  # type: ignore[call-overload]
+    reader.set_tag(clean_feed_url, "whitelist_summary", whitelist_summary)  # type: ignore[call-overload]
+    reader.set_tag(clean_feed_url, "whitelist_content", whitelist_content)  # type: ignore[call-overload]
+    reader.set_tag(clean_feed_url, "whitelist_author", whitelist_author)  # type: ignore[call-overload]
 
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
@@ -240,11 +236,11 @@ async def get_whitelist(feed_url: str, request: Request):
 
 @app.post("/blacklist")
 async def post_set_blacklist(
-    blacklist_title: Annotated[str | None, Form()] = None,
-    blacklist_summary: Annotated[str | None, Form()] = None,
-    blacklist_content: Annotated[str | None, Form()] = None,
-    blacklist_author: Annotated[str | None, Form()] = None,
-    feed_url: Annotated[str | None, Form()] = None,
+    blacklist_title: Annotated[str, Form()] = "",
+    blacklist_summary: Annotated[str, Form()] = "",
+    blacklist_content: Annotated[str, Form()] = "",
+    blacklist_author: Annotated[str, Form()] = "",
+    feed_url: Annotated[str, Form()] = "",
 ) -> RedirectResponse:
     """Set the blacklist.
 
@@ -259,14 +255,10 @@ async def post_set_blacklist(
         feed_url: What feed we should set the blacklist for.
     """
     clean_feed_url: str = feed_url.strip() if feed_url else ""
-    if blacklist_title:
-        reader.set_tag(clean_feed_url, "blacklist_title", blacklist_title)  # type: ignore[call-overload]
-    if blacklist_summary:
-        reader.set_tag(clean_feed_url, "blacklist_summary", blacklist_summary)  # type: ignore[call-overload]
-    if blacklist_content:
-        reader.set_tag(clean_feed_url, "blacklist_content", blacklist_content)  # type: ignore[call-overload]
-    if blacklist_author:
-        reader.set_tag(clean_feed_url, "blacklist_author", blacklist_author)  # type: ignore[call-overload]
+    reader.set_tag(clean_feed_url, "blacklist_title", blacklist_title)  # type: ignore[call-overload]
+    reader.set_tag(clean_feed_url, "blacklist_summary", blacklist_summary)  # type: ignore[call-overload]
+    reader.set_tag(clean_feed_url, "blacklist_content", blacklist_content)  # type: ignore[call-overload]
+    reader.set_tag(clean_feed_url, "blacklist_author", blacklist_author)  # type: ignore[call-overload]
 
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
