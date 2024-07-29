@@ -86,7 +86,7 @@ reader: Reader = get_reader()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> typing.AsyncGenerator[None, None]:
+async def lifespan(app: FastAPI) -> typing.AsyncGenerator[None]:
     """This is needed for the ASGI server to run."""
     add_missing_tags(reader=reader)
     scheduler: AsyncIOScheduler = AsyncIOScheduler()
@@ -182,11 +182,11 @@ async def post_unpause_feed(feed_url: Annotated[str, Form()]) -> RedirectRespons
 
 @app.post("/whitelist")
 async def post_set_whitelist(
-    whitelist_title: Annotated[str, Form()],
-    whitelist_summary: Annotated[str, Form()],
-    whitelist_content: Annotated[str, Form()],
-    whitelist_author: Annotated[str, Form()],
-    feed_url: Annotated[str, Form()],
+    whitelist_title: Annotated[str | None, Form()] = None,
+    whitelist_summary: Annotated[str | None, Form()] = None,
+    whitelist_content: Annotated[str | None, Form()] = None,
+    whitelist_author: Annotated[str | None, Form()] = None,
+    feed_url: Annotated[str | None, Form()] = None,
 ) -> RedirectResponse:
     """Set what the whitelist should be sent, if you have this set only words in the whitelist will be sent.
 
@@ -197,7 +197,7 @@ async def post_set_whitelist(
         whitelist_author: Whitelisted words for when checking the author.
         feed_url: The feed we should set the whitelist for.
     """
-    clean_feed_url: str = feed_url.strip()
+    clean_feed_url: str = feed_url.strip() if feed_url else ""
     if whitelist_title:
         reader.set_tag(clean_feed_url, "whitelist_title", whitelist_title)  # type: ignore[call-overload]
     if whitelist_summary:
@@ -240,11 +240,11 @@ async def get_whitelist(feed_url: str, request: Request):
 
 @app.post("/blacklist")
 async def post_set_blacklist(
-    blacklist_title: Annotated[str, Form()],
-    blacklist_summary: Annotated[str, Form()],
-    blacklist_content: Annotated[str, Form()],
-    blacklist_author: Annotated[str, Form()],
-    feed_url: Annotated[str, Form()],
+    blacklist_title: Annotated[str | None, Form()] = None,
+    blacklist_summary: Annotated[str | None, Form()] = None,
+    blacklist_content: Annotated[str | None, Form()] = None,
+    blacklist_author: Annotated[str | None, Form()] = None,
+    feed_url: Annotated[str | None, Form()] = None,
 ) -> RedirectResponse:
     """Set the blacklist.
 
@@ -258,7 +258,7 @@ async def post_set_blacklist(
         blacklist_author: Blacklisted words for when checking the author.
         feed_url: What feed we should set the blacklist for.
     """
-    clean_feed_url: str = feed_url.strip()
+    clean_feed_url: str = feed_url.strip() if feed_url else ""
     if blacklist_title:
         reader.set_tag(clean_feed_url, "blacklist_title", blacklist_title)  # type: ignore[call-overload]
     if blacklist_summary:
@@ -303,8 +303,8 @@ async def get_blacklist(feed_url: str, request: Request):
 
 @app.post("/custom")
 async def post_set_custom(
-    custom_message: Annotated[str, Form()],
     feed_url: Annotated[str, Form()],
+    custom_message: Annotated[str, Form()] = "",
 ) -> RedirectResponse:
     """Set the custom message, this is used when sending the message.
 
@@ -389,16 +389,16 @@ async def get_embed_page(feed_url: str, request: Request):
 @app.post("/embed", response_class=HTMLResponse)
 async def post_embed(  # noqa: PLR0913, PLR0917
     feed_url: Annotated[str, Form()],
-    title: Annotated[str, Form()],
-    description: Annotated[str, Form()],
-    color: Annotated[str, Form()],
-    image_url: Annotated[str, Form()],
-    thumbnail_url: Annotated[str, Form()],
-    author_name: Annotated[str, Form()],
-    author_url: Annotated[str, Form()],
-    author_icon_url: Annotated[str, Form()],
-    footer_text: Annotated[str, Form()],
-    footer_icon_url: Annotated[str, Form()],
+    title: Annotated[str, Form()] = "",
+    description: Annotated[str, Form()] = "",
+    color: Annotated[str, Form()] = "",
+    image_url: Annotated[str, Form()] = "",
+    thumbnail_url: Annotated[str, Form()] = "",
+    author_name: Annotated[str, Form()] = "",
+    author_url: Annotated[str, Form()] = "",
+    author_icon_url: Annotated[str, Form()] = "",
+    footer_text: Annotated[str, Form()] = "",
+    footer_icon_url: Annotated[str, Form()] = "",
 ) -> RedirectResponse:
     """Set the embed settings.
 
