@@ -39,10 +39,11 @@
                             {% set feed = feed_webhook["feed"] %}
                             {% set hook_from_feed = feed_webhook["webhook"] %}
                             {% if hook_from_context.url == hook_from_feed %}
-                                <a class="text-muted" href="/feed?feed_url={{ feed.url|encode_url }}">{{ feed.url }}
+                                <div>
+                                    <a class="text-muted" href="/feed?feed_url={{ feed.url|encode_url }}">{{ feed.url }}</a>
                                     {% if not feed.updates_enabled %}<span class="text-warning">Disabled</span>{% endif %}
                                     {% if feed.last_exception %}<span class="text-danger">({{ feed.last_exception.value_str }})</span>{% endif %}
-                                </a>
+                                </div>
                             {% endif %}
                         {% endfor %}
                     </ul>
