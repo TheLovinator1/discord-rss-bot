@@ -30,6 +30,7 @@ default_custom_message: JSONType | str = "{{entry_title}}\n{{entry_link}}"
 default_custom_embed: dict[str, str] = {
     "title": "{{entry_title}}",
     "description": "{{entry_text}}",
+    "author_url": "{{entry_link}}",
     "image_url": "{{image_1}}",
     "color": "#469ad9",
 }
