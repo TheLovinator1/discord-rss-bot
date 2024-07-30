@@ -71,8 +71,8 @@ def replace_tags_in_text_message(entry: Entry) -> str:
 
     first_image: str = get_first_image(summary, content)
 
-    summary = markdownify(summary, strip=["img", "table", "td", "tr", "tbody", "thead"])
-    content = markdownify(content, strip=["img", "table", "td", "tr", "tbody", "thead"])
+    summary = markdownify(html=summary, strip=["img", "table", "td", "tr", "tbody", "thead"], escape_misc=False)
+    content = markdownify(html=content, strip=["img", "table", "td", "tr", "tbody", "thead"], escape_misc=False)
 
     if "[https://" in content or "[https://www." in content:
         content = content.replace("[https://", "[")
@@ -175,8 +175,8 @@ def replace_tags_in_embed(feed: Feed, entry: Entry) -> CustomEmbed:
 
     first_image: str = get_first_image(summary, content)
 
-    summary = markdownify(summary, strip=["img", "table", "td", "tr", "tbody", "thead"])
-    content = markdownify(content, strip=["img", "table", "td", "tr", "tbody", "thead"])
+    summary = markdownify(html=summary, strip=["img", "table", "td", "tr", "tbody", "thead"], escape_misc=False)
+    content = markdownify(html=content, strip=["img", "table", "td", "tr", "tbody", "thead"], escape_misc=False)
 
     if "[https://" in content or "[https://www." in content:
         content = content.replace("[https://", "[")
