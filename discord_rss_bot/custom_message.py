@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -9,10 +10,12 @@ from markdownify import markdownify
 from reader import Entry, Feed, Reader, TagNotFoundError
 
 from discord_rss_bot.is_url_valid import is_url_valid
-from discord_rss_bot.settings import get_reader, logger
+from discord_rss_bot.settings import get_reader
 
 if TYPE_CHECKING:
     from reader.types import JSONType
+
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -132,7 +135,7 @@ def get_first_image(summary: str | None, content: str | None) -> str:
     if content and (images := BeautifulSoup(content, features="lxml").find_all("img")):
         for image in images:
             if not is_url_valid(image.attrs["src"]):
-                logger.warning(f"Invalid URL: {image.attrs['src']}")
+                logger.warning("Invalid URL: %s", image.attrs["src"])
                 continue
 
             # Genshins first image is a divider, so we ignore it.
@@ -141,7 +144,7 @@ def get_first_image(summary: str | None, content: str | None) -> str:
     if summary and (images := BeautifulSoup(summary, features="lxml").find_all("img")):
         for image in images:
             if not is_url_valid(image.attrs["src"]):
-                logger.warning(f"Invalid URL: {image.attrs['src']}")
+                logger.warning("Invalid URL: %s", image.attrs["src"])
                 continue
 
             # Genshins first image is a divider, so we ignore it.
@@ -220,7 +223,6 @@ def replace_tags_in_embed(feed: Feed, entry: Entry) -> CustomEmbed:
         {"{{entry_updated}}": entry_updated or ""},
         {"{{image_1}}": first_image or ""},
     ]
-
     for replacement in list_of_replacements:
         for template, replace_with in replacement.items():
             embed.title = try_to_replace(embed.title, template, replace_with)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import logging
 import pprint
 from typing import TYPE_CHECKING
 
@@ -12,12 +13,14 @@ from discord_rss_bot import custom_message
 from discord_rss_bot.filter.blacklist import should_be_skipped
 from discord_rss_bot.filter.whitelist import has_white_tags, should_be_sent
 from discord_rss_bot.is_url_valid import is_url_valid
-from discord_rss_bot.settings import default_custom_message, get_reader, logger
+from discord_rss_bot.settings import default_custom_message, get_reader
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
     from requests import Response
+
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None) -> str | None:
@@ -186,11 +189,11 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
         # Set the webhook to read, so we don't send it again.
         try:
             reader.set_entry_read(entry, True)
-        except EntryNotFoundError as e:
-            logger.error("Error setting entry to read: %s", e)
+        except EntryNotFoundError:
+            logger.exception("Error setting entry to read: %s", entry.id)
             continue
-        except StorageError as e:
-            logger.error("Error setting entry to read: %s", e)
+        except StorageError:
+            logger.exception("Error setting entry to read: %s", entry.id)
             continue
 
         # Get the webhook URL for the entry. If it is None, we will continue to the next entry.
