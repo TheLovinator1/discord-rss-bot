@@ -194,6 +194,12 @@ def replace_tags_in_embed(feed: Feed, entry: Entry) -> CustomEmbed:
     entry_read_modified: str = entry.read_modified.strftime("%Y-%m-%d %H:%M:%S") if entry.read_modified else "Never"
     entry_updated: str = entry.updated.strftime("%Y-%m-%d %H:%M:%S") if entry.updated else "Never"
 
+    if embed.title and not embed.author_name and embed.author_url:
+        msg = "You are using author_url without author_name, but has title set. We will use author_name instead of title when sending the embed to Discord."  # noqa: E501
+        logger.info(msg)
+        embed.author_name = embed.title
+        embed.title = ""
+
     list_of_replacements: list[dict[str, str]] = [
         {"{{feed_author}}": feed.author or ""},
         {"{{feed_added}}": feed_added or ""},
