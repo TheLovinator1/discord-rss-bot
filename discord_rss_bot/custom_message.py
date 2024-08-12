@@ -139,7 +139,12 @@ def get_first_image(summary: str | None, content: str | None) -> str:
                 continue
 
             # Genshins first image is a divider, so we ignore it.
-            if not image.attrs["src"].startswith("https://img-os-static.hoyolab.com/divider_config"):
+            # https://hyl-static-res-prod.hoyolab.com/divider_config/PC/line_3.png
+            skip_images: list[str] = [
+                "https://img-os-static.hoyolab.com/divider_config/",
+                "https://hyl-static-res-prod.hoyolab.com/divider_config/",
+            ]
+            if not image.attrs["src"].startswith(tuple(skip_images)):
                 return str(image.attrs["src"])
     if summary and (images := BeautifulSoup(summary, features="lxml").find_all("img")):
         for image in images:
