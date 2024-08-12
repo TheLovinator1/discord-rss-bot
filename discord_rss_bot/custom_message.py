@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 from bs4 import BeautifulSoup
 from markdownify import markdownify
@@ -11,9 +10,6 @@ from reader import Entry, Feed, Reader, TagNotFoundError
 
 from discord_rss_bot.is_url_valid import is_url_valid
 from discord_rss_bot.settings import get_reader
-
-if TYPE_CHECKING:
-    from reader.types import JSONType
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -117,8 +113,7 @@ def replace_tags_in_text_message(entry: Entry) -> str:
         for template, replace_with in replacement.items():
             custom_message = try_to_replace(custom_message, template, replace_with)
 
-    our_custom_message = custom_message.replace("\\n", "\n")
-    return our_custom_message  # noqa: RET504
+    return custom_message.replace("\\n", "\n")
 
 
 def get_first_image(summary: str | None, content: str | None) -> str:
@@ -236,17 +231,27 @@ def replace_tags_in_embed(feed: Feed, entry: Entry) -> CustomEmbed:
     ]
     for replacement in list_of_replacements:
         for template, replace_with in replacement.items():
-            embed.title = try_to_replace(embed.title, template, replace_with)
-            embed.description = try_to_replace(embed.description, template, replace_with)
-            embed.author_name = try_to_replace(embed.author_name, template, replace_with)
-            embed.author_url = try_to_replace(embed.author_url, template, replace_with)
-            embed.author_icon_url = try_to_replace(embed.author_icon_url, template, replace_with)
-            embed.image_url = try_to_replace(embed.image_url, template, replace_with)
-            embed.thumbnail_url = try_to_replace(embed.thumbnail_url, template, replace_with)
-            embed.footer_text = try_to_replace(embed.footer_text, template, replace_with)
-            embed.footer_icon_url = try_to_replace(embed.footer_icon_url, template, replace_with)
-
+            _replace_embed_tags(embed, template, replace_with)
     return embed
+
+
+def _replace_embed_tags(embed: CustomEmbed, template: str, replace_with: str) -> None:
+    """Replace tags in embed.
+
+    Args:
+        embed: The embed to replace tags in.
+        template: The tag to replace.
+        replace_with: What to replace the tag with.
+    """
+    embed.title = try_to_replace(embed.title, template, replace_with)
+    embed.description = try_to_replace(embed.description, template, replace_with)
+    embed.author_name = try_to_replace(embed.author_name, template, replace_with)
+    embed.author_url = try_to_replace(embed.author_url, template, replace_with)
+    embed.author_icon_url = try_to_replace(embed.author_icon_url, template, replace_with)
+    embed.image_url = try_to_replace(embed.image_url, template, replace_with)
+    embed.thumbnail_url = try_to_replace(embed.thumbnail_url, template, replace_with)
+    embed.footer_text = try_to_replace(embed.footer_text, template, replace_with)
+    embed.footer_icon_url = try_to_replace(embed.footer_icon_url, template, replace_with)
 
 
 def get_custom_message(custom_reader: Reader, feed: Feed) -> str:
@@ -303,8 +308,7 @@ def get_embed(custom_reader: Reader, feed: Feed) -> CustomEmbed:
     Returns:
         Returns the contents from the embed tag.
     """
-    embed: str | JSONType = custom_reader.get_tag(feed, "embed", "")
-    if embed:
+    if embed := custom_reader.get_tag(feed, "embed", ""):
         if not isinstance(embed, str):
             return get_embed_data(embed)  # type: ignore
         embed_data: dict[str, str | int] = json.loads(embed)

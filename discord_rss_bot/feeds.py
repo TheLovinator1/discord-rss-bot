@@ -73,7 +73,7 @@ def set_description(custom_embed: custom_message.CustomEmbed, discord_embed: Dis
     max_description_length: int = 2000
     embed_description: str = custom_embed.description
     embed_description = (
-        embed_description[:max_description_length] + "..."
+        f"{embed_description[:max_description_length]}..."
         if len(embed_description) > max_description_length
         else embed_description
     )
@@ -90,7 +90,7 @@ def set_title(custom_embed: custom_message.CustomEmbed, discord_embed: DiscordEm
     # Its actually 256, but we will use 200 to be safe.
     max_title_length: int = 200
     embed_title: str = custom_embed.title
-    embed_title = embed_title[:max_title_length] + "..." if len(embed_title) > max_title_length else embed_title
+    embed_title = f"{embed_title[:max_title_length]}..." if len(embed_title) > max_title_length else embed_title
     discord_embed.set_title(embed_title) if embed_title else None
 
 
@@ -168,9 +168,6 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
         custom_reader: If we should use a custom reader instead of the default one.
         feed: The feed to send to Discord.
         do_once: If we should only send one entry. This is used in the test.
-
-    Returns:
-        Response: The response from the webhook.
     """
     # Get the default reader if we didn't get a custom one.
     reader: Reader = get_reader() if custom_reader is None else custom_reader
@@ -214,7 +211,7 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
             # Its actually 4096, but we will use 4000 to be safe.
             max_content_length: int = 4000
             webhook_message = (
-                webhook_message[:max_content_length] + "..."
+                f"{webhook_message[:max_content_length]}..."
                 if len(webhook_message) > max_content_length
                 else webhook_message
             )

@@ -125,6 +125,9 @@ async def post_add_webhook(
     Args:
         webhook_name: The name of the webhook.
         webhook_url: The url of the webhook.
+
+    Returns:
+        RedirectResponse: Redirect to the index page.
     """
     add_webhook(reader, webhook_name, webhook_url)
     return RedirectResponse(url="/", status_code=303)
@@ -136,6 +139,9 @@ async def post_delete_webhook(webhook_url: Annotated[str, Form()]) -> RedirectRe
 
     Args:
         webhook_url: The url of the webhook.
+
+    Returns:
+        RedirectResponse: Redirect to the index page.
     """
     # TODO(TheLovinator): Check if the webhook is in use by any feeds before deleting it.
     remove_webhook(reader, webhook_url)
@@ -152,6 +158,9 @@ async def post_create_feed(
     Args:
         feed_url: The feed to add.
         webhook_dropdown: The webhook to use.
+
+    Returns:
+        RedirectResponse: Redirect to the feed page.
     """
     clean_feed_url: str = feed_url.strip()
     create_feed(reader, feed_url, webhook_dropdown)
@@ -164,6 +173,9 @@ async def post_pause_feed(feed_url: Annotated[str, Form()]) -> RedirectResponse:
 
     Args:
         feed_url: The feed to pause.
+
+    Returns:
+        RedirectResponse: Redirect to the feed page.
     """
     clean_feed_url: str = feed_url.strip()
     reader.disable_feed_updates(clean_feed_url)
@@ -176,6 +188,9 @@ async def post_unpause_feed(feed_url: Annotated[str, Form()]) -> RedirectRespons
 
     Args:
         feed_url: The Feed to unpause.
+
+    Returns:
+        RedirectResponse: Redirect to the feed page.
     """
     clean_feed_url: str = feed_url.strip()
     reader.enable_feed_updates(clean_feed_url)
@@ -198,6 +213,9 @@ async def post_set_whitelist(
         whitelist_content: Whitelisted words for when checking the content.
         whitelist_author: Whitelisted words for when checking the author.
         feed_url: The feed we should set the whitelist for.
+
+    Returns:
+        RedirectResponse: Redirect to the feed page.
     """
     clean_feed_url: str = feed_url.strip() if feed_url else ""
     reader.set_tag(clean_feed_url, "whitelist_title", whitelist_title)  # type: ignore[call-overload]
@@ -215,6 +233,9 @@ async def get_whitelist(feed_url: str, request: Request):
     Args:
         feed_url: What feed we should get the whitelist for.
         request: The request object.
+
+    Returns:
+        HTMLResponse: The whitelist page.
     """
     clean_feed_url: str = feed_url.strip()
     feed: Feed = reader.get_feed(urllib.parse.unquote(clean_feed_url))
@@ -255,6 +276,9 @@ async def post_set_blacklist(
         blacklist_content: Blacklisted words for when checking the content.
         blacklist_author: Blacklisted words for when checking the author.
         feed_url: What feed we should set the blacklist for.
+
+    Returns:
+        RedirectResponse: Redirect to the feed page.
     """
     clean_feed_url: str = feed_url.strip() if feed_url else ""
     reader.set_tag(clean_feed_url, "blacklist_title", blacklist_title)  # type: ignore[call-overload]
@@ -305,6 +329,9 @@ async def post_set_custom(
     Args:
         custom_message: The custom message.
         feed_url: The feed we should set the custom message for.
+
+    Returns:
+        RedirectResponse: Redirect to the feed page.
     """
     our_custom_message: JSONType | str = custom_message.strip()
     our_custom_message = typing.cast(JSONType, our_custom_message)
@@ -328,6 +355,9 @@ async def get_custom(feed_url: str, request: Request):
     Args:
         feed_url: What feed we should get the custom message for.
         request: The request object.
+
+    Returns:
+        HTMLResponse: The custom message page.
     """
     feed: Feed = reader.get_feed(urllib.parse.unquote(feed_url.strip()))
 
@@ -351,6 +381,9 @@ async def get_embed_page(feed_url: str, request: Request):
     Args:
         feed_url: What feed we should get the custom message for.
         request: The request object.
+
+    Returns:
+        HTMLResponse: The embed page.
     """
     feed: Feed = reader.get_feed(urllib.parse.unquote(feed_url.strip()))
 
@@ -466,7 +499,14 @@ async def post_use_text(feed_url: Annotated[str, Form()]) -> RedirectResponse:
 
 @app.get("/add", response_class=HTMLResponse)
 def get_add(request: Request):
-    """Page for adding a new feed."""
+    """Page for adding a new feed.
+
+    Args:
+        request: The request object.
+
+    Returns:
+        HTMLResponse: The add feed page.
+    """
     context = {
         "request": request,
         "webhooks": reader.get_tag((), "webhooks", []),
@@ -559,6 +599,9 @@ def create_html_for_feed(entries: Iterable[Entry]) -> str:
 
     Args:
         entries: The entries to create HTML for.
+
+    Returns:
+        str: The HTML for the search results.
     """
     html: str = ""
     for entry in entries:
@@ -802,6 +845,9 @@ def modify_webhook(old_hook: Annotated[str, Form()], new_hook: Annotated[str, Fo
 
     Raises:
         HTTPException: Webhook could not be modified.
+
+    Returns:
+        RedirectResponse: Redirect to the webhook page.
     """
     # Get current webhooks from the database if they exist otherwise use an empty list.
     webhooks = list(reader.get_tag((), "webhooks", []))

@@ -31,6 +31,8 @@ def get_reader(custom_location: Path | None = None) -> Reader:
     Args:
         custom_location: The location of the database file.
 
+    Returns:
+        The reader.
     """
     db_location: Path = custom_location or Path(data_dir) / "db.sqlite"
 
