@@ -1,5 +1,5 @@
 # Stage 1: Build the requirements.txt using Poetry.
-FROM python:3.13 AS builder
+FROM python:3.12 AS builder
 
 # Set environment variables for Python.
 ENV PYTHONDONTWRITEBYTECODE 1
@@ -23,7 +23,7 @@ COPY pyproject.toml poetry.lock /app/
 RUN poetry self add poetry-plugin-export && poetry export --format=requirements.txt --output=requirements.txt --only=main --without-hashes
 
 # Stage 2: Install dependencies and run the application
-FROM python:3.13 AS runner
+FROM python:3.12 AS runner
 
 # Set environment variables for Python.
 ENV PYTHONDONTWRITEBYTECODE 1
