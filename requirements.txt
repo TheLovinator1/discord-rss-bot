@@ -1,0 +1,12 @@
+apscheduler
+discord-webhook
+fastapi
+httpx
+jinja2
+lxml
+markdownify
+platformdirs
+python-dotenv
+python-multipart
+reader
+uvicorn
