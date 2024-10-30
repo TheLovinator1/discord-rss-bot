@@ -1,12 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="description"
-              content="Stay updated with the latest news and events with our easy-to-use RSS bot. Never miss a message or announcement again with real-time notifications directly to your Discord server." />
+            content="Stay updated with the latest news and events with our easy-to-use RSS bot. Never miss a message or announcement again with real-time notifications directly to your Discord server." />
         <meta name="keywords"
-              content="discord, rss, bot, notifications, announcements, updates, real-time, server, messages, news, events, feed." />
+            content="discord, rss, bot, notifications, announcements, updates, real-time, server, messages, news, events, feed." />
         <link href="/static/bootstrap.min.css" rel="stylesheet" />
         <link href="/static/styles.css" rel="stylesheet" />
         <link rel="icon" href="/static/favicon.ico" type="image/x-icon" />
@@ -17,11 +18,19 @@
         {% block head %}
         {% endblock head %}
     </head>
+
     <body class="text-white-50">
         {% include "nav.html" %}
         <div class="p-2 mb-2">
             <div class="container-fluid">
                 <div class="d-grid p-2">
+                    {% if messages %}
+                    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                        <pre>{{ messages }}</pre>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endif %}
+
                     {% block content %}
                     {% endblock content %}
                     <footer class="d-flex flex-wrap justify-content-between align-items-center py-3 my-4 border-top">
@@ -32,11 +41,11 @@
                         <ul class="nav col-md-4 justify-content-end">
                             <li class="nav-item">
                                 <a href="https://github.com/TheLovinator1/discord-rss-bot/issues"
-                                   class="nav-link px-2 text-muted">Report an issue</a>
+                                    class="nav-link px-2 text-muted">Report an issue</a>
                             </li>
                             <li class="nav-item">
                                 <a href="https://github.com/TheLovinator1/discord-rss-bot/issues"
-                                   class="nav-link px-2 text-muted">Send feedback</a>
+                                    class="nav-link px-2 text-muted">Send feedback</a>
                             </li>
                         </ul>
                     </footer>
@@ -45,4 +54,5 @@
         </div>
         <script src="/static/bootstrap.min.js" defer></script>
     </body>
+
 </html>

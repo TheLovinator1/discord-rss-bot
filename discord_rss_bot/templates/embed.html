@@ -1,15 +1,15 @@
 {% extends "base.html" %}
 {% block title %}
-    | Embed
+| Embed
 {% endblock title %}
 {% block content %}
-    <div class="p-2 border border-dark">
-        <form action="/embed" method="post">
-            <div class="row pb-2">
-                <div class="col-sm-12">
-                    <div class="form-text">
-                        <ul class="list-inline">
-                        <br/>
+<div class="p-2 border border-dark">
+    <form action="/embed" method="post">
+        <div class="row pb-2">
+            <div class="col-sm-12">
+                <div class="form-text">
+                    <ul class="list-inline">
+                        <br />
                         <li>
                             <code>
                                 {% raw %}
@@ -94,218 +94,170 @@
                                 {% endraw %}
                             </code>{{feed.version}}
                         </li>
-                        <br/>
+                        <br />
                         {% if entry %}
-                            <li>
-                                <code>
+                        <li>
+                            <code>
                                     {% raw %}
                                         {{entry_added}}
                                     {% endraw %}
                                 </code>{{entry.added}}
-                            </li>
-                            <li>
-                                <code>
+                        </li>
+                        <li>
+                            <code>
                                     {% raw %}
                                         {{entry_author}}
                                     {% endraw %}
                                 </code>{{entry.author}}
-                            </li>
-                            {% if entry.content %}
-                            <li>
-                                <code>
+                        </li>
+                        {% if entry.content %}
+                        <li>
+                            <code>
                                     {% raw %}
                                         {{entry_content}}
                                     {% endraw %}
                                 </code>{{entry.content[0].value|discord_markdown}}
-                            </li>
-                            <li>
-                                <code>
+                        </li>
+                        <li>
+                            <code>
                                     {% raw %}
                                         {{entry_content_raw}}
                                     {% endraw %}
                                 </code>{{entry.content[0].value}}
-                            </li>
-                            {% endif %}
-                            <li>
-                                <code>
+                        </li>
+                        {% endif %}
+                        <li>
+                            <code>
                                     {% raw %}
                                         {{entry_id}}
                                     {% endraw %}
                                 </code>{{entry.id}}
-                            </li>
-                            <li>
-                                <code>
+                        </li>
+                        <li>
+                            <code>
                                     {% raw %}
                                         {{entry_important}}
                                     {% endraw %}
                                 </code>{{entry.important}}
-                            </li>
-                            <li>
-                                <code>
+                        </li>
+                        <li>
+                            <code>
                                     {% raw %}
                                         {{entry_link}}
                                     {% endraw %}
                                 </code>{{entry.link}}
-                            </li>
-                            <li>
-                                <code>
+                        </li>
+                        <li>
+                            <code>
                                     {% raw %}
                                         {{entry_published}}
                                     {% endraw %}
                                 </code>{{entry.published}}
-                            </li>
-                            <li>
-                                <code>
+                        </li>
+                        <li>
+                            <code>
                                     {% raw %}
                                         {{entry_read}}
                                     {% endraw %}
                                 </code>{{entry.read}}
-                            </li>
-                            <li>
-                                <code>
+                        </li>
+                        <li>
+                            <code>
                                     {% raw %}
                                         {{entry_read_modified}}
                                     {% endraw %}
                                 </code>{{entry.read_modified}}
-                            </li>
-                            {% if entry.summary %}
-                            <li>
-                                <code>
+                        </li>
+                        {% if entry.summary %}
+                        <li>
+                            <code>
                                     {% raw %}
                                         {{entry_summary}}
                                     {% endraw %}
                                 </code>{{entry.summary|discord_markdown}}
-                            </li>
-                            <li>
-                                <code>
+                        </li>
+                        <li>
+                            <code>
                                     {% raw %}
                                         {{entry_summary_raw}}
                                     {% endraw %}
                                 </code>{{entry.summary}}
-                            </li>
-                            {% endif %}
-                            <li>
-                                <code>
+                        </li>
+                        {% endif %}
+                        <li>
+                            <code>
                                     {% raw %}
                                         {{entry_title}}
                                     {% endraw %}
                                 </code>{{entry.title}}
-                            </li>
-                            <li>
-                                <code>
+                        </li>
+                        <li>
+                            <code>
                                     {% raw %}
                                         {{entry_text}}
                                     {% endraw %}
                                 </code> Same as entry_content if it exists, otherwise entry_summary
-                            </li>
-                            <li>
-                                <code>
+                        </li>
+                        <li>
+                            <code>
                                     {% raw %}
                                         {{entry_updated}}
                                     {% endraw %}
                                 </code>{{entry.updated}}
-                            </li>
-                            <br/>
-                            <li>
-                                <code>
+                        </li>
+                        <br />
+                        <li>
+                            <code>
                                     {% raw %}
                                         {{image_1}}
                                     {% endraw %}
                                 </code>First image in the entry if it exists
-                            </li>
-                        </ul>
+                        </li>
+                    </ul>
                     {% else %}
-                        Something went wrong, there was no entry found. If this feed has entries and you still see this message, please contact the developer.
+                    Something went wrong, there was no entry found. If this feed has entries and you still see this
+                    message, please contact the developer.
                     {% endif %}
                 </div>
-                    <label for="title" class="col-sm-6 col-form-label">Title</label>
-                    <input name="title"
-                           type="text"
-                           class="form-control bg-dark border-dark text-muted"
-                           id="title"
-                           {% if title %}
-                               value="{{- title -}}"
-                           {% endif %}/>
-                    <label for="description" class="col-sm-6 col-form-label">Description</label>
-                    <input name="description"
-                           type="text"
-                           class="form-control bg-dark border-dark text-muted"
-                           id="description"
-                           {% if description %}
-                               value="{{- description -}}"
-                           {% endif %}/>
-                    <label for="color" class="col-sm-6 col-form-label">Embed color</label>
-                    <input name="color"
-                           type="color"
-                           class="form-control form-control-color bg-dark border-dark text-muted"
-                           id="color"
-                           {% if color %}
-                               value="{{- color -}}"
-                           {% endif %}/>
-                    <label for="author_name" class="col-sm-6 col-form-label">Author name</label>
-                    <input name="author_name"
-                           type="text"
-                           class="form-control bg-dark border-dark text-muted"
-                           id="author_name"
-                           {% if author_name %}
-                               value="{{- author_name -}}"
-                           {% endif %}/>
-                    <label for="author_url" class="col-sm-6 col-form-label">Author URL</label>
-                    <input name="author_url"
-                           type="text"
-                           class="form-control bg-dark border-dark text-muted"
-                           id="author_url"
-                           {% if author_url %}
-                               value="{{- author_url -}}"
-                           {% endif %}/>
-                    <label for="author_icon_url" class="col-sm-6 col-form-label">Author icon URL</label>
-                    <input name="author_icon_url"
-                           type="text"
-                           class="form-control bg-dark border-dark text-muted"
-                           id="author_icon_url"
-                           {% if author_icon_url %}
-                               value="{{- author_icon_url -}}"
-                           {% endif %}/>
-                    <label for="image_url" class="col-sm-6 col-form-label">Image URL - Add {% raw %}{{image_1}}{% endraw %} for first image</label>
-                    <input name="image_url"
-                           type="text"
-                           class="form-control bg-dark border-dark text-muted"
-                           id="image_url"
-                           {% if image_url %}
-                               value="{{- image_url -}}"
-                           {% endif %}/>
-                    <label for="thumbnail_url" class="col-sm-6 col-form-label">Thumbnail</label>
-                    <input name="thumbnail_url"
-                           type="text"
-                           class="form-control bg-dark border-dark text-muted"
-                           id="thumbnail_url"
-                           {% if thumbnail_url %}
-                               value="{{- thumbnail_url -}}"
-                           {% endif %}/>
-                    <label for="footer_text" class="col-sm-6 col-form-label">Footer text</label>
-                    <input name="footer_text"
-                           type="text"
-                           class="form-control bg-dark border-dark text-muted"
-                           id="footer_text"
-                           {% if footer_text %}
-                               value="{{- footer_text -}}"
-                           {% endif %}/>
-                    <label for="footer_icon_url" class="col-sm-6 col-form-label">Footer icon</label>
-                    <input name="footer_icon_url"
-                           type="text"
-                           class="form-control bg-dark border-dark text-muted"
-                           id="footer_icon_url"
-                           {% if footer_icon_url %}
-                               value="{{- footer_icon_url -}}"
-                           {% endif %}/>
-                </div>
+                <label for="title" class="col-sm-6 col-form-label">Title</label>
+                <input name="title" type="text" class="form-control bg-dark border-dark text-muted" id="title"
+                    {% if title %} value="{{- title -}}" {% endif %} />
+                <label for="description" class="col-sm-6 col-form-label">Description</label>
+                <input name="description" type="text" class="form-control bg-dark border-dark text-muted"
+                    id="description" {% if description %} value="{{- description -}}" {% endif %} />
+                <label for="color" class="col-sm-6 col-form-label">Embed color</label>
+                <input name="color" type="color" class="form-control form-control-color bg-dark border-dark text-muted"
+                    id="color" {% if color %} value="{{- color -}}" {% endif %} />
+                <label for="author_name" class="col-sm-6 col-form-label">Author name</label>
+                <input name="author_name" type="text" class="form-control bg-dark border-dark text-muted"
+                    id="author_name" {% if author_name %} value="{{- author_name -}}" {% endif %} />
+                <label for="author_url" class="col-sm-6 col-form-label">Author URL</label>
+                <input name="author_url" type="text" class="form-control bg-dark border-dark text-muted" id="author_url"
+                    {% if author_url %} value="{{- author_url -}}" {% endif %} />
+                <label for="author_icon_url" class="col-sm-6 col-form-label">Author icon URL</label>
+                <input name="author_icon_url" type="text" class="form-control bg-dark border-dark text-muted"
+                    id="author_icon_url" {% if author_icon_url %} value="{{- author_icon_url -}}" {% endif %} />
+                <label for="image_url" class="col-sm-6 col-form-label">Image URL - Add {% raw %}{{image_1}}{% endraw %}
+                    for first image</label>
+                <input name="image_url" type="text" class="form-control bg-dark border-dark text-muted" id="image_url"
+                    {% if image_url %} value="{{- image_url -}}" {% endif %} />
+                <label for="thumbnail_url" class="col-sm-6 col-form-label">Thumbnail</label>
+                <input name="thumbnail_url" type="text" class="form-control bg-dark border-dark text-muted"
+                    id="thumbnail_url" {% if thumbnail_url %} value="{{- thumbnail_url -}}" {% endif %} />
+                <label for="footer_text" class="col-sm-6 col-form-label">Footer text</label>
+                <input name="footer_text" type="text" class="form-control bg-dark border-dark text-muted"
+                    id="footer_text" {% if footer_text %} value="{{- footer_text -}}" {% endif %} />
+                <label for="footer_icon_url" class="col-sm-6 col-form-label">Footer icon</label>
+                <input name="footer_icon_url" type="text" class="form-control bg-dark border-dark text-muted"
+                    id="footer_icon_url" {% if footer_icon_url %} value="{{- footer_icon_url -}}" {% endif %} />
             </div>
-            <!-- Add a hidden feed_url field to the form -->
-            <input type="hidden" name="feed_url" value="{{ feed.url }}"/>
-            <!-- Submit button -->
-            <div class="d-md-flex">
-                <button class="btn btn-dark btn-sm">Update embed</button>
-            </div>
-        </form>
-    </div>
+        </div>
+        <!-- Add a hidden feed_url field to the form -->
+        <input type="hidden" name="feed_url" value="{{ feed.url }}" />
+        <!-- Submit button -->
+        <div class="d-md-flex">
+            <button class="btn btn-dark btn-sm">Update embed</button>
+        </div>
+    </form>
+</div>
 {% endblock content %}

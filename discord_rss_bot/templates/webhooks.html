@@ -1,48 +1,55 @@
 {% extends "base.html" %}
 {% block title %}
-    | Webhooks
+| Webhooks
 {% endblock title %}
 {% block content %}
-    {# List all available webhooks #}
-    <h3>Available webhooks</h3>
-    <ul class="list-inline">
-        <a class="btn btn-primary" href="/add_webhook">Add new</a>
-        <br />
-        {% for hook in hooks_with_data %}
-            <div class="p-2 border border-dark text-muted">
-                <h3>{{ hook.custom_name }}</h3>
+<div class="container my-4 text-light">
+    {% for hook in hooks_with_data %}
+    <div class="border border-dark mb-4 shadow-sm p-3">
+        <div class="text-muted">
+            <h4>{{ hook.custom_name }}</h4>
+            <ul class="list-unstyled">
                 <li>
-                    <strong>Name</strong>: {{ hook.name }}
+                    <strong>
+                        <abbr title="Name configured in Discord">
+                            Discord name:</strong> {{ hook.name }}
+                    </abbr>
                 </li>
                 <li>
-                    <strong>Webhook URL</strong>: <a class="text-muted" href="{{ hook.url }}">{{ hook.url }}</a>
+                    <strong>Webhook:</strong>
+                    <a class="text-muted"
+                        href="{{ hook.url }}">{{ hook.url | replace("https://discord.com/api/webhooks", "") }}</a>
                 </li>
-                <br />
-                <form action="/modify_webhook" method="post">
-                    <input type="hidden" name="old_hook" value="{{- hook.url -}}" />
-                    <div class="row pb-2">
-                        <label for="new_hook" class="col-sm-1 col-form-label">Modify webhook</label>
-                        <div class="col-sm-9">
-                            <input name="new_hook"
-                                   type="text"
-                                   class="form-control bg-dark border-dark text-muted"
-                                   id="new_hook" />
-                        </div>
-                        <button type="submit" class="btn btn-primary col-sm-1 ">Modify</button>
-                        <div class="form-text">
-                            You can append ?thread_id=THREAD_ID to the end
-                            of the URL to send messages to a thread. You can get
-                            the thread ID by right-clicking on the thread and
-                            Copy Thread ID.
-                        </div>
-                    </div>
-                </form>
-                <form action="/delete_webhook" method="post">
-                    <input type="hidden" name="webhook_url" value="{{- hook.url -}}" />
-                    <button type="submit" class="btn btn-danger">Delete</button>
-                </form>
-            </div>
-            <br />
-        {% endfor %}
-    </ul>
+            </ul>
+            <hr>
+            <form action="/modify_webhook" method="post" class="row g-3">
+                <input type="hidden" name="old_hook" value="{{ hook.url }}" />
+                <div class="col-md-8">
+                    <label for="new_hook" class="form-label">Modify Webhook</label>
+                    <input type="text" name="new_hook" id="new_hook" class="form-control border text-muted bg-dark"
+                        placeholder="Enter new webhook URL" />
+
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">Modify</button>
+                </div>
+            </form>
+        </div>
+        <div class="d-flex justify-content-between mt-2">
+            <form action="/delete_webhook" method="post">
+                <input type="hidden" name="webhook_url" value="{{ hook.url }}" />
+                <button type="submit" class="btn btn-danger"
+                    onclick="return confirm('Are you sure you want to delete this webhook?');">Delete</button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+    <div class="border border-dark p-3">
+        You can append <code>?thread_id=THREAD_ID</code> to the URL to send messages to a thread.
+    </div>
+    <br>
+    <div class="text-end">
+        <a class="btn btn-primary mb-3" href="/add_webhook">Add New Webhook</a>
+    </div>
+</div>
 {% endblock content %}

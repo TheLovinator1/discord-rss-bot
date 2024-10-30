@@ -1,39 +1,32 @@
 {% extends "base.html" %}
 {% block title %}
-    | Add new feed
+| Add new feed
 {% endblock title %}
 {% block content %}
-    <div class="p-2 border border-dark">
-        <form action="/add" method="post">
-            <!-- Feed URL -->
-            <div class="row pb-2">
-                <label for="feed_url" class="col-sm-2 col-form-label">RSS feed URL</label>
-                <div class="col-sm-10">
-                    <input name="feed_url"
-                           type="text"
-                           class="form-control bg-dark border-dark text-muted"
-                           id="feed_url" />
-                </div>
+<div class="p-2 border border-dark">
+    <form action="/add" method="post">
+        <!-- Feed URL -->
+        <div class="row pb-2">
+            <label for="feed_url" class="col-sm-2 col-form-label">Feed URL</label>
+            <div class="col-sm-10">
+                <input name="feed_url" type="text" class="form-control bg-dark border-dark text-muted" id="feed_url" />
             </div>
-            <!-- Webhook dropdown -->
-            <div class="row pb-2">
-                <label for="webhook_dropdown" class="col-sm-2 col-form-label">Which webhook should we send entries to?</label>
-                <div class="col-sm-10">
-                    <select class="col-auto form-select bg-dark border-dark text-muted"
-                            id="webhook_dropdown"
-                            name="webhook_dropdown">
-                        <option selected>Choose webhook...</option>
-                        {% for hook in webhooks %}<option value="{{ hook.name }}">{{- hook.name -}}</option>{% endfor %}
-                    </select>
-                </div>
-                <div class="form-text">
-                    You can add more webhooks <a class="text-muted" href="/add_webhook">here</a>
-                </div>
+        </div>
+        <!-- Webhook dropdown -->
+        <div class="row pb-2">
+            <label for="webhook_dropdown" class="col-sm-2 col-form-label">Webhook</label>
+            <div class="col-sm-10">
+                <select class="col-auto form-select bg-dark border-dark text-muted" id="webhook_dropdown"
+                    name="webhook_dropdown">
+                    <option selected>Choose webhook...</option>
+                    {% for hook in webhooks %}<option value="{{ hook.name }}">{{- hook.name -}}</option>{% endfor %}
+                </select>
             </div>
-            <!-- Submit button -->
-            <div class="d-md-flex">
-                <button class="btn btn-dark btn-sm">Add feed</button>
-            </div>
-        </form>
-    </div>
+        </div>
+        <!-- Submit button -->
+        <div class="d-md-flex">
+            <button class="btn btn-dark btn-sm">Add feed</button>
+        </div>
+    </form>
+</div>
 {% endblock content %}

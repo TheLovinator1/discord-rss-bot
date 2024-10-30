@@ -3,23 +3,20 @@ from __future__ import annotations
 import re
 
 
-def is_word_in_text(words: str, text: str) -> bool:
-    """Check if the word is in the text.
+def is_word_in_text(word_string: str, text: str) -> bool:
+    """Check if any of the words are in the text.
 
     Args:
-        words: The words to search for.
+        word_string: A comma-separated string of words to search for.
         text: The text to search in.
 
     Returns:
-        bool: If the word is in the text.
+        bool: True if any word is found in the text, otherwise False.
     """
-    # Split the word list into a list of words.
-    word_list: list[str] = words.split(",")
+    word_list: list[str] = word_string.split(",")
 
-    # Check if each word is in the text.
-    for word in word_list:
-        look_for: str = rf"(^|[^\w]){word}([^\w]|$)"
-        pattern: re.Pattern[str] = re.compile(look_for, re.IGNORECASE)
-        if re.search(pattern, text):
-            return True
-    return False
+    # Compile regex patterns for each word.
+    patterns: list[re.Pattern[str]] = [re.compile(rf"(^|[^\w]){word}([^\w]|$)", re.IGNORECASE) for word in word_list]
+
+    # Check if any pattern matches the text.
+    return any(pattern.search(text) for pattern in patterns)

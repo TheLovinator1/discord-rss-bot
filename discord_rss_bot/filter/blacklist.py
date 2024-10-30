@@ -3,7 +3,7 @@ from reader import Entry, Feed, Reader
 from discord_rss_bot.filter.utils import is_word_in_text
 
 
-def has_black_tags(custom_reader: Reader, feed: Feed) -> bool:
+def feed_has_blacklist_tags(custom_reader: Reader, feed: Feed) -> bool:
     """Return True if the feed has blacklist tags.
 
     The following tags are checked:
@@ -25,7 +25,7 @@ def has_black_tags(custom_reader: Reader, feed: Feed) -> bool:
     return bool(blacklist_title or blacklist_summary or blacklist_content)
 
 
-def should_be_skipped(custom_reader: Reader, entry: Entry) -> bool:
+def entry_should_be_skipped(custom_reader: Reader, entry: Entry) -> bool:
     """Return True if the entry is in the blacklist.
 
     Args:
@@ -35,11 +35,10 @@ def should_be_skipped(custom_reader: Reader, entry: Entry) -> bool:
     Returns:
         bool: If the entry is in the blacklist.
     """
-    feed: Feed = entry.feed
-    blacklist_title: str = str(custom_reader.get_tag(feed, "blacklist_title", ""))
-    blacklist_summary: str = str(custom_reader.get_tag(feed, "blacklist_summary", ""))
-    blacklist_content: str = str(custom_reader.get_tag(feed, "blacklist_content", ""))
-    blacklist_author: str = str(custom_reader.get_tag(feed, "blacklist_author", ""))
+    blacklist_title: str = str(custom_reader.get_tag(entry.feed, "blacklist_title", ""))
+    blacklist_summary: str = str(custom_reader.get_tag(entry.feed, "blacklist_summary", ""))
+    blacklist_content: str = str(custom_reader.get_tag(entry.feed, "blacklist_content", ""))
+    blacklist_author: str = str(custom_reader.get_tag(entry.feed, "blacklist_author", ""))
     # TODO(TheLovinator): Also add support for entry_text and more.
 
     if entry.title and blacklist_title and is_word_in_text(blacklist_title, entry.title):

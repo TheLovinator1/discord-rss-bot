@@ -7,12 +7,13 @@ from typing import TYPE_CHECKING
 
 from discord_webhook import DiscordEmbed, DiscordWebhook
 from fastapi import HTTPException
-from reader import Entry, EntryNotFoundError, Feed, FeedExistsError, Reader, StorageError, TagNotFoundError
+from reader import Entry, EntryNotFoundError, Feed, FeedExistsError, Reader, ReaderError, StorageError, TagNotFoundError
 
 from discord_rss_bot import custom_message
-from discord_rss_bot.filter.blacklist import should_be_skipped
+from discord_rss_bot.filter.blacklist import entry_should_be_skipped
 from discord_rss_bot.filter.whitelist import has_white_tags, should_be_sent
 from discord_rss_bot.is_url_valid import is_url_valid
+from discord_rss_bot.missing_tags import add_missing_tags
 from discord_rss_bot.settings import default_custom_message, get_reader
 
 if TYPE_CHECKING:
@@ -50,15 +51,21 @@ def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None) -> 
         webhook_message = "No message found."
 
     # Create the webhook.
-    if bool(reader.get_tag(entry.feed, "should_send_embed")):
+    try:
+        should_send_embed = bool(reader.get_tag(entry.feed, "should_send_embed"))
+    except TagNotFoundError:
+        logger.exception("No should_send_embed tag found for feed: %s", entry.feed.url)
+        should_send_embed = True
+    except StorageError:
+        logger.exception("Error getting should_send_embed tag for feed: %s", entry.feed.url)
+        should_send_embed = True
+
+    if should_send_embed:
         webhook = create_embed_webhook(webhook_url, entry)
     else:
         webhook: DiscordWebhook = DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)
 
-    response: Response = webhook.execute()
-    if response.status_code not in {200, 204}:
-        logger.error("Error sending entry to Discord: %s\n%s", response.text, pprint.pformat(webhook.json))
-        return f"Error sending entry to Discord: {response.text}"
+    execute_webhook(webhook, entry)
     return None
 
 
@@ -159,7 +166,43 @@ def create_embed_webhook(webhook_url: str, entry: Entry) -> DiscordWebhook:
     return webhook
 
 
-def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = None, *, do_once: bool = False) -> None:  # noqa: PLR0912
+def get_webhook_url(reader: Reader, entry: Entry) -> str:
+    """Get the webhook URL for the entry.
+
+    Args:
+        reader: The reader to use.
+        entry: The entry to get the webhook URL for.
+
+    Returns:
+        str: The webhook URL.
+    """
+    try:
+        webhook_url: str = str(reader.get_tag(entry.feed_url, "webhook"))
+    except TagNotFoundError:
+        logger.exception("No webhook URL found for feed: %s", entry.feed.url)
+        return ""
+    except StorageError:
+        logger.exception("Storage error getting webhook URL for feed: %s", entry.feed.url)
+        return ""
+    return webhook_url
+
+
+def set_entry_as_read(reader: Reader, entry: Entry) -> None:
+    """Set the webhook to read, so we don't send it again.
+
+    Args:
+        reader: The reader to use.
+        entry: The entry to set as read.
+    """
+    try:
+        reader.set_entry_read(entry, True)
+    except EntryNotFoundError:
+        logger.exception("Error setting entry to read: %s", entry.id)
+    except StorageError:
+        logger.exception("Error setting entry to read: %s", entry.id)
+
+
+def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = None, *, do_once: bool = False) -> None:
     """Send entries to Discord.
 
     If response was not ok, we will log the error and mark the entry as unread, so it will be sent again next time.
@@ -178,27 +221,19 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
     # Loop through the unread entries.
     entries: Iterable[Entry] = reader.get_entries(feed=feed, read=False)
     for entry in entries:
+        set_entry_as_read(reader, entry)
+
         if entry.added < datetime.datetime.now(tz=entry.added.tzinfo) - datetime.timedelta(days=1):
             logger.info("Entry is older than 24 hours: %s from %s", entry.id, entry.feed.url)
-            reader.set_entry_read(entry, True)
             continue
 
-        # Set the webhook to read, so we don't send it again.
-        try:
-            reader.set_entry_read(entry, True)
-        except EntryNotFoundError:
-            logger.exception("Error setting entry to read: %s", entry.id)
-            continue
-        except StorageError:
-            logger.exception("Error setting entry to read: %s", entry.id)
-            continue
-
-        # Get the webhook URL for the entry. If it is None, we will continue to the next entry.
-        webhook_url: str = str(reader.get_tag(entry.feed_url, "webhook", ""))
+        webhook_url: str = get_webhook_url(reader, entry)
         if not webhook_url:
+            logger.info("No webhook URL found for feed: %s", entry.feed.url)
             continue
 
-        if bool(reader.get_tag(entry.feed, "should_send_embed")):
+        should_send_embed: bool = should_send_embed_check(reader, entry)
+        if should_send_embed:
             webhook = create_embed_webhook(webhook_url, entry)
         else:
             # If the user has set the custom message to an empty string, we will use the default message, otherwise we
@@ -208,49 +243,87 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
             else:
                 webhook_message: str = str(default_custom_message)
 
-            # Its actually 4096, but we will use 4000 to be safe.
-            max_content_length: int = 4000
-            webhook_message = (
-                f"{webhook_message[:max_content_length]}..."
-                if len(webhook_message) > max_content_length
-                else webhook_message
-            )
+            webhook_message = truncate_webhook_message(webhook_message)
 
             # Create the webhook.
             webhook: DiscordWebhook = DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)
 
-        # Check if the entry is blacklisted, if it is, mark it as read and continue.
-        if should_be_skipped(reader, entry):
+        # Check if the entry is blacklisted, and if it is, we will skip it.
+        if entry_should_be_skipped(reader, entry):
             logger.info("Entry was blacklisted: %s", entry.id)
-            reader.set_entry_read(entry, True)
             continue
 
         # Check if the feed has a whitelist, and if it does, check if the entry is whitelisted.
         if has_white_tags(reader, entry.feed):
             if should_be_sent(reader, entry):
-                response: Response = webhook.execute()
-                if response.status_code not in {200, 204}:
-                    logger.error("Error sending entry to Discord: %s\n%s", response.text, pprint.pformat(webhook.json))
-
-                reader.set_entry_read(entry, True)
+                execute_webhook(webhook, entry)
                 return
-            reader.set_entry_read(entry, True)
             continue
 
-        # It was not blacklisted, and not forced through whitelist, so we will send it to Discord.
-        response: Response = webhook.execute()
-        if response.status_code not in {200, 204}:
-            logger.error("Error sending entry to Discord: %s\n%s", response.text, pprint.pformat(webhook.json))
-            reader.set_entry_read(entry, True)
-            return
+        # Send the entry to Discord as it is not blacklisted or feed has a whitelist.
+        execute_webhook(webhook, entry)
 
         # If we only want to send one entry, we will break the loop. This is used when testing this function.
         if do_once:
-            logger.info("Sent one entry to Discord.")
+            logger.info("Sent one entry to Discord. Breaking the loop.")
             break
 
-    # Update the search index.
-    reader.update_search()
+
+def execute_webhook(webhook: DiscordWebhook, entry: Entry) -> None:
+    """Execute the webhook.
+
+    Args:
+        webhook (DiscordWebhook): The webhook to execute.
+        entry (Entry): The entry to send to Discord.
+
+    """
+    response: Response = webhook.execute()
+    if response.status_code not in {200, 204}:
+        msg: str = f"Error sending entry to Discord: {response.text}\n{pprint.pformat(webhook.json)}"
+        if entry:
+            msg += f"\n{entry}"
+
+        logger.error(msg)
+    else:
+        logger.info("Sent entry to Discord: %s", entry.id)
+
+
+def should_send_embed_check(reader: Reader, entry: Entry) -> bool:
+    """Check if we should send an embed to Discord.
+
+    Args:
+        reader (Reader): The reader to use.
+        entry (Entry): The entry to check.
+
+    Returns:
+        bool: True if we should send an embed, False otherwise.
+    """
+    try:
+        should_send_embed = bool(reader.get_tag(entry.feed, "should_send_embed"))
+    except TagNotFoundError:
+        logger.exception("No should_send_embed tag found for feed: %s", entry.feed.url)
+        should_send_embed = True
+    except ReaderError:
+        logger.exception("Error getting should_send_embed tag for feed: %s", entry.feed.url)
+        should_send_embed = True
+
+    return should_send_embed
+
+
+def truncate_webhook_message(webhook_message: str) -> str:
+    """Truncate the webhook message if it is too long.
+
+    Args:
+        webhook_message (str): The webhook message to truncate.
+
+    Returns:
+        str: The truncated webhook message.
+    """
+    max_content_length: int = 4000
+    if len(webhook_message) > max_content_length:
+        half_length = (max_content_length - 3) // 2  # Subtracting 3 for the "..." in the middle
+        webhook_message = f"{webhook_message[:half_length]}...{webhook_message[-half_length:]}"
+    return webhook_message
 
 
 def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:
@@ -277,7 +350,6 @@ def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:
         raise HTTPException(status_code=404, detail="Webhook not found")
 
     try:
-        # TODO(TheLovinator): Check if the feed is valid
         reader.add_feed(clean_feed_url)
     except FeedExistsError:
         # Add the webhook to an already added feed if it doesn't have a webhook instead of trying to create a new.
@@ -285,8 +357,13 @@ def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:
             reader.get_tag(clean_feed_url, "webhook")
         except TagNotFoundError:
             reader.set_tag(clean_feed_url, "webhook", webhook_url)  # type: ignore
+    except ReaderError as e:
+        raise HTTPException(status_code=404, detail=f"Error adding feed: {e}") from e
 
-    reader.update_feed(clean_feed_url)
+    try:
+        reader.update_feed(clean_feed_url)
+    except ReaderError as e:
+        raise HTTPException(status_code=404, detail=f"Error updating feed: {e}") from e
 
     # Mark every entry as read, so we don't send all the old entries to Discord.
     entries: Iterable[Entry] = reader.get_entries(feed=clean_feed_url, read=False)
@@ -305,3 +382,5 @@ def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:
 
     # Update the full-text search index so our new feed is searchable.
     reader.update_search()
+
+    add_missing_tags(reader)

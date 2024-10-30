@@ -55,3 +55,8 @@ This is not recommended if you don't have an init system (e.g., systemd)
     - You can stop the bot with <kbd>Ctrl</kbd> + <kbd>c</kbd>.
 
 Note: You will need to run `poetry install` again if [poetry.lock](poetry.lock) has been modified.
+
+## Contact
+
+Email: [mailto:tlovinator@gmail.com](tlovinator@gmail.com)
+Discord: TheLovinator#9276

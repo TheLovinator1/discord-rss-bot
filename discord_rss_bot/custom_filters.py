@@ -3,7 +3,7 @@ from functools import lru_cache
 
 from reader import Entry, Reader
 
-from discord_rss_bot.filter.blacklist import has_black_tags, should_be_skipped
+from discord_rss_bot.filter.blacklist import entry_should_be_skipped, feed_has_blacklist_tags
 from discord_rss_bot.filter.whitelist import has_white_tags, should_be_sent
 from discord_rss_bot.settings import get_reader
 
@@ -24,7 +24,7 @@ def encode_url(url_to_quote: str) -> str:
     Returns:
         The encoded url.
     """
-    return urllib.parse.quote(url_to_quote) if url_to_quote else ""
+    return urllib.parse.quote(string=url_to_quote) if url_to_quote else ""
 
 
 def entry_is_whitelisted(entry_to_check: Entry) -> bool:
@@ -50,4 +50,6 @@ def entry_is_blacklisted(entry_to_check: Entry) -> bool:
         bool: True if the feed is blacklisted, False otherwise.
 
     """
-    return bool(has_black_tags(reader, entry_to_check.feed) and should_be_skipped(reader, entry_to_check))
+    return bool(
+        feed_has_blacklist_tags(reader, entry_to_check.feed) and entry_should_be_skipped(reader, entry_to_check),
+    )

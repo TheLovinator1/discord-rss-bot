@@ -1,88 +1,92 @@
 {% extends "base.html" %}
 {% block content %}
-    <!-- List all feeds -->
-    <ul>
-        <!-- Check if any feeds -->
-        {% if feeds %}
-            <p>
-                {{ feed_count.total }} feed{{'s' if feed_count.total > 1 else "" }}
-                <!-- How many broken feeds -->
-                <!-- Make broken feed text red if true. -->
-                {% if feed_count.broken %}
-                    - <span class="text-danger">{{ feed_count.broken }} broken</span>
-                {% else %}
-                    - {{ feed_count.broken }} broken
-                {% endif %}
-                <!-- How many enabled feeds -->
-                <!-- Make amount of enabled feeds yellow if some are disabled. -->
-                {% if feed_count.total != feed_count.updates_enabled %}
-                    - <span class="text-warning">{{ feed_count.updates_enabled }} enabled</span>
-                {% else %}
-                    - {{ feed_count.updates_enabled }} enabled
-                {% endif %}
-                <!-- How many entries -->
-                - {{ entry_count.total }} entries
-                <abbr title="Average entries per day for the past 1, 3 and 12 months">
-                    ({{ entry_count.averages[0]|round(1) }},
-                    {{ entry_count.averages[1]|round(1) }},
-                    {{ entry_count.averages[2]|round(1) }})
-                </abbr>
-            </p>
-            <!-- Loop through the webhooks and add the feeds connected to them. -->
-            {% for hook_from_context in webhooks %}
-                <div class="p-2 mb-2 border border-dark">
-                    <ul class="list-group">
-                        <h1 class="h5">
-                            <a class="text-muted" href="/webhooks">{{ hook_from_context.name }}</a>
-                        </h1>
-                        {% for feed_webhook in feeds %}
-                            {% set feed = feed_webhook["feed"] %}
-                            {% set hook_from_feed = feed_webhook["webhook"] %}
-                            {% if hook_from_context.url == hook_from_feed %}
-                                <div>
-                                    <a class="text-muted" href="/feed?feed_url={{ feed.url|encode_url }}">{{ feed.url }}</a>
-                                    {% if not feed.updates_enabled %}<span class="text-warning">Disabled</span>{% endif %}
-                                    {% if feed.last_exception %}<span class="text-danger">({{ feed.last_exception.value_str }})</span>{% endif %}
-                                </div>
-                            {% endif %}
-                        {% endfor %}
-                    </ul>
-                </div>
-            {% endfor %}
+<!-- List all feeds -->
+<ul>
+    <!-- Check if any feeds -->
+    {% if feeds %}
+    <p>
+        {{ feed_count.total }} feed{{'s' if feed_count.total > 1 else "" }}
+        <!-- How many broken feeds -->
+        <!-- Make broken feed text red if true. -->
+        {% if feed_count.broken %}
+        - <span class="text-danger">{{ feed_count.broken }} broken</span>
         {% else %}
-            <p>
-                Hello there!
-            </br>
-            You need to add a webhook to get started and then add a feed. You can find both options in the menu above.
-        </br>
-    </br>
-    If you have any questions or suggestions, feel free to contact me on <a class="text-muted" href="mailto:tlovinator@gmail.com">tlovinator@gmail.com</a> or TheLovinator#9276 on Discord.
-</br>
-Thanks!
-</p>
-{% endif %}
-<!-- Show feeds without webhooks -->
-{% if broken_feeds %}
+        - {{ feed_count.broken }} broken
+        {% endif %}
+        <!-- How many enabled feeds -->
+        <!-- Make amount of enabled feeds yellow if some are disabled. -->
+        {% if feed_count.total != feed_count.updates_enabled %}
+        - <span class="text-warning">{{ feed_count.updates_enabled }} enabled</span>
+        {% else %}
+        - {{ feed_count.updates_enabled }} enabled
+        {% endif %}
+        <!-- How many entries -->
+        - {{ entry_count.total }} entries
+        <abbr title="Average entries per day for the past 1, 3 and 12 months">
+            ({{ entry_count.averages[0]|round(1) }},
+            {{ entry_count.averages[1]|round(1) }},
+            {{ entry_count.averages[2]|round(1) }})
+        </abbr>
+    </p>
+    <!-- Loop through the webhooks and add the feeds connected to them. -->
+    {% for hook_from_context in webhooks %}
+    <div class="p-2 mb-2 border border-dark">
+        <h2 class="h5">
+            <a class="text-muted" href="/webhooks">{{ hook_from_context.name }}</a>
+        </h2>
+        <ul class="list-group">
+            {% for feed_webhook in feeds %}
+            {% set feed = feed_webhook["feed"] %}
+            {% set hook_from_feed = feed_webhook["webhook"] %}
+            {% if hook_from_context.url == hook_from_feed %}
+            <div>
+                <a class="text-muted" href="/feed?feed_url={{ feed.url|encode_url }}">{{ feed.url }}</a>
+                {% if not feed.updates_enabled %}<span class="text-warning">Disabled</span>{% endif %}
+                {% if feed.last_exception %}<span
+                    class="text-danger">({{ feed.last_exception.value_str }})</span>{% endif %}
+            </div>
+            {% endif %}
+            {% endfor %}
+        </ul>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p>
+        Hello there!
+        <br>
+        You need to add a webhook <a class="text-muted" href="/add_webhook">here</a> to get started. After that, you can
+        add feeds <a class="text-muted" href="/add">here</a>. You can find both of these links in the navigation bar
+        above.
+        <br>
+        <br>
+        If you have any questions or suggestions, feel free to contact me on <a class="text-muted"
+            href="mailto:tlovinator@gmail.com">tlovinator@gmail.com</a> or TheLovinator#9276 on Discord.
+        <br>
+        <br>
+        Thanks!
+    </p>
+    {% endif %}
+    <!-- Show feeds without webhooks -->
+    {% if broken_feeds %}
     <div class="p-2 mb-2 border border-dark">
         <ul class="list-group text-danger">
             Feeds without webhook:
             {% for broken_feed in broken_feeds %}
-                <a class="text-muted"
-                   href="/feed?feed_url={{ broken_feed.url|encode_url }}">{{ broken_feed.url }}</a>
+            <a class="text-muted" href="/feed?feed_url={{ broken_feed.url|encode_url }}">{{ broken_feed.url }}</a>
             {% endfor %}
         </ul>
     </div>
-{% endif %}
-<!-- Show feeds that has no attached webhook -->
-{% if feeds_without_attached_webhook %}
+    {% endif %}
+    <!-- Show feeds that has no attached webhook -->
+    {% if feeds_without_attached_webhook %}
     <div class="p-2 mb-2 border border-dark">
         <ul class="list-group text-danger">
             Feeds without attached webhook:
             {% for feed in feeds_without_attached_webhook %}
-                <a class="text-muted" href="/feed?feed_url={{ feed.url|encode_url }}">{{ feed.url }}</a>
+            <a class="text-muted" href="/feed?feed_url={{ feed.url|encode_url }}">{{ feed.url }}</a>
             {% endfor %}
         </ul>
     </div>
-{% endif %}
+    {% endif %}
 </ul>
 {% endblock content %}

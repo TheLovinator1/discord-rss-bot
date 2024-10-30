@@ -33,7 +33,7 @@ def test_has_white_tags() -> None:
     reader.update_feeds()
 
     # Test feed without any whitelist tags
-    assert has_white_tags(custom_reader=get_reader(), feed=feed) is False
+    assert has_white_tags(custom_reader=get_reader(), feed=feed) is False, "Feed should not have any whitelist tags"
 
     check_if_has_tag(reader, feed, "whitelist_title")
     check_if_has_tag(reader, feed, "whitelist_summary")
@@ -45,9 +45,9 @@ def test_has_white_tags() -> None:
 
 def check_if_has_tag(reader: Reader, feed: Feed, whitelist_name: str) -> None:
     reader.set_tag(feed, whitelist_name, "a")  # type: ignore
-    assert has_white_tags(custom_reader=reader, feed=feed) is True
+    assert has_white_tags(custom_reader=reader, feed=feed) is True, "Feed should have whitelist tags"
     reader.delete_tag(feed, whitelist_name)
-    assert has_white_tags(custom_reader=reader, feed=feed) is False
+    assert has_white_tags(custom_reader=reader, feed=feed) is False, "Feed should not have any whitelist tags"
 
 
 def test_should_be_sent() -> None:
@@ -61,51 +61,51 @@ def test_should_be_sent() -> None:
     # Get first entry
     first_entry: list[Entry] = []
     entries: Iterable[Entry] = reader.get_entries(feed=feed)
-    assert entries is not None
+    assert entries is not None, "Entries should not be None"
     for entry in entries:
         first_entry.append(entry)
         break
-    assert len(first_entry) == 1
+    assert len(first_entry) == 1, "First entry should be added"
 
     # Test entry without any whitelists
-    assert should_be_sent(reader, first_entry[0]) is False
+    assert should_be_sent(reader, first_entry[0]) is False, "Entry should not be sent"
 
     reader.set_tag(feed, "whitelist_title", "fvnnnfnfdnfdnfd")  # type: ignore
-    assert should_be_sent(reader, first_entry[0]) is True
+    assert should_be_sent(reader, first_entry[0]) is True, "Entry should be sent"
     reader.delete_tag(feed, "whitelist_title")
-    assert should_be_sent(reader, first_entry[0]) is False
+    assert should_be_sent(reader, first_entry[0]) is False, "Entry should not be sent"
 
     reader.set_tag(feed, "whitelist_title", "åäö")  # type: ignore
-    assert should_be_sent(reader, first_entry[0]) is False
+    assert should_be_sent(reader, first_entry[0]) is False, "Entry should not be sent"
     reader.delete_tag(feed, "whitelist_title")
-    assert should_be_sent(reader, first_entry[0]) is False
+    assert should_be_sent(reader, first_entry[0]) is False, "Entry should not be sent"
 
     reader.set_tag(feed, "whitelist_summary", "ffdnfdnfdnfdnfdndfn")  # type: ignore
-    assert should_be_sent(reader, first_entry[0]) is True
+    assert should_be_sent(reader, first_entry[0]) is True, "Entry should be sent"
     reader.delete_tag(feed, "whitelist_summary")
-    assert should_be_sent(reader, first_entry[0]) is False
+    assert should_be_sent(reader, first_entry[0]) is False, "Entry should not be sent"
 
     reader.set_tag(feed, "whitelist_summary", "åäö")  # type: ignore
-    assert should_be_sent(reader, first_entry[0]) is False
+    assert should_be_sent(reader, first_entry[0]) is False, "Entry should not be sent"
     reader.delete_tag(feed, "whitelist_summary")
-    assert should_be_sent(reader, first_entry[0]) is False
+    assert should_be_sent(reader, first_entry[0]) is False, "Entry should not be sent"
 
     reader.set_tag(feed, "whitelist_content", "ffdnfdnfdnfdnfdndfn")  # type: ignore
-    assert should_be_sent(reader, first_entry[0]) is True
+    assert should_be_sent(reader, first_entry[0]) is True, "Entry should be sent"
     reader.delete_tag(feed, "whitelist_content")
-    assert should_be_sent(reader, first_entry[0]) is False
+    assert should_be_sent(reader, first_entry[0]) is False, "Entry should not be sent"
 
     reader.set_tag(feed, "whitelist_content", "åäö")  # type: ignore
-    assert should_be_sent(reader, first_entry[0]) is False
+    assert should_be_sent(reader, first_entry[0]) is False, "Entry should not be sent"
     reader.delete_tag(feed, "whitelist_content")
-    assert should_be_sent(reader, first_entry[0]) is False
+    assert should_be_sent(reader, first_entry[0]) is False, "Entry should not be sent"
 
     reader.set_tag(feed, "whitelist_author", "TheLovinator")  # type: ignore
-    assert should_be_sent(reader, first_entry[0]) is True
+    assert should_be_sent(reader, first_entry[0]) is True, "Entry should be sent"
     reader.delete_tag(feed, "whitelist_author")
-    assert should_be_sent(reader, first_entry[0]) is False
+    assert should_be_sent(reader, first_entry[0]) is False, "Entry should not be sent"
 
     reader.set_tag(feed, "whitelist_author", "åäö")  # type: ignore
-    assert should_be_sent(reader, first_entry[0]) is False
+    assert should_be_sent(reader, first_entry[0]) is False, "Entry should not be sent"
     reader.delete_tag(feed, "whitelist_author")
-    assert should_be_sent(reader, first_entry[0]) is False
+    assert should_be_sent(reader, first_entry[0]) is False, "Entry should not be sent"

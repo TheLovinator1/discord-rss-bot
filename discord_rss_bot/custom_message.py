@@ -42,6 +42,7 @@ def try_to_replace(custom_message: str, template: str, replace_with: str) -> str
     try:
         return custom_message.replace(template, replace_with)
     except (TypeError, AttributeError, ValueError):
+        logger.exception("Failed to replace %s with %s in %s", template, replace_with, custom_message)
         return custom_message
 
 
@@ -78,39 +79,52 @@ def replace_tags_in_text_message(entry: Entry) -> str:
         summary = summary.replace("[https://", "[")
         summary = summary.replace("[https://www.", "[")
 
-    list_of_replacements = [
-        {"{{feed_author}}": feed.author},
-        {"{{feed_added}}": feed.added},
-        {"{{feed_last_exception}}": feed.last_exception},
-        {"{{feed_last_updated}}": feed.last_updated},
-        {"{{feed_link}}": feed.link},
-        {"{{feed_subtitle}}": feed.subtitle},
-        {"{{feed_title}}": feed.title},
-        {"{{feed_updated}}": feed.updated},
-        {"{{feed_updates_enabled}}": str(feed.updates_enabled)},
-        {"{{feed_url}}": feed.url},
-        {"{{feed_user_title}}": feed.user_title},
-        {"{{feed_version}}": feed.version},
-        {"{{entry_added}}": entry.added},
-        {"{{entry_author}}": entry.author},
+    feed_added: str = feed.added.strftime("%Y-%m-%d %H:%M:%S") if feed.added else "Never"
+    feed_last_exception: str = feed.last_exception.value_str if feed.last_exception else ""
+    feed_last_updated: str = feed.last_updated.strftime("%Y-%m-%d %H:%M:%S") if feed.last_updated else "Never"
+    feed_updated: str = feed.updated.strftime("%Y-%m-%d %H:%M:%S") if feed.updated else "Never"
+    entry_added: str = entry.added.strftime("%Y-%m-%d %H:%M:%S") if entry.added else "Never"
+    entry_published: str = entry.published.strftime("%Y-%m-%d %H:%M:%S") if entry.published else "Never"
+    entry_read_modified: str = entry.read_modified.strftime("%Y-%m-%d %H:%M:%S") if entry.read_modified else "Never"
+    entry_updated: str = entry.updated.strftime("%Y-%m-%d %H:%M:%S") if entry.updated else "Never"
+
+    list_of_replacements: list[dict[str, str]] = [
+        {"{{feed_author}}": feed.author or ""},
+        {"{{feed_added}}": feed_added},
+        {"{{feed_last_exception}}": feed_last_exception},
+        {"{{feed_last_updated}}": feed_last_updated},
+        {"{{feed_link}}": feed.link or ""},
+        {"{{feed_subtitle}}": feed.subtitle or ""},
+        {"{{feed_title}}": feed.title or ""},
+        {"{{feed_updated}}": feed_updated},
+        {"{{feed_updates_enabled}}": str(feed.updates_enabled) or ""},
+        {"{{feed_url}}": feed.url or ""},
+        {"{{feed_user_title}}": feed.user_title or ""},
+        {"{{feed_version}}": feed.version or ""},
+        {"{{entry_added}}": entry_added},
+        {"{{entry_author}}": entry.author or ""},
         {"{{entry_content}}": content},
         {"{{entry_content_raw}}": entry.content[0].value if entry.content else ""},
-        {"{{entry_id}}": entry.id},
-        {"{{entry_important}}": str(entry.important)},
-        {"{{entry_link}}": entry.link},
-        {"{{entry_published}}": entry.published},
-        {"{{entry_read}}": str(entry.read)},
-        {"{{entry_read_modified}}": entry.read_modified},
+        {"{{entry_id}}": entry.id or ""},
+        {"{{entry_important}}": str(entry.important) or ""},
+        {"{{entry_link}}": entry.link or ""},
+        {"{{entry_published}}": entry_published},
+        {"{{entry_read}}": str(entry.read) or ""},
+        {"{{entry_read_modified}}": entry_read_modified},
         {"{{entry_summary}}": summary},
         {"{{entry_summary_raw}}": entry.summary or ""},
         {"{{entry_text}}": summary or content},
-        {"{{entry_title}}": entry.title},
-        {"{{entry_updated}}": entry.updated},
+        {"{{entry_title}}": entry.title or ""},
+        {"{{entry_updated}}": entry_updated},
         {"{{image_1}}": first_image},
     ]
 
     for replacement in list_of_replacements:
         for template, replace_with in replacement.items():
+            if not isinstance(replace_with, str):
+                logger.error("replace_with is not a string: %s, it is a %s", replace_with, type(replace_with))
+                continue
+
             custom_message = try_to_replace(custom_message, template, replace_with)
 
     return custom_message.replace("\\n", "\n")
@@ -200,9 +214,18 @@ def replace_tags_in_embed(feed: Feed, entry: Entry) -> CustomEmbed:
         embed.author_name = embed.title
         embed.title = ""
 
+    feed_added: str = feed.added.strftime("%Y-%m-%d %H:%M:%S") if feed.added else "Never"
+    feed_last_exception: str = feed.last_exception.value_str if feed.last_exception else ""
+    feed_last_updated: str = feed.last_updated.strftime("%Y-%m-%d %H:%M:%S") if feed.last_updated else "Never"
+    feed_updated: str = feed.updated.strftime("%Y-%m-%d %H:%M:%S") if feed.updated else "Never"
+    entry_published: str = entry.published.strftime("%Y-%m-%d %H:%M:%S") if entry.published else "Never"
+    entry_read_modified: str = entry.read_modified.strftime("%Y-%m-%d %H:%M:%S") if entry.read_modified else "Never"
+    entry_updated: str = entry.updated.strftime("%Y-%m-%d %H:%M:%S") if entry.updated else "Never"
+
     list_of_replacements: list[dict[str, str]] = [
         {"{{feed_author}}": feed.author or ""},
         {"{{feed_added}}": feed_added or ""},
+        {"{{feed_last_exception}}": feed_last_exception},
         {"{{feed_last_updated}}": feed_last_updated or ""},
         {"{{feed_link}}": feed.link or ""},
         {"{{feed_subtitle}}": feed.subtitle or ""},
@@ -308,7 +331,9 @@ def get_embed(custom_reader: Reader, feed: Feed) -> CustomEmbed:
     Returns:
         Returns the contents from the embed tag.
     """
-    if embed := custom_reader.get_tag(feed, "embed", ""):
+    embed = custom_reader.get_tag(feed, "embed", "")
+
+    if embed:
         if not isinstance(embed, str):
             return get_embed_data(embed)  # type: ignore
         embed_data: dict[str, str | int] = json.loads(embed)

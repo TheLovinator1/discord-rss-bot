@@ -1,40 +1,34 @@
 {% extends "base.html" %}
 {% block title %}
-  | Add new webhook
+| Add new webhook
 {% endblock title %}
 {% block content %}
-  <div class="p-2 border border-dark">
-    <form action="/add_webhook" method="post">
-      {# Webhook name #}
-      <div class="row pb-2">
-        <label for="webhook_name" class="col-sm-2 col-form-label">Webhook Name</label>
-        <div class="col-sm-10">
-          <input name="webhook_name"
-                 type="text"
-                 class="form-control bg-dark border-dark text-muted"
-                 id="webhook_name" />
-        </div>
+<div class="p-2 border border-dark">
+  <form action="/add_webhook" method="post">
+    {# Webhook name #}
+    <div class="row pb-2">
+      <label for="webhook_name" class="col-sm-2 col-form-label">Webhook Name</label>
+      <div class="col-sm-10">
+        <input name="webhook_name" type="text" class="form-control bg-dark border-dark text-muted" id="webhook_name" />
       </div>
-      {# Webhook URL #}
-      <div class="row pb-2">
-        <label for="webhook_url" class="col-sm-2 col-form-label">Webhook URL</label>
-        <div class="col-sm-10">
-          <input name="webhook_url"
-                 type="text"
-                 class="form-control bg-dark border-dark text-muted"
-                 id="webhook_url" />
-        </div>
-        <div class="form-text">
-          You can append ?thread_id=THREAD_ID to the end
-          of the URL to send messages to a thread. You can get
-          the thread ID by right-clicking on the thread and
-          Copy Thread ID.
-        </div>
+    </div>
+    {# Webhook URL #}
+    <div class="row pb-2">
+      <label for="webhook_url" class="col-sm-2 col-form-label">Webhook URL</label>
+      <div class="col-sm-10">
+        <input name="webhook_url" type="text" class="form-control bg-dark border-dark text-muted" id="webhook_url" />
       </div>
-      {# Submit button #}
-      <div class="d-md-flex">
-        <button class="btn btn-dark btn-sm">Add webhook</button>
+      <div class="form-text">
+        You can append ?thread_id=THREAD_ID to the end
+        of the URL to send messages to a thread. You can get
+        the thread ID by right-clicking on the thread and
+        Copy Thread ID.
       </div>
-    </form>
-  </div>
+    </div>
+    {# Submit button #}
+    <div class="d-md-flex">
+      <button class="btn btn-dark btn-sm">Add webhook</button>
+    </div>
+  </form>
+</div>
 {% endblock content %}
