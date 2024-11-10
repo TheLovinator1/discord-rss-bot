@@ -1053,13 +1053,13 @@ files = [
 
 [[package]]
 name = "reader"
-version = "3.14"
+version = "3.15"
 description = "A Python feed reader library."
 optional = false
 python-versions = ">=3.10"
 files = [
-    {file = "reader-3.14-py3-none-any.whl", hash = "sha256:41cfabea5f574d5026b17c8255b6f2d4409fc5cf0e82d5695b619a25501ad884"},
-    {file = "reader-3.14.tar.gz", hash = "sha256:92e879db3aea76e48d2656ee217611e4f0127eb9ef192eaa63acda691776f770"},
+    {file = "reader-3.15-py3-none-any.whl", hash = "sha256:8b44aa1dc9cd105ed1baa59956a2c9e113919f9a2734d0f99892a19040e0f1ee"},
+    {file = "reader-3.15.tar.gz", hash = "sha256:39b7c04d3cbd8b1ed2523f073f23557f19b4c5b086a92bc82ed0daefdd67763a"},
 ]
 
 [package.dependencies]
