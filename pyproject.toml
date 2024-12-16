@@ -15,7 +15,7 @@ lxml = "^4.9.4"
 markdownify = "^0.14.0"
 platformdirs = "^3.11.0"
 python-dotenv = "^1.0.1"
-python-multipart = "^0.0.19"
+python-multipart = "^0.0.20"
 reader = "^3.14"
 uvicorn = "^0.34.0"
 
