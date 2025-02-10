@@ -10,5 +10,5 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --no-install-project
 EXPOSE 5000
-VOLUME /home/botuser/.local/share/discord_rss_bot/
+VOLUME ["/home/botuser/.local/share/discord_rss_bot/"]
 CMD ["uv", "run", "uvicorn", "discord_rss_bot.main:app", "--host=0.0.0.0", "--port=5000", "--proxy-headers", "--forwarded-allow-ips='*'", "--log-level", "debug"]
