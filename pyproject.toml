@@ -1,3 +1,27 @@
+[project]
+name = "discord-rss-bot"
+version = "1.0.0"
+description = "RSS bot for Discord"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "apscheduler",
+    "discord-webhook",
+    "fastapi",
+    "httpx",
+    "jinja2",
+    "lxml",
+    "markdownify",
+    "platformdirs",
+    "python-dotenv",
+    "python-multipart",
+    "reader",
+    "uvicorn",
+]
+
+[dependency-groups]
+dev = ["pytest"]
+
 [tool.poetry]
 name = "discord-rss-bot"
 version = "1.0.0"
@@ -6,23 +30,21 @@ authors = ["Joakim Hellsén <tlovinator@gmail.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.12"
-apscheduler = "^3.10.4"
-discord-webhook = "^1.3.1"
-fastapi = "^0.115.0"
-httpx = "^0.28.0"
-jinja2 = "^3.1.4"
-lxml = "^4.9.4"
-markdownify = "^0.14.0"
-platformdirs = "^3.11.0"
-python-dotenv = "^1.0.1"
-python-multipart = "^0.0.20"
-reader = "^3.14"
-uvicorn = "^0.34.0"
+apscheduler = "*"
+discord-webhook = "*"
+fastapi = "*"
+httpx = "*"
+jinja2 = "*"
+lxml = "*"
+markdownify = "*"
+platformdirs = "*"
+python-dotenv = "*"
+python-multipart = "*"
+reader = "*"
+uvicorn = "*"
 
 [tool.poetry.group.dev.dependencies]
-djlint = "^1.35.3"
-pre-commit = "^4.0.1"
-pytest = "^7.4.4"
+pytest = "*"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -35,16 +57,17 @@ max_line_length = 120
 format_attribute_template_tags = true
 
 [tool.ruff]
-fix = true
-unsafe-fixes = true
 preview = true
 line-length = 120
 lint.select = ["ALL"]
+lint.pydocstyle.convention = "google"
+lint.isort.required-imports = ["from __future__ import annotations"]
+lint.pycodestyle.ignore-overlong-task-comments = true
+
 lint.ignore = [
     "ANN201",  # Checks that public functions and methods have return type annotations.
     "ARG001",  # Checks for the presence of unused arguments in function definitions.
     "B008",    # Allow Form() as a default value
-    "COM812",  # Checks for the absence of trailing commas.
     "CPY001",  # Missing copyright notice at top of file
     "D100",    # Checks for undocumented public module definitions.
     "D101",    # Checks for undocumented public class definitions.
@@ -57,15 +80,28 @@ lint.ignore = [
     "FBT003",  # Checks for boolean positional arguments in function calls.
     "FIX002",  # Line contains TODO
     "G002",    # Allow % in logging
-    "ISC001",  # Checks for implicitly concatenated strings on a single line.
     "PGH003",  # Check for type: ignore annotations that suppress all type warnings, as opposed to targeting specific type warnings.
     "PLR6301", # Checks for the presence of unused self parameter in methods definitions.
     "RUF029",  # Checks for functions declared async that do not await or otherwise use features requiring the function to be declared async.
     "TD003",   # Checks that a TODO comment is associated with a link to a relevant issue or ticket.
-]
 
-[tool.ruff.lint.pydocstyle]
-convention = "google"
+    # Conflicting lint rules when using Ruff's formatter
+    # https://docs.astral.sh/ruff/formatter/#conflicting-lint-rules
+    "COM812", # Checks for the absence of trailing commas.
+    "COM819", # Checks for the presence of prohibited trailing commas.
+    "D206",   # Checks for docstrings that are indented with tabs.
+    "D300",   # Checks for docstrings that use '''triple single quotes''' instead of """triple double quotes""".
+    "E111",   # Checks for indentation with a non-multiple of 4 spaces.
+    "E114",   # Checks for indentation of comments with a non-multiple of 4 spaces.
+    "E117",   # Checks for over-indented code.
+    "ISC001", # Checks for implicitly concatenated strings on a single line.
+    "ISC002", # Checks for implicitly concatenated strings that span multiple lines.
+    "Q000",   # Checks for inline strings that use single quotes or double quotes, depending on the value of the lint.flake8-quotes.inline-quotes option.
+    "Q001",   # Checks for multiline strings that use single quotes or double quotes, depending on the value of the lint.flake8-quotes.multiline-quotes setting.
+    "Q002",   # Checks for docstrings that use single quotes or double quotes, depending on the value of the lint.flake8-quotes.docstring-quotes setting.
+    "Q003",   # Checks for strings that include escaped quotes, and suggests changing the quote style to avoid the need to escape them.
+    "W191",   # Checks for indentation that uses tabs.
+]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101", "D103", "PLR2004"]
@@ -74,7 +110,12 @@ convention = "google"
 max-complexity = 15 # Don't judge lol
 
 [tool.pytest.ini_options]
+python_files = ["test_*.py"]
 log_cli = true
 log_cli_level = "DEBUG"
 log_cli_format = "%(asctime)s [%(levelname)8s] %(message)s (%(filename)s:%(lineno)s)"
 log_cli_date_format = "%Y-%m-%d %H:%M:%S"
+filterwarnings = [
+    "ignore::bs4.GuessedAtParserWarning",
+    "ignore:functools\\.partial will be a method descriptor in future Python versions; wrap it in staticmethod\\(\\) if you want to preserve the old behavior:FutureWarning",
+]
