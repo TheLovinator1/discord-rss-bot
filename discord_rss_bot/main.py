@@ -7,7 +7,7 @@ import typing
 import urllib.parse
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import lru_cache
 from typing import TYPE_CHECKING, Annotated, cast
 
@@ -21,7 +21,6 @@ from fastapi.templating import Jinja2Templates
 from httpx import Response
 from markdownify import markdownify
 from reader import Entry, EntryNotFoundError, Feed, FeedNotFoundError, Reader, TagNotFoundError
-from reader.types import JSONType
 from starlette.responses import RedirectResponse
 
 from discord_rss_bot import settings
@@ -44,6 +43,8 @@ from discord_rss_bot.settings import get_reader
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+
+    from reader.types import JSONType
 
 
 LOGGING_CONFIG = {
@@ -93,7 +94,7 @@ async def lifespan(app: FastAPI) -> typing.AsyncGenerator[None]:
 
     # Update all feeds every 15 minutes.
     # TODO(TheLovinator): Make this configurable.
-    scheduler.add_job(send_to_discord, "interval", minutes=15, next_run_time=datetime.now(tz=timezone.utc))
+    scheduler.add_job(send_to_discord, "interval", minutes=15, next_run_time=datetime.now(tz=UTC))
     scheduler.start()
     logger.info("Scheduler started.")
     yield
@@ -135,7 +136,7 @@ async def post_add_webhook(
 
     # Webhooks are stored as a list of dictionaries.
     # Example: [{"name": "webhook_name", "url": "webhook_url"}]
-    webhooks = cast(list[dict[str, str]], webhooks)
+    webhooks = cast("list[dict[str, str]]", webhooks)
 
     # Only add the webhook if it doesn't already exist.
     stripped_webhook_name = webhook_name.strip()
@@ -143,7 +144,7 @@ async def post_add_webhook(
         # Add the new webhook to the list of webhooks.
         webhooks.append({"name": webhook_name.strip(), "url": webhook_url.strip()})
 
-        reader.set_tag((), "webhooks", webhooks)  # type: ignore
+        reader.set_tag((), "webhooks", webhooks)  # pyright: ignore[reportArgumentType]
 
         return RedirectResponse(url="/", status_code=303)
 
@@ -172,7 +173,7 @@ async def post_delete_webhook(webhook_url: Annotated[str, Form()]) -> RedirectRe
 
     # Webhooks are stored as a list of dictionaries.
     # Example: [{"name": "webhook_name", "url": "webhook_url"}]
-    webhooks = cast(list[dict[str, str]], webhooks)
+    webhooks = cast("list[dict[str, str]]", webhooks)
 
     # Only add the webhook if it doesn't already exist.
     webhooks_to_remove: list[dict[str, str]] = [
@@ -188,7 +189,7 @@ async def post_delete_webhook(webhook_url: Annotated[str, Form()]) -> RedirectRe
         raise HTTPException(status_code=500, detail="Webhook could not be deleted")
 
     # Add our new list of webhooks to the database.
-    reader.set_tag((), "webhooks", webhooks)  # type: ignore
+    reader.set_tag((), "webhooks", webhooks)  # pyright: ignore[reportArgumentType]
 
     return RedirectResponse(url="/", status_code=303)
 
@@ -263,10 +264,10 @@ async def post_set_whitelist(
         RedirectResponse: Redirect to the feed page.
     """
     clean_feed_url: str = feed_url.strip() if feed_url else ""
-    reader.set_tag(clean_feed_url, "whitelist_title", whitelist_title)  # type: ignore[call-overload]
-    reader.set_tag(clean_feed_url, "whitelist_summary", whitelist_summary)  # type: ignore[call-overload]
-    reader.set_tag(clean_feed_url, "whitelist_content", whitelist_content)  # type: ignore[call-overload]
-    reader.set_tag(clean_feed_url, "whitelist_author", whitelist_author)  # type: ignore[call-overload]
+    reader.set_tag(clean_feed_url, "whitelist_title", whitelist_title)  # pyright: ignore[reportArgumentType][call-overload]
+    reader.set_tag(clean_feed_url, "whitelist_summary", whitelist_summary)  # pyright: ignore[reportArgumentType][call-overload]
+    reader.set_tag(clean_feed_url, "whitelist_content", whitelist_content)  # pyright: ignore[reportArgumentType][call-overload]
+    reader.set_tag(clean_feed_url, "whitelist_author", whitelist_author)  # pyright: ignore[reportArgumentType][call-overload]
 
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
@@ -326,10 +327,10 @@ async def post_set_blacklist(
         RedirectResponse: Redirect to the feed page.
     """
     clean_feed_url: str = feed_url.strip() if feed_url else ""
-    reader.set_tag(clean_feed_url, "blacklist_title", blacklist_title)  # type: ignore[call-overload]
-    reader.set_tag(clean_feed_url, "blacklist_summary", blacklist_summary)  # type: ignore[call-overload]
-    reader.set_tag(clean_feed_url, "blacklist_content", blacklist_content)  # type: ignore[call-overload]
-    reader.set_tag(clean_feed_url, "blacklist_author", blacklist_author)  # type: ignore[call-overload]
+    reader.set_tag(clean_feed_url, "blacklist_title", blacklist_title)  # pyright: ignore[reportArgumentType][call-overload]
+    reader.set_tag(clean_feed_url, "blacklist_summary", blacklist_summary)  # pyright: ignore[reportArgumentType][call-overload]
+    reader.set_tag(clean_feed_url, "blacklist_content", blacklist_content)  # pyright: ignore[reportArgumentType][call-overload]
+    reader.set_tag(clean_feed_url, "blacklist_author", blacklist_author)  # pyright: ignore[reportArgumentType][call-overload]
 
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
@@ -379,10 +380,10 @@ async def post_set_custom(
         RedirectResponse: Redirect to the feed page.
     """
     our_custom_message: JSONType | str = custom_message.strip()
-    our_custom_message = typing.cast(JSONType, our_custom_message)
+    our_custom_message = typing.cast("JSONType", our_custom_message)
 
     default_custom_message: JSONType | str = settings.default_custom_message
-    default_custom_message = typing.cast(JSONType, default_custom_message)
+    default_custom_message = typing.cast("JSONType", default_custom_message)
 
     if our_custom_message:
         reader.set_tag(feed_url, "custom_message", our_custom_message)
@@ -406,7 +407,7 @@ async def get_custom(feed_url: str, request: Request):
     """
     feed: Feed = reader.get_feed(urllib.parse.unquote(feed_url.strip()))
 
-    context = {
+    context: dict[str, Request | Feed | str | Entry] = {
         "request": request,
         "feed": feed,
         "custom_message": get_custom_message(reader, feed),
@@ -435,7 +436,7 @@ async def get_embed_page(feed_url: str, request: Request):
     # Get previous data, this is used when creating the form.
     embed: CustomEmbed = get_embed(reader, feed)
 
-    context = {
+    context: dict[str, Request | Feed | str | Entry | CustomEmbed] = {
         "request": request,
         "feed": feed,
         "title": embed.title,
@@ -523,7 +524,7 @@ async def post_use_embed(feed_url: Annotated[str, Form()]) -> RedirectResponse:
         RedirectResponse: Redirect to the feed page.
     """
     clean_feed_url: str = feed_url.strip()
-    reader.set_tag(clean_feed_url, "should_send_embed", True)  # type: ignore
+    reader.set_tag(clean_feed_url, "should_send_embed", True)  # pyright: ignore[reportArgumentType]
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
 
@@ -538,7 +539,7 @@ async def post_use_text(feed_url: Annotated[str, Form()]) -> RedirectResponse:
         RedirectResponse: Redirect to the feed page.
     """
     clean_feed_url: str = feed_url.strip()
-    reader.set_tag(clean_feed_url, "should_send_embed", False)  # type: ignore
+    reader.set_tag(clean_feed_url, "should_send_embed", False)  # pyright: ignore[reportArgumentType]
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
 
@@ -764,10 +765,15 @@ async def get_webhooks(request: Request):
     Returns:
         HTMLResponse: The add webhook page.
     """
-    hooks_with_data = []
+    hooks_with_data: list[WebhookInfo] = []
 
-    for hook in list(reader.get_tag((), "webhooks", [])):
-        our_hook: WebhookInfo = get_data_from_hook_url(hook_url=hook["url"], hook_name=hook["name"])  # type: ignore
+    webhook_list = list(reader.get_tag((), "webhooks", []))
+    for hook in webhook_list:
+        if not isinstance(hook, dict):
+            logger.error("Webhook is not a dict: %s", hook)
+            continue
+
+        our_hook: WebhookInfo = get_data_from_hook_url(hook_url=hook["url"], hook_name=hook["name"])
         hooks_with_data.append(our_hook)
 
     context = {"request": request, "hooks_with_data": hooks_with_data}
@@ -796,7 +802,7 @@ def make_context_index(request: Request):
     Returns:
             dict: The context for the index page.
     """
-    hooks: list[dict] = list(reader.get_tag((), "webhooks", []))  # type: ignore
+    hooks: list[dict[str, str]] = cast("list[dict[str, str]]", list(reader.get_tag((), "webhooks", [])))
 
     feed_list = []
     broken_feeds = []
@@ -911,7 +917,7 @@ def modify_webhook(old_hook: Annotated[str, Form()], new_hook: Annotated[str, Fo
 
     # Webhooks are stored as a list of dictionaries.
     # Example: [{"name": "webhook_name", "url": "webhook_url"}]
-    webhooks = cast(list[dict[str, str]], webhooks)
+    webhooks = cast("list[dict[str, str]]", webhooks)
 
     for hook in webhooks:
         if hook["url"] in old_hook.strip():
@@ -922,7 +928,7 @@ def modify_webhook(old_hook: Annotated[str, Form()], new_hook: Annotated[str, Fo
                 raise HTTPException(status_code=500, detail="Webhook could not be modified")
 
             # Add our new list of webhooks to the database.
-            reader.set_tag((), "webhooks", webhooks)  # type: ignore
+            reader.set_tag((), "webhooks", webhooks)  # pyright: ignore[reportArgumentType]
 
             # Loop through all feeds and update the webhook if it
             # matches the old one.
@@ -934,7 +940,7 @@ def modify_webhook(old_hook: Annotated[str, Form()], new_hook: Annotated[str, Fo
                     continue
 
                 if webhook == old_hook.strip():
-                    reader.set_tag(feed.url, "webhook", new_hook.strip())  # type: ignore
+                    reader.set_tag(feed.url, "webhook", new_hook.strip())  # pyright: ignore[reportArgumentType]
 
     # Redirect to the webhook page.
     return RedirectResponse(url="/webhooks", status_code=303)

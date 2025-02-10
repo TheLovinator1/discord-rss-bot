@@ -1,11 +1,15 @@
+from __future__ import annotations
+
 import urllib.parse
 from functools import lru_cache
-
-from reader import Entry, Reader
+from typing import TYPE_CHECKING
 
 from discord_rss_bot.filter.blacklist import entry_should_be_skipped, feed_has_blacklist_tags
 from discord_rss_bot.filter.whitelist import has_white_tags, should_be_sent
 from discord_rss_bot.settings import get_reader
+
+if TYPE_CHECKING:
+    from reader import Entry, Reader
 
 # Our reader
 reader: Reader = get_reader()

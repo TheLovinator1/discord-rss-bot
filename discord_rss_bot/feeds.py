@@ -9,7 +9,12 @@ from discord_webhook import DiscordEmbed, DiscordWebhook
 from fastapi import HTTPException
 from reader import Entry, EntryNotFoundError, Feed, FeedExistsError, Reader, ReaderError, StorageError, TagNotFoundError
 
-from discord_rss_bot import custom_message
+from discord_rss_bot.custom_message import (
+    CustomEmbed,
+    get_custom_message,
+    replace_tags_in_embed,
+    replace_tags_in_text_message,
+)
 from discord_rss_bot.filter.blacklist import entry_should_be_skipped
 from discord_rss_bot.filter.whitelist import has_white_tags, should_be_sent
 from discord_rss_bot.is_url_valid import is_url_valid
@@ -42,10 +47,12 @@ def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None) -> 
     if not webhook_url:
         return "No webhook URL found."
 
+    webhook_message: str = ""
+
     # Try to get the custom message for the feed. If the user has none, we will use the default message.
     # This has to be a string for some reason so don't change it to "not custom_message.get_custom_message()"
-    if custom_message.get_custom_message(reader, entry.feed) != "":  # noqa: PLC1901
-        webhook_message: str = custom_message.replace_tags_in_text_message(entry=entry)
+    if get_custom_message(reader, entry.feed) != "":  # noqa: PLC1901
+        webhook_message: str = replace_tags_in_text_message(entry=entry)
 
     if not webhook_message:
         webhook_message = "No message found."
@@ -69,7 +76,7 @@ def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None) -> 
     return None
 
 
-def set_description(custom_embed: custom_message.CustomEmbed, discord_embed: DiscordEmbed) -> None:
+def set_description(custom_embed: CustomEmbed, discord_embed: DiscordEmbed) -> None:
     """Set the description of the embed.
 
     Args:
@@ -87,7 +94,7 @@ def set_description(custom_embed: custom_message.CustomEmbed, discord_embed: Dis
     discord_embed.set_description(embed_description) if embed_description else None
 
 
-def set_title(custom_embed: custom_message.CustomEmbed, discord_embed: DiscordEmbed) -> None:
+def set_title(custom_embed: CustomEmbed, discord_embed: DiscordEmbed) -> None:
     """Set the title of the embed.
 
     Args:
@@ -115,7 +122,7 @@ def create_embed_webhook(webhook_url: str, entry: Entry) -> DiscordWebhook:
     feed: Feed = entry.feed
 
     # Get the embed data from the database.
-    custom_embed: custom_message.CustomEmbed = custom_message.replace_tags_in_embed(feed=feed, entry=entry)
+    custom_embed: CustomEmbed = replace_tags_in_embed(feed=feed, entry=entry)
 
     discord_embed: DiscordEmbed = DiscordEmbed()
 
@@ -238,8 +245,8 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
         else:
             # If the user has set the custom message to an empty string, we will use the default message, otherwise we
             # will use the custom message.
-            if custom_message.get_custom_message(reader, entry.feed) != "":  # noqa: PLC1901
-                webhook_message = custom_message.replace_tags_in_text_message(entry)
+            if get_custom_message(reader, entry.feed) != "":  # noqa: PLC1901
+                webhook_message = replace_tags_in_text_message(entry)
             else:
                 webhook_message: str = str(default_custom_message)
 
@@ -342,8 +349,12 @@ def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:
     if hooks := reader.get_tag((), "webhooks", []):
         # Get the webhook URL from the dropdown.
         for hook in hooks:
-            if hook["name"] == webhook_dropdown:  # type: ignore
-                webhook_url = hook["url"]  # type: ignore
+            if not isinstance(hook, dict):
+                logger.error("Webhook is not a dict: %s", hook)
+                continue
+
+            if hook["name"] == webhook_dropdown:  # pyright: ignore[reportArgumentType]
+                webhook_url = hook["url"]
                 break
 
     if not webhook_url:
@@ -356,7 +367,7 @@ def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:
         try:
             reader.get_tag(clean_feed_url, "webhook")
         except TagNotFoundError:
-            reader.set_tag(clean_feed_url, "webhook", webhook_url)  # type: ignore
+            reader.set_tag(clean_feed_url, "webhook", webhook_url)  # pyright: ignore[reportArgumentType]
     except ReaderError as e:
         raise HTTPException(status_code=404, detail=f"Error adding feed: {e}") from e
 
@@ -375,10 +386,10 @@ def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:
         raise HTTPException(status_code=404, detail="Default custom message couldn't be found.")
 
     # This is the webhook that will be used to send the feed to Discord.
-    reader.set_tag(clean_feed_url, "webhook", webhook_url)  # type: ignore
+    reader.set_tag(clean_feed_url, "webhook", webhook_url)  # pyright: ignore[reportArgumentType]
 
     # This is the default message that will be sent to Discord.
-    reader.set_tag(clean_feed_url, "custom_message", default_custom_message)  # type: ignore
+    reader.set_tag(clean_feed_url, "custom_message", default_custom_message)  # pyright: ignore[reportArgumentType]
 
     # Update the full-text search index so our new feed is searchable.
     reader.update_search()

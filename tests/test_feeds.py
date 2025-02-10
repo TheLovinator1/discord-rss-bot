@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import LiteralString
 
 import pytest
-from reader import Feed, Reader, make_reader  # type: ignore
+from reader import Feed, Reader, make_reader
 
 from discord_rss_bot.feeds import send_to_discord, truncate_webhook_message
 from discord_rss_bot.missing_tags import add_missing_tags
@@ -45,7 +45,7 @@ def test_send_to_discord() -> None:
         assert webhook_url is not None, f"The webhook URL should not be None. Got: {webhook_url}"
 
         # Add tag to the feed and check if it is there.
-        reader.set_tag(feed, "webhook", webhook_url)  # type: ignore
+        reader.set_tag(feed, "webhook", webhook_url)  # pyright: ignore[reportArgumentType]
         assert reader.get_tag(feed, "webhook") == webhook_url, f"The webhook URL should be '{webhook_url}'."
 
         # Send the feed to Discord.

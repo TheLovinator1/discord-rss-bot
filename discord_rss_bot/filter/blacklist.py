@@ -1,6 +1,11 @@
-from reader import Entry, Feed, Reader
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from discord_rss_bot.filter.utils import is_word_in_text
+
+if TYPE_CHECKING:
+    from reader import Entry, Feed, Reader
 
 
 def feed_has_blacklist_tags(custom_reader: Reader, feed: Feed) -> bool:

@@ -4,7 +4,7 @@ import json
 import logging
 from dataclasses import dataclass
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 from markdownify import markdownify
 from reader import Entry, Feed, Reader, TagNotFoundError
 
@@ -143,8 +143,13 @@ def get_first_image(summary: str | None, content: str | None) -> str:
     # TODO(TheLovinator): We should find a better way to get the image.
     if content and (images := BeautifulSoup(content, features="lxml").find_all("img")):
         for image in images:
-            if not is_url_valid(image.attrs["src"]):
-                logger.warning("Invalid URL: %s", image.attrs["src"])
+            if not isinstance(image, Tag) or "src" not in image.attrs:
+                logger.error("Image is not a Tag or does not have a src attribute.")
+                continue
+
+            src = str(image.attrs["src"])
+            if not is_url_valid(src):
+                logger.warning("Invalid URL: %s", src)
                 continue
 
             # Genshins first image is a divider, so we ignore it.
@@ -153,16 +158,20 @@ def get_first_image(summary: str | None, content: str | None) -> str:
                 "https://img-os-static.hoyolab.com/divider_config/",
                 "https://hyl-static-res-prod.hoyolab.com/divider_config/",
             ]
-            if not image.attrs["src"].startswith(tuple(skip_images)):
+            if not str(image.attrs["src"]).startswith(tuple(skip_images)):
                 return str(image.attrs["src"])
     if summary and (images := BeautifulSoup(summary, features="lxml").find_all("img")):
         for image in images:
-            if not is_url_valid(image.attrs["src"]):
+            if not isinstance(image, Tag) or "src" not in image.attrs:
+                logger.error("Image is not a Tag or does not have a src attribute.")
+                continue
+
+            if not is_url_valid(str(image.attrs["src"])):
                 logger.warning("Invalid URL: %s", image.attrs["src"])
                 continue
 
             # Genshins first image is a divider, so we ignore it.
-            if not image.attrs["src"].startswith("https://img-os-static.hoyolab.com/divider_config"):
+            if not str(image.attrs["src"]).startswith("https://img-os-static.hoyolab.com/divider_config"):
                 return str(image.attrs["src"])
     return ""
 
@@ -317,8 +326,7 @@ def save_embed(custom_reader: Reader, feed: Feed, embed: CustomEmbed) -> None:
         "footer_text": embed.footer_text,
         "footer_icon_url": embed.footer_icon_url,
     }
-
-    custom_reader.set_tag(feed, "embed", json.dumps(embed_dict))  # type: ignore
+    custom_reader.set_tag(feed, "embed", json.dumps(embed_dict))  # pyright: ignore[reportArgumentType]
 
 
 def get_embed(custom_reader: Reader, feed: Feed) -> CustomEmbed:
@@ -335,7 +343,7 @@ def get_embed(custom_reader: Reader, feed: Feed) -> CustomEmbed:
 
     if embed:
         if not isinstance(embed, str):
-            return get_embed_data(embed)  # type: ignore
+            return get_embed_data(embed)  # pyright: ignore[reportArgumentType]
         embed_data: dict[str, str | int] = json.loads(embed)
         return get_embed_data(embed_data)
 

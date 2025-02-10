@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import pathlib
 import tempfile
 from pathlib import Path
@@ -52,8 +54,8 @@ def test_get_webhook_for_entry() -> None:
         custom_reader.update_feed("https://www.reddit.com/r/movies.rss")
 
         # Add a webhook to the database.
-        custom_reader.set_tag("https://www.reddit.com/r/movies.rss", "webhook", "https://example.com")  # type: ignore
-        our_tag: str = custom_reader.get_tag("https://www.reddit.com/r/movies.rss", "webhook")  # type: ignore
+        custom_reader.set_tag("https://www.reddit.com/r/movies.rss", "webhook", "https://example.com")  # pyright: ignore[reportArgumentType]
+        our_tag = custom_reader.get_tag("https://www.reddit.com/r/movies.rss", "webhook")  # pyright: ignore[reportArgumentType]
         assert our_tag == "https://example.com", f"The tag should be 'https://example.com'. But it was '{our_tag}'."
 
         # Close the reader, so we can delete the directory.

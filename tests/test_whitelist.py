@@ -44,7 +44,7 @@ def test_has_white_tags() -> None:
 
 
 def check_if_has_tag(reader: Reader, feed: Feed, whitelist_name: str) -> None:
-    reader.set_tag(feed, whitelist_name, "a")  # type: ignore
+    reader.set_tag(feed, whitelist_name, "a")  # pyright: ignore[reportArgumentType]
     assert has_white_tags(custom_reader=reader, feed=feed) is True, "Feed should have whitelist tags"
     reader.delete_tag(feed, whitelist_name)
     assert has_white_tags(custom_reader=reader, feed=feed) is False, "Feed should not have any whitelist tags"
@@ -70,42 +70,42 @@ def test_should_be_sent() -> None:
     # Test entry without any whitelists
     assert should_be_sent(reader, first_entry[0]) is False, "Entry should not be sent"
 
-    reader.set_tag(feed, "whitelist_title", "fvnnnfnfdnfdnfd")  # type: ignore
+    reader.set_tag(feed, "whitelist_title", "fvnnnfnfdnfdnfd")  # pyright: ignore[reportArgumentType]
     assert should_be_sent(reader, first_entry[0]) is True, "Entry should be sent"
     reader.delete_tag(feed, "whitelist_title")
     assert should_be_sent(reader, first_entry[0]) is False, "Entry should not be sent"
 
-    reader.set_tag(feed, "whitelist_title", "åäö")  # type: ignore
+    reader.set_tag(feed, "whitelist_title", "åäö")  # pyright: ignore[reportArgumentType]
     assert should_be_sent(reader, first_entry[0]) is False, "Entry should not be sent"
     reader.delete_tag(feed, "whitelist_title")
     assert should_be_sent(reader, first_entry[0]) is False, "Entry should not be sent"
 
-    reader.set_tag(feed, "whitelist_summary", "ffdnfdnfdnfdnfdndfn")  # type: ignore
+    reader.set_tag(feed, "whitelist_summary", "ffdnfdnfdnfdnfdndfn")  # pyright: ignore[reportArgumentType]
     assert should_be_sent(reader, first_entry[0]) is True, "Entry should be sent"
     reader.delete_tag(feed, "whitelist_summary")
     assert should_be_sent(reader, first_entry[0]) is False, "Entry should not be sent"
 
-    reader.set_tag(feed, "whitelist_summary", "åäö")  # type: ignore
+    reader.set_tag(feed, "whitelist_summary", "åäö")  # pyright: ignore[reportArgumentType]
     assert should_be_sent(reader, first_entry[0]) is False, "Entry should not be sent"
     reader.delete_tag(feed, "whitelist_summary")
     assert should_be_sent(reader, first_entry[0]) is False, "Entry should not be sent"
 
-    reader.set_tag(feed, "whitelist_content", "ffdnfdnfdnfdnfdndfn")  # type: ignore
+    reader.set_tag(feed, "whitelist_content", "ffdnfdnfdnfdnfdndfn")  # pyright: ignore[reportArgumentType]
     assert should_be_sent(reader, first_entry[0]) is True, "Entry should be sent"
     reader.delete_tag(feed, "whitelist_content")
     assert should_be_sent(reader, first_entry[0]) is False, "Entry should not be sent"
 
-    reader.set_tag(feed, "whitelist_content", "åäö")  # type: ignore
+    reader.set_tag(feed, "whitelist_content", "åäö")  # pyright: ignore[reportArgumentType]
     assert should_be_sent(reader, first_entry[0]) is False, "Entry should not be sent"
     reader.delete_tag(feed, "whitelist_content")
     assert should_be_sent(reader, first_entry[0]) is False, "Entry should not be sent"
 
-    reader.set_tag(feed, "whitelist_author", "TheLovinator")  # type: ignore
+    reader.set_tag(feed, "whitelist_author", "TheLovinator")  # pyright: ignore[reportArgumentType]
     assert should_be_sent(reader, first_entry[0]) is True, "Entry should be sent"
     reader.delete_tag(feed, "whitelist_author")
     assert should_be_sent(reader, first_entry[0]) is False, "Entry should not be sent"
 
-    reader.set_tag(feed, "whitelist_author", "åäö")  # type: ignore
+    reader.set_tag(feed, "whitelist_author", "åäö")  # pyright: ignore[reportArgumentType]
     assert should_be_sent(reader, first_entry[0]) is False, "Entry should not be sent"
     reader.delete_tag(feed, "whitelist_author")
     assert should_be_sent(reader, first_entry[0]) is False, "Entry should not be sent"

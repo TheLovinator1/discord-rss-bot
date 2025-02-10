@@ -45,7 +45,7 @@ def test_has_black_tags() -> None:
 
 
 def check_if_has_tag(reader: Reader, feed: Feed, blacklist_name: str) -> None:
-    reader.set_tag(feed, blacklist_name, "a")  # type: ignore
+    reader.set_tag(feed, blacklist_name, "a")  # pyright: ignore[reportArgumentType]
     assert_msg: str = f"Feed should have blacklist tags: {blacklist_name}"
     assert feed_has_blacklist_tags(custom_reader=reader, feed=feed) is True, assert_msg
 
@@ -74,42 +74,42 @@ def test_should_be_skipped() -> None:
     # Test entry without any blacklists
     assert entry_should_be_skipped(reader, first_entry[0]) is False, f"Entry should not be skipped: {first_entry[0]}"
 
-    reader.set_tag(feed, "blacklist_title", "fvnnnfnfdnfdnfd")  # type: ignore
+    reader.set_tag(feed, "blacklist_title", "fvnnnfnfdnfdnfd")  # pyright: ignore[reportArgumentType]
     assert entry_should_be_skipped(reader, first_entry[0]) is True, f"Entry should be skipped: {first_entry[0]}"
     reader.delete_tag(feed, "blacklist_title")
     assert entry_should_be_skipped(reader, first_entry[0]) is False, f"Entry should not be skipped: {first_entry[0]}"
 
-    reader.set_tag(feed, "blacklist_title", "åäö")  # type: ignore
+    reader.set_tag(feed, "blacklist_title", "åäö")  # pyright: ignore[reportArgumentType]
     assert entry_should_be_skipped(reader, first_entry[0]) is False, f"Entry should not be skipped: {first_entry[0]}"
     reader.delete_tag(feed, "blacklist_title")
     assert entry_should_be_skipped(reader, first_entry[0]) is False, f"Entry should not be skipped: {first_entry[0]}"
 
-    reader.set_tag(feed, "blacklist_summary", "ffdnfdnfdnfdnfdndfn")  # type: ignore
+    reader.set_tag(feed, "blacklist_summary", "ffdnfdnfdnfdnfdndfn")  # pyright: ignore[reportArgumentType]
     assert entry_should_be_skipped(reader, first_entry[0]) is True, f"Entry should be skipped: {first_entry[0]}"
     reader.delete_tag(feed, "blacklist_summary")
     assert entry_should_be_skipped(reader, first_entry[0]) is False, f"Entry should not be skipped: {first_entry[0]}"
 
-    reader.set_tag(feed, "blacklist_summary", "åäö")  # type: ignore
+    reader.set_tag(feed, "blacklist_summary", "åäö")  # pyright: ignore[reportArgumentType]
     assert entry_should_be_skipped(reader, first_entry[0]) is False, f"Entry should not be skipped: {first_entry[0]}"
     reader.delete_tag(feed, "blacklist_summary")
     assert entry_should_be_skipped(reader, first_entry[0]) is False, f"Entry should not be skipped: {first_entry[0]}"
 
-    reader.set_tag(feed, "blacklist_content", "ffdnfdnfdnfdnfdndfn")  # type: ignore
+    reader.set_tag(feed, "blacklist_content", "ffdnfdnfdnfdnfdndfn")  # pyright: ignore[reportArgumentType]
     assert entry_should_be_skipped(reader, first_entry[0]) is True, f"Entry should be skipped: {first_entry[0]}"
     reader.delete_tag(feed, "blacklist_content")
     assert entry_should_be_skipped(reader, first_entry[0]) is False, f"Entry should not be skipped: {first_entry[0]}"
 
-    reader.set_tag(feed, "blacklist_content", "åäö")  # type: ignore
+    reader.set_tag(feed, "blacklist_content", "åäö")  # pyright: ignore[reportArgumentType]
     assert entry_should_be_skipped(reader, first_entry[0]) is False, f"Entry should not be skipped: {first_entry[0]}"
     reader.delete_tag(feed, "blacklist_content")
     assert entry_should_be_skipped(reader, first_entry[0]) is False, f"Entry should not be skipped: {first_entry[0]}"
 
-    reader.set_tag(feed, "blacklist_author", "TheLovinator")  # type: ignore
+    reader.set_tag(feed, "blacklist_author", "TheLovinator")  # pyright: ignore[reportArgumentType]
     assert entry_should_be_skipped(reader, first_entry[0]) is True, f"Entry should be skipped: {first_entry[0]}"
     reader.delete_tag(feed, "blacklist_author")
     assert entry_should_be_skipped(reader, first_entry[0]) is False, f"Entry should not be skipped: {first_entry[0]}"
 
-    reader.set_tag(feed, "blacklist_author", "åäö")  # type: ignore
+    reader.set_tag(feed, "blacklist_author", "åäö")  # pyright: ignore[reportArgumentType]
     assert entry_should_be_skipped(reader, first_entry[0]) is False, f"Entry should not be skipped: {first_entry[0]}"
     reader.delete_tag(feed, "blacklist_author")
     assert entry_should_be_skipped(reader, first_entry[0]) is False, f"Entry should not be skipped: {first_entry[0]}"

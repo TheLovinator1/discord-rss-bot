@@ -3,8 +3,11 @@
     "botuser",
     "Genshins",
     "levelname",
+    "Lovinator",
+    "markdownified",
     "markdownify",
     "pipx",
     "thead"
-  ]
+  ],
+  "python.analysis.typeCheckingMode": "basic"
 }

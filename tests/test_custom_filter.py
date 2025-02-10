@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import pathlib
 import tempfile
 from pathlib import Path
@@ -48,7 +50,7 @@ def test_entry_is_whitelisted() -> None:
         custom_reader.update_feed("https://lovinator.space/rss_test.xml")
 
         # whitelist_title
-        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "whitelist_title", "fvnnnfnfdnfdnfd")  # type: ignore
+        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "whitelist_title", "fvnnnfnfdnfdnfd")  # pyright: ignore[reportArgumentType]
         for entry in custom_reader.get_entries():
             if entry_is_whitelisted(entry) is True:
                 assert entry.title == "fvnnnfnfdnfdnfd", f"Expected: fvnnnfnfdnfdnfd, Got: {entry.title}"
@@ -56,7 +58,7 @@ def test_entry_is_whitelisted() -> None:
         custom_reader.delete_tag("https://lovinator.space/rss_test.xml", "whitelist_title")
 
         # whitelist_summary
-        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "whitelist_summary", "fvnnnfnfdnfdnfd")  # type: ignore
+        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "whitelist_summary", "fvnnnfnfdnfdnfd")  # pyright: ignore[reportArgumentType]
         for entry in custom_reader.get_entries():
             if entry_is_whitelisted(entry) is True:
                 assert entry.summary == "fvnnnfnfdnfdnfd", f"Expected: fvnnnfnfdnfdnfd, Got: {entry.summary}"
@@ -64,7 +66,7 @@ def test_entry_is_whitelisted() -> None:
         custom_reader.delete_tag("https://lovinator.space/rss_test.xml", "whitelist_summary")
 
         # whitelist_content
-        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "whitelist_content", "fvnnnfnfdnfdnfd")  # type: ignore
+        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "whitelist_content", "fvnnnfnfdnfdnfd")  # pyright: ignore[reportArgumentType]
         for entry in custom_reader.get_entries():
             if entry_is_whitelisted(entry) is True:
                 assert_msg = f"Expected: <p>ffdnfdnfdnfdnfdndfn</p>, Got: {entry.content[0].value}"
@@ -90,7 +92,7 @@ def test_entry_is_blacklisted() -> None:
         custom_reader.update_feed("https://lovinator.space/rss_test.xml")
 
         # blacklist_title
-        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "blacklist_title", "fvnnnfnfdnfdnfd")  # type: ignore
+        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "blacklist_title", "fvnnnfnfdnfdnfd")  # pyright: ignore[reportArgumentType]
         for entry in custom_reader.get_entries():
             if entry_is_blacklisted(entry) is True:
                 assert entry.title == "fvnnnfnfdnfdnfd", f"Expected: fvnnnfnfdnfdnfd, Got: {entry.title}"
@@ -98,7 +100,7 @@ def test_entry_is_blacklisted() -> None:
         custom_reader.delete_tag("https://lovinator.space/rss_test.xml", "blacklist_title")
 
         # blacklist_summary
-        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "blacklist_summary", "fvnnnfnfdnfdnfd")  # type: ignore
+        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "blacklist_summary", "fvnnnfnfdnfdnfd")  # pyright: ignore[reportArgumentType]
         for entry in custom_reader.get_entries():
             if entry_is_blacklisted(entry) is True:
                 assert entry.summary == "fvnnnfnfdnfdnfd", f"Expected: fvnnnfnfdnfdnfd, Got: {entry.summary}"
@@ -106,7 +108,7 @@ def test_entry_is_blacklisted() -> None:
         custom_reader.delete_tag("https://lovinator.space/rss_test.xml", "blacklist_summary")
 
         # blacklist_content
-        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "blacklist_content", "fvnnnfnfdnfdnfd")  # type: ignore
+        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "blacklist_content", "fvnnnfnfdnfdnfd")  # pyright: ignore[reportArgumentType]
         for entry in custom_reader.get_entries():
             if entry_is_blacklisted(entry) is True:
                 assert_msg = f"Expected: <p>ffdnfdnfdnfdnfdndfn</p>, Got: {entry.content[0].value}"

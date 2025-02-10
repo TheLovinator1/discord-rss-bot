@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from reader import Feed, Reader, TagNotFoundError
 
 from discord_rss_bot.settings import default_custom_embed, default_custom_message
@@ -13,8 +15,8 @@ def add_custom_message(reader: Reader, feed: Feed) -> None:
     try:
         reader.get_tag(feed, "custom_message")
     except TagNotFoundError:
-        reader.set_tag(feed.url, "custom_message", default_custom_message)  # type: ignore
-        reader.set_tag(feed.url, "has_custom_message", True)  # type: ignore
+        reader.set_tag(feed.url, "custom_message", default_custom_message)  # pyright: ignore[reportArgumentType]
+        reader.set_tag(feed.url, "has_custom_message", True)  # pyright: ignore[reportArgumentType]
 
 
 def add_has_custom_message(reader: Reader, feed: Feed) -> None:
@@ -28,9 +30,9 @@ def add_has_custom_message(reader: Reader, feed: Feed) -> None:
         reader.get_tag(feed, "has_custom_message")
     except TagNotFoundError:
         if reader.get_tag(feed, "custom_message") == default_custom_message:
-            reader.set_tag(feed.url, "has_custom_message", False)  # type: ignore
+            reader.set_tag(feed.url, "has_custom_message", False)  # pyright: ignore[reportArgumentType]
         else:
-            reader.set_tag(feed.url, "has_custom_message", True)  # type: ignore
+            reader.set_tag(feed.url, "has_custom_message", True)  # pyright: ignore[reportArgumentType]
 
 
 def add_if_embed(reader: Reader, feed: Feed) -> None:
@@ -43,7 +45,7 @@ def add_if_embed(reader: Reader, feed: Feed) -> None:
     try:
         reader.get_tag(feed, "if_embed")
     except TagNotFoundError:
-        reader.set_tag(feed.url, "if_embed", True)  # type: ignore
+        reader.set_tag(feed.url, "if_embed", True)  # pyright: ignore[reportArgumentType]
 
 
 def add_custom_embed(reader: Reader, feed: Feed) -> None:
@@ -56,8 +58,8 @@ def add_custom_embed(reader: Reader, feed: Feed) -> None:
     try:
         reader.get_tag(feed, "embed")
     except TagNotFoundError:
-        reader.set_tag(feed.url, "embed", default_custom_embed)  # type: ignore
-        reader.set_tag(feed.url, "has_custom_embed", True)  # type: ignore
+        reader.set_tag(feed.url, "embed", default_custom_embed)  # pyright: ignore[reportArgumentType]
+        reader.set_tag(feed.url, "has_custom_embed", True)  # pyright: ignore[reportArgumentType]
 
 
 def add_has_custom_embed(reader: Reader, feed: Feed) -> None:
@@ -71,9 +73,9 @@ def add_has_custom_embed(reader: Reader, feed: Feed) -> None:
         reader.get_tag(feed, "has_custom_embed")
     except TagNotFoundError:
         if reader.get_tag(feed, "embed") == default_custom_embed:
-            reader.set_tag(feed.url, "has_custom_embed", False)  # type: ignore
+            reader.set_tag(feed.url, "has_custom_embed", False)  # pyright: ignore[reportArgumentType]
         else:
-            reader.set_tag(feed.url, "has_custom_embed", True)  # type: ignore
+            reader.set_tag(feed.url, "has_custom_embed", True)  # pyright: ignore[reportArgumentType]
 
 
 def add_should_send_embed(reader: Reader, feed: Feed) -> None:
@@ -86,7 +88,7 @@ def add_should_send_embed(reader: Reader, feed: Feed) -> None:
     try:
         reader.get_tag(feed, "should_send_embed")
     except TagNotFoundError:
-        reader.set_tag(feed.url, "should_send_embed", True)  # type: ignore
+        reader.set_tag(feed.url, "should_send_embed", True)  # pyright: ignore[reportArgumentType]
 
 
 def add_missing_tags(reader: Reader) -> None:

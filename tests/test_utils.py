@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from discord_rss_bot.filter.utils import is_word_in_text
 
 
