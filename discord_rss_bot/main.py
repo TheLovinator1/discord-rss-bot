@@ -12,6 +12,7 @@ from functools import lru_cache
 from typing import TYPE_CHECKING, Annotated, cast
 
 import httpx
+import sentry_sdk
 import uvicorn
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, Form, HTTPException, Request
@@ -947,7 +948,13 @@ def modify_webhook(old_hook: Annotated[str, Form()], new_hook: Annotated[str, Fo
 
 
 if __name__ == "__main__":
-    # TODO(TheLovinator): Make this configurable.
+    sentry_sdk.init(
+        dsn="https://6e77a0d7acb9c7ea22e85a375e0ff1f4@o4505228040339456.ingest.us.sentry.io/4508792887967744",
+        send_default_pii=True,
+        traces_sample_rate=1.0,
+        _experiments={"continuous_profiling_auto_start": True},
+    )
+
     uvicorn.run(
         "main:app",
         log_level="info",

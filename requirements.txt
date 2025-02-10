@@ -9,4 +9,5 @@ platformdirs
 python-dotenv
 python-multipart
 reader
+sentry-sdk[fastapi]
 uvicorn
