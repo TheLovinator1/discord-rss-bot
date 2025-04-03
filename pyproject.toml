@@ -42,7 +42,7 @@ platformdirs = "*"
 python-dotenv = "*"
 python-multipart = "*"
 reader = "*"
-sentry-sdk = {version = "*", extras = ["fastapi"]}
+sentry-sdk = { version = "*", extras = ["fastapi"] }
 uvicorn = "*"
 
 [tool.poetry.group.dev.dependencies]
@@ -86,6 +86,8 @@ lint.ignore = [
     "PLR6301", # Checks for the presence of unused self parameter in methods definitions.
     "RUF029",  # Checks for functions declared async that do not await or otherwise use features requiring the function to be declared async.
     "TD003",   # Checks that a TODO comment is associated with a link to a relevant issue or ticket.
+    "PLR0913", # Checks for function definitions that include too many arguments.
+    "PLR0917", # Checks for function definitions that include too many positional arguments.
 
     # Conflicting lint rules when using Ruff's formatter
     # https://docs.astral.sh/ruff/formatter/#conflicting-lint-rules

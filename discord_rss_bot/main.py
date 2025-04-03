@@ -43,7 +43,7 @@ from discord_rss_bot.search import create_html_for_search_results
 from discord_rss_bot.settings import get_reader
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import AsyncGenerator, Iterable
 
     from reader.types import JSONType
 
@@ -88,8 +88,15 @@ reader: Reader = get_reader()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> typing.AsyncGenerator[None]:
-    """This is needed for the ASGI server to run."""
+async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
+    """Lifespan for the FastAPI app.
+
+    Args:
+        app: The FastAPI app.
+
+    Yields:
+        None: Nothing.
+    """
     add_missing_tags(reader)
     scheduler: AsyncIOScheduler = AsyncIOScheduler()
 
@@ -250,6 +257,10 @@ async def post_set_whitelist(
     whitelist_summary: Annotated[str, Form()] = "",
     whitelist_content: Annotated[str, Form()] = "",
     whitelist_author: Annotated[str, Form()] = "",
+    regex_whitelist_title: Annotated[str, Form()] = "",
+    regex_whitelist_summary: Annotated[str, Form()] = "",
+    regex_whitelist_content: Annotated[str, Form()] = "",
+    regex_whitelist_author: Annotated[str, Form()] = "",
     feed_url: Annotated[str, Form()] = "",
 ) -> RedirectResponse:
     """Set what the whitelist should be sent, if you have this set only words in the whitelist will be sent.
@@ -259,6 +270,10 @@ async def post_set_whitelist(
         whitelist_summary: Whitelisted words for when checking the summary.
         whitelist_content: Whitelisted words for when checking the content.
         whitelist_author: Whitelisted words for when checking the author.
+        regex_whitelist_title: Whitelisted regex for when checking the title.
+        regex_whitelist_summary: Whitelisted regex for when checking the summary.
+        regex_whitelist_content: Whitelisted regex for when checking the content.
+        regex_whitelist_author: Whitelisted regex for when checking the author.
         feed_url: The feed we should set the whitelist for.
 
     Returns:
@@ -269,6 +284,10 @@ async def post_set_whitelist(
     reader.set_tag(clean_feed_url, "whitelist_summary", whitelist_summary)  # pyright: ignore[reportArgumentType][call-overload]
     reader.set_tag(clean_feed_url, "whitelist_content", whitelist_content)  # pyright: ignore[reportArgumentType][call-overload]
     reader.set_tag(clean_feed_url, "whitelist_author", whitelist_author)  # pyright: ignore[reportArgumentType][call-overload]
+    reader.set_tag(clean_feed_url, "regex_whitelist_title", regex_whitelist_title)  # pyright: ignore[reportArgumentType][call-overload]
+    reader.set_tag(clean_feed_url, "regex_whitelist_summary", regex_whitelist_summary)  # pyright: ignore[reportArgumentType][call-overload]
+    reader.set_tag(clean_feed_url, "regex_whitelist_content", regex_whitelist_content)  # pyright: ignore[reportArgumentType][call-overload]
+    reader.set_tag(clean_feed_url, "regex_whitelist_author", regex_whitelist_author)  # pyright: ignore[reportArgumentType][call-overload]
 
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
@@ -287,11 +306,14 @@ async def get_whitelist(feed_url: str, request: Request):
     clean_feed_url: str = feed_url.strip()
     feed: Feed = reader.get_feed(urllib.parse.unquote(clean_feed_url))
 
-    # Get previous data, this is used when creating the form.
     whitelist_title: str = str(reader.get_tag(feed, "whitelist_title", ""))
     whitelist_summary: str = str(reader.get_tag(feed, "whitelist_summary", ""))
     whitelist_content: str = str(reader.get_tag(feed, "whitelist_content", ""))
     whitelist_author: str = str(reader.get_tag(feed, "whitelist_author", ""))
+    regex_whitelist_title: str = str(reader.get_tag(feed, "regex_whitelist_title", ""))
+    regex_whitelist_summary: str = str(reader.get_tag(feed, "regex_whitelist_summary", ""))
+    regex_whitelist_content: str = str(reader.get_tag(feed, "regex_whitelist_content", ""))
+    regex_whitelist_author: str = str(reader.get_tag(feed, "regex_whitelist_author", ""))
 
     context = {
         "request": request,
@@ -300,6 +322,10 @@ async def get_whitelist(feed_url: str, request: Request):
         "whitelist_summary": whitelist_summary,
         "whitelist_content": whitelist_content,
         "whitelist_author": whitelist_author,
+        "regex_whitelist_title": regex_whitelist_title,
+        "regex_whitelist_summary": regex_whitelist_summary,
+        "regex_whitelist_content": regex_whitelist_content,
+        "regex_whitelist_author": regex_whitelist_author,
     }
     return templates.TemplateResponse(request=request, name="whitelist.html", context=context)
 
@@ -310,6 +336,10 @@ async def post_set_blacklist(
     blacklist_summary: Annotated[str, Form()] = "",
     blacklist_content: Annotated[str, Form()] = "",
     blacklist_author: Annotated[str, Form()] = "",
+    regex_blacklist_title: Annotated[str, Form()] = "",
+    regex_blacklist_summary: Annotated[str, Form()] = "",
+    regex_blacklist_content: Annotated[str, Form()] = "",
+    regex_blacklist_author: Annotated[str, Form()] = "",
     feed_url: Annotated[str, Form()] = "",
 ) -> RedirectResponse:
     """Set the blacklist.
@@ -322,6 +352,10 @@ async def post_set_blacklist(
         blacklist_summary: Blacklisted words for when checking the summary.
         blacklist_content: Blacklisted words for when checking the content.
         blacklist_author: Blacklisted words for when checking the author.
+        regex_blacklist_title: Blacklisted regex for when checking the title.
+        regex_blacklist_summary: Blacklisted regex for when checking the summary.
+        regex_blacklist_content: Blacklisted regex for when checking the content.
+        regex_blacklist_author: Blacklisted regex for when checking the author.
         feed_url: What feed we should set the blacklist for.
 
     Returns:
@@ -332,7 +366,10 @@ async def post_set_blacklist(
     reader.set_tag(clean_feed_url, "blacklist_summary", blacklist_summary)  # pyright: ignore[reportArgumentType][call-overload]
     reader.set_tag(clean_feed_url, "blacklist_content", blacklist_content)  # pyright: ignore[reportArgumentType][call-overload]
     reader.set_tag(clean_feed_url, "blacklist_author", blacklist_author)  # pyright: ignore[reportArgumentType][call-overload]
-
+    reader.set_tag(clean_feed_url, "regex_blacklist_title", regex_blacklist_title)  # pyright: ignore[reportArgumentType][call-overload]
+    reader.set_tag(clean_feed_url, "regex_blacklist_summary", regex_blacklist_summary)  # pyright: ignore[reportArgumentType][call-overload]
+    reader.set_tag(clean_feed_url, "regex_blacklist_content", regex_blacklist_content)  # pyright: ignore[reportArgumentType][call-overload]
+    reader.set_tag(clean_feed_url, "regex_blacklist_author", regex_blacklist_author)  # pyright: ignore[reportArgumentType][call-overload]
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
 
@@ -349,11 +386,14 @@ async def get_blacklist(feed_url: str, request: Request):
     """
     feed: Feed = reader.get_feed(urllib.parse.unquote(feed_url))
 
-    # Get previous data, this is used when creating the form.
     blacklist_title: str = str(reader.get_tag(feed, "blacklist_title", ""))
     blacklist_summary: str = str(reader.get_tag(feed, "blacklist_summary", ""))
     blacklist_content: str = str(reader.get_tag(feed, "blacklist_content", ""))
     blacklist_author: str = str(reader.get_tag(feed, "blacklist_author", ""))
+    regex_blacklist_title: str = str(reader.get_tag(feed, "regex_blacklist_title", ""))
+    regex_blacklist_summary: str = str(reader.get_tag(feed, "regex_blacklist_summary", ""))
+    regex_blacklist_content: str = str(reader.get_tag(feed, "regex_blacklist_content", ""))
+    regex_blacklist_author: str = str(reader.get_tag(feed, "regex_blacklist_author", ""))
 
     context = {
         "request": request,
@@ -362,6 +402,10 @@ async def get_blacklist(feed_url: str, request: Request):
         "blacklist_summary": blacklist_summary,
         "blacklist_content": blacklist_content,
         "blacklist_author": blacklist_author,
+        "regex_blacklist_title": regex_blacklist_title,
+        "regex_blacklist_summary": regex_blacklist_summary,
+        "regex_blacklist_content": regex_blacklist_content,
+        "regex_blacklist_author": regex_blacklist_author,
     }
     return templates.TemplateResponse(request=request, name="blacklist.html", context=context)
 
@@ -461,7 +505,7 @@ async def get_embed_page(feed_url: str, request: Request):
 
 
 @app.post("/embed", response_class=HTMLResponse)
-async def post_embed(  # noqa: PLR0913, PLR0917
+async def post_embed(
     feed_url: Annotated[str, Form()],
     title: Annotated[str, Form()] = "",
     description: Annotated[str, Form()] = "",

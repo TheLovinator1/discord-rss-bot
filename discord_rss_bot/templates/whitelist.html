@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}
-| Blacklist
+| Whitelist
 {% endblock title %}
 {% block content %}
 <div class="p-2 border border-dark">
@@ -42,6 +42,49 @@
                 <label for="whitelist_author" class="col-sm-6 col-form-label">Whitelist - Author</label>
                 <input name="whitelist_author" type="text" class="form-control bg-dark border-dark text-muted"
                     id="whitelist_author" value="{%- if whitelist_author -%} {{ whitelist_author }} {%- endif -%}" />
+
+                <div class="mt-4">
+                    <div class="form-text">
+                        <ul class="list-inline">
+                            <li>
+                                Regular expression patterns for advanced filtering. Each pattern should be on a new
+                                line.
+                            </li>
+                            <li>Patterns are case-insensitive.</li>
+                            <li>
+                                Examples:
+                                <code>
+<pre>
+^New Release:.*
+\b(update|version|patch)\s+\d+\.\d+
+.*\[(important|notice)\].*
+</pre>
+                                </code>
+                            </li>
+                        </ul>
+                    </div>
+                    <label for="regex_whitelist_title" class="col-sm-6 col-form-label">Regex Whitelist - Title</label>
+                    <textarea name="regex_whitelist_title" class="form-control bg-dark border-dark text-muted"
+                        id="regex_whitelist_title"
+                        rows="3">{%- if regex_whitelist_title -%}{{ regex_whitelist_title }}{%- endif -%}</textarea>
+
+                    <label for="regex_whitelist_summary" class="col-sm-6 col-form-label">Regex Whitelist -
+                        Summary</label>
+                    <textarea name="regex_whitelist_summary" class="form-control bg-dark border-dark text-muted"
+                        id="regex_whitelist_summary"
+                        rows="3">{%- if regex_whitelist_summary -%}{{ regex_whitelist_summary }}{%- endif -%}</textarea>
+
+                    <label for="regex_whitelist_content" class="col-sm-6 col-form-label">Regex Whitelist -
+                        Content</label>
+                    <textarea name="regex_whitelist_content" class="form-control bg-dark border-dark text-muted"
+                        id="regex_whitelist_content"
+                        rows="3">{%- if regex_whitelist_content -%}{{ regex_whitelist_content }}{%- endif -%}</textarea>
+
+                    <label for="regex_whitelist_author" class="col-sm-6 col-form-label">Regex Whitelist - Author</label>
+                    <textarea name="regex_whitelist_author" class="form-control bg-dark border-dark text-muted"
+                        id="regex_whitelist_author"
+                        rows="3">{%- if regex_whitelist_author -%}{{ regex_whitelist_author }}{%- endif -%}</textarea>
+                </div>
             </div>
         </div>
         <!-- Add a hidden feed_url field to the form -->
