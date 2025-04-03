@@ -10,6 +10,7 @@ import pytest
 from reader import Feed, Reader, make_reader
 
 from discord_rss_bot.feeds import (
+    extract_domain,
     is_youtube_feed,
     send_entry_to_discord,
     send_to_discord,
@@ -202,3 +203,57 @@ def test_send_entry_to_discord_youtube_feed(
 
     # Verify execute_webhook was called
     mock_execute_webhook.assert_called_once_with(mock_webhook, mock_entry)
+
+
+def test_extract_domain_youtube_feed() -> None:
+    """Test extract_domain for YouTube feeds."""
+    url: str = "https://www.youtube.com/feeds/videos.xml?channel_id=123456"
+    assert extract_domain(url) == "YouTube", "YouTube feeds should return 'YouTube' as the domain."
+
+
+def test_extract_domain_reddit_feed() -> None:
+    """Test extract_domain for Reddit feeds."""
+    url: str = "https://www.reddit.com/r/Python/.rss"
+    assert extract_domain(url) == "Reddit", "Reddit feeds should return 'Reddit' as the domain."
+
+
+def test_extract_domain_github_feed() -> None:
+    """Test extract_domain for GitHub feeds."""
+    url: str = "https://www.github.com/user/repo"
+    assert extract_domain(url) == "GitHub", "GitHub feeds should return 'GitHub' as the domain."
+
+
+def test_extract_domain_custom_domain() -> None:
+    """Test extract_domain for custom domains."""
+    url: str = "https://www.example.com/feed"
+    assert extract_domain(url) == "Example", "Custom domains should return the capitalized first part of the domain."
+
+
+def test_extract_domain_no_www_prefix() -> None:
+    """Test extract_domain removes 'www.' prefix."""
+    url: str = "https://www.example.com/feed"
+    assert extract_domain(url) == "Example", "The 'www.' prefix should be removed from the domain."
+
+
+def test_extract_domain_no_tld() -> None:
+    """Test extract_domain for domains without a TLD."""
+    url: str = "https://localhost/feed"
+    assert extract_domain(url) == "Localhost", "Domains without a TLD should return the capitalized domain."
+
+
+def test_extract_domain_invalid_url() -> None:
+    """Test extract_domain for invalid URLs."""
+    url: str = "not-a-valid-url"
+    assert extract_domain(url) == "Other", "Invalid URLs should return 'Other' as the domain."
+
+
+def test_extract_domain_empty_url() -> None:
+    """Test extract_domain for empty URLs."""
+    url: str = ""
+    assert extract_domain(url) == "Other", "Empty URLs should return 'Other' as the domain."
+
+
+def test_extract_domain_special_characters() -> None:
+    """Test extract_domain for URLs with special characters."""
+    url: str = "https://www.ex-ample.com/feed"
+    assert extract_domain(url) == "Ex-ample", "Domains with special characters should return the capitalized domain."

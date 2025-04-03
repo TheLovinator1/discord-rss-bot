@@ -45,7 +45,7 @@ def test_search() -> None:
     # Check that the feed was added.
     response = client.get(url="/")
     assert response.status_code == 200, f"Failed to get /: {response.text}"
-    assert feed_url in response.text, f"Feed not found in /: {response.text}"
+    assert encoded_feed_url(feed_url) in response.text, f"Feed not found in /: {response.text}"
 
     # Search for an entry.
     response: Response = client.get(url="/search/?query=a")
@@ -85,7 +85,7 @@ def test_create_feed() -> None:
     # Check that the feed was added.
     response = client.get(url="/")
     assert response.status_code == 200, f"Failed to get /: {response.text}"
-    assert feed_url in response.text, f"Feed not found in /: {response.text}"
+    assert encoded_feed_url(feed_url) in response.text, f"Feed not found in /: {response.text}"
 
 
 def test_get() -> None:
@@ -103,7 +103,7 @@ def test_get() -> None:
     # Check that the feed was added.
     response = client.get("/")
     assert response.status_code == 200, f"Failed to get /: {response.text}"
-    assert feed_url in response.text, f"Feed not found in /: {response.text}"
+    assert encoded_feed_url(feed_url) in response.text, f"Feed not found in /: {response.text}"
 
     response: Response = client.get(url="/add")
     assert response.status_code == 200, f"/add failed: {response.text}"
@@ -157,7 +157,7 @@ def test_pause_feed() -> None:
     # Check that the feed was paused.
     response = client.get(url="/")
     assert response.status_code == 200, f"Failed to get /: {response.text}"
-    assert feed_url in response.text, f"Feed not found in /: {response.text}"
+    assert encoded_feed_url(feed_url) in response.text, f"Feed not found in /: {response.text}"
 
 
 def test_unpause_feed() -> None:
@@ -184,7 +184,7 @@ def test_unpause_feed() -> None:
     # Check that the feed was unpaused.
     response = client.get(url="/")
     assert response.status_code == 200, f"Failed to get /: {response.text}"
-    assert feed_url in response.text, f"Feed not found in /: {response.text}"
+    assert encoded_feed_url(feed_url) in response.text, f"Feed not found in /: {response.text}"
 
 
 def test_remove_feed() -> None:

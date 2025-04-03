@@ -28,44 +28,65 @@
             {{ entry_count.averages[2]|round(1) }})
         </abbr>
     </p>
-    <!-- Loop through the webhooks and add the feeds connected to them. -->
+
+    <!-- Loop through the webhooks and add the feeds grouped by domain -->
     {% for hook_from_context in webhooks %}
-    <div class="p-2 mb-2 border border-dark">
-        <h2 class="h5">
+    <div class="p-2 mb-3 border border-dark">
+        <h2 class="h5 mb-3">
             <a class="text-muted" href="/webhooks">{{ hook_from_context.name }}</a>
         </h2>
-        <ul class="list-group">
-            {% for feed_webhook in feeds %}
-            {% set feed = feed_webhook["feed"] %}
-            {% set hook_from_feed = feed_webhook["webhook"] %}
-            {% if hook_from_context.url == hook_from_feed %}
-            <div>
-                <a class="text-muted" href="/feed?feed_url={{ feed.url|encode_url }}">
-                    {# Display username@youtube for YouTube feeds #}
-                    {% if "youtube.com/feeds/videos.xml" in feed.url %}
-                    {% if "user=" in feed.url %}
-                    {{ feed.url.split("user=")[1] }}@youtube
-                    {% elif "channel_id=" in feed.url %}
-                    {{ feed.title if feed.title else feed.url.split("channel_id=")[1] }}@youtube
-                    {% else %}
-                    {{ feed.url }}
-                    {% endif %}
-                    {% else %}
-                    {{ feed.url }}
-                    {% endif %}
-                </a>
-                {% if not feed.updates_enabled %}<span class="text-warning">Disabled</span>{% endif %}
-                {% if feed.last_exception %}<span
-                    class="text-danger">({{ feed.last_exception.value_str }})</span>{% endif %}
+
+        <!-- Group feeds by domain within each webhook -->
+        {% set feeds_for_hook = [] %}
+        {% for feed_webhook in feeds %}
+        {% if hook_from_context.url == feed_webhook.webhook %}
+        {% set _ = feeds_for_hook.append(feed_webhook) %}
+        {% endif %}
+        {% endfor %}
+
+        {% if feeds_for_hook %}
+        <!-- Create a dictionary to hold feeds grouped by domain -->
+        {% set domains = {} %}
+        {% for feed_item in feeds_for_hook %}
+        {% set feed = feed_item.feed %}
+        {% set domain = feed_item.domain %}
+        {% if domain not in domains %}
+        {% set _ = domains.update({domain: []}) %}
+        {% endif %}
+        {% set _ = domains[domain].append(feed) %}
+        {% endfor %}
+
+        <!-- Display domains and their feeds -->
+        {% for domain, domain_feeds in domains.items() %}
+        <div class="card bg-dark border border-dark mb-2">
+            <div class="card-header">
+                <h3 class="h6 mb-0 text-white-50">{{ domain }} ({{ domain_feeds|length }})</h3>
             </div>
-            {% endif %}
-            {% endfor %}
-        </ul>
+            <div class="card-body p-2">
+                <ul class="list-group list-unstyled mb-0">
+                    {% for feed in domain_feeds %}
+                    <li>
+                        <a class="text-muted" href="/feed?feed_url={{ feed.url|encode_url }}">
+                            {% if feed.title %}{{ feed.title }}{% else %}{{ feed.url }}{% endif %}
+                        </a>
+                        {% if not feed.updates_enabled %}<span class="text-warning">Disabled</span>{% endif %}
+                        {% if feed.last_exception %}<span
+                            class="text-danger">({{ feed.last_exception.value_str }})</span>{% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p class="text-muted">No feeds associated with this webhook.</p>
+        {% endif %}
     </div>
     {% endfor %}
     {% else %}
     <p>
         Hello there!
+        <br>
         <br>
         You need to add a webhook <a class="text-muted" href="/add_webhook">here</a> to get started. After that, you can
         add feeds <a class="text-muted" href="/add">here</a>. You can find both of these links in the navigation bar
@@ -79,6 +100,7 @@
         Thanks!
     </p>
     {% endif %}
+
     <!-- Show feeds without webhooks -->
     {% if broken_feeds %}
     <div class="p-2 mb-2 border border-dark">
@@ -103,6 +125,7 @@
         </ul>
     </div>
     {% endif %}
+
     <!-- Show feeds that has no attached webhook -->
     {% if feeds_without_attached_webhook %}
     <div class="p-2 mb-2 border border-dark">

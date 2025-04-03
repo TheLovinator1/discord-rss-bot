@@ -3,7 +3,9 @@ from __future__ import annotations
 import datetime
 import logging
 import pprint
+import re
 from typing import TYPE_CHECKING
+from urllib.parse import ParseResult, urlparse
 
 from discord_webhook import DiscordEmbed, DiscordWebhook
 from fastapi import HTTPException
@@ -27,6 +29,57 @@ if TYPE_CHECKING:
     from requests import Response
 
 logger: logging.Logger = logging.getLogger(__name__)
+
+
+def extract_domain(url: str) -> str:  # noqa: PLR0911
+    """Extract the domain name from a URL.
+
+    Args:
+        url: The URL to extract the domain from.
+
+    Returns:
+        str: The domain name, formatted for display.
+    """
+    # Check for empty URL first
+    if not url:
+        return "Other"
+
+    try:
+        # Special handling for YouTube feeds
+        if "youtube.com/feeds/videos.xml" in url:
+            return "YouTube"
+
+        # Special handling for Reddit feeds
+        if "reddit.com" in url or (".rss" in url and "r/" in url):
+            return "Reddit"
+
+        # Parse the URL and extract the domain
+        parsed_url: ParseResult = urlparse(url)
+        domain: str = parsed_url.netloc
+
+        # If we couldn't extract a domain, return "Other"
+        if not domain:
+            return "Other"
+
+        # Remove www. prefix if present
+        domain = re.sub(r"^www\.", "", domain)
+
+        # Special handling for common domains
+        domain_mapping: dict[str, str] = {"github.com": "GitHub"}
+
+        if domain in domain_mapping:
+            return domain_mapping[domain]
+
+        # For other domains, capitalize the first part before the TLD
+        parts: list[str] = domain.split(".")
+        min_domain_parts = 2
+        if len(parts) >= min_domain_parts:
+            return parts[0].capitalize()
+
+        return domain.capitalize()
+    except (ValueError, AttributeError, TypeError) as e:
+        logger.warning("Error extracting domain from %s: %s", url, e)
+        return "Other"
 
 
 def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None) -> str | None:

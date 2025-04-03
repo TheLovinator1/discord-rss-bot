@@ -37,7 +37,7 @@ from discord_rss_bot.custom_message import (
     replace_tags_in_text_message,
     save_embed,
 )
-from discord_rss_bot.feeds import create_feed, send_entry_to_discord, send_to_discord
+from discord_rss_bot.feeds import create_feed, extract_domain, send_entry_to_discord, send_to_discord
 from discord_rss_bot.missing_tags import add_missing_tags
 from discord_rss_bot.search import create_html_for_search_results
 from discord_rss_bot.settings import get_reader
@@ -875,11 +875,12 @@ def make_context_index(request: Request):
     broken_feeds = []
     feeds_without_attached_webhook = []
 
+    # Get all feeds and organize them
     feeds: Iterable[Feed] = reader.get_feeds()
     for feed in feeds:
         try:
             webhook = reader.get_tag(feed.url, "webhook")
-            feed_list.append({"feed": feed, "webhook": webhook})
+            feed_list.append({"feed": feed, "webhook": webhook, "domain": extract_domain(feed.url)})
         except TagNotFoundError:
             broken_feeds.append(feed)
             continue
