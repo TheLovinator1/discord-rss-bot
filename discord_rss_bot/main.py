@@ -732,6 +732,27 @@ def create_html_for_feed(entries: Iterable[Entry]) -> str:
 
         entry_id: str = urllib.parse.quote(entry.id)
         to_discord_html: str = f"<a class='text-muted' href='/post_entry?entry_id={entry_id}'>Send to Discord</a>"
+
+        # Check if this is a YouTube feed entry and the entry has a link
+        is_youtube_feed = "youtube.com/feeds/videos.xml" in entry.feed.url
+        video_embed_html = ""
+
+        if is_youtube_feed and entry.link:
+            # Extract the video ID and create an embed if possible
+            video_id: str | None = extract_youtube_video_id(entry.link)
+            if video_id:
+                video_embed_html: str = f"""
+                <div class="ratio ratio-16x9 mt-3 mb-3">
+                    <iframe src="https://www.youtube.com/embed/{video_id}"
+                        title="{entry.title}"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowfullscreen>
+                    </iframe>
+                </div>
+                """
+                # Don't use the first image if we have a video embed
+                first_image = ""
+
         image_html: str = f"<img src='{first_image}' class='img-fluid'>" if first_image else ""
 
         html += f"""<div class="p-2 mb-2 border border-dark">
@@ -739,6 +760,7 @@ def create_html_for_feed(entries: Iterable[Entry]) -> str:
 {f"By {entry.author} @" if entry.author else ""}{published} - {to_discord_html}
 
 {text}
+{video_embed_html}
 {image_html}
 </div>
 """
@@ -989,6 +1011,29 @@ def modify_webhook(old_hook: Annotated[str, Form()], new_hook: Annotated[str, Fo
 
     # Redirect to the webhook page.
     return RedirectResponse(url="/webhooks", status_code=303)
+
+
+def extract_youtube_video_id(url: str) -> str | None:
+    """Extract YouTube video ID from a YouTube video URL.
+
+    Args:
+        url: The YouTube video URL.
+
+    Returns:
+        The video ID if found, None otherwise.
+    """
+    if not url:
+        return None
+
+    # Handle standard YouTube URLs (youtube.com/watch?v=VIDEO_ID)
+    if "youtube.com/watch" in url and "v=" in url:
+        return url.split("v=")[1].split("&")[0]
+
+    # Handle shortened YouTube URLs (youtu.be/VIDEO_ID)
+    if "youtu.be/" in url:
+        return url.split("youtu.be/")[1].split("?")[0]
+
+    return None
 
 
 if __name__ == "__main__":

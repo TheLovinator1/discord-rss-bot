@@ -67,6 +67,10 @@ def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None) -> 
         logger.exception("Error getting should_send_embed tag for feed: %s", entry.feed.url)
         should_send_embed = True
 
+    # YouTube feeds should never use embeds
+    if is_youtube_feed(entry.feed.url):
+        should_send_embed = False
+
     if should_send_embed:
         webhook = create_embed_webhook(webhook_url, entry)
     else:
@@ -295,6 +299,18 @@ def execute_webhook(webhook: DiscordWebhook, entry: Entry) -> None:
         logger.info("Sent entry to Discord: %s", entry.id)
 
 
+def is_youtube_feed(feed_url: str) -> bool:
+    """Check if the feed is a YouTube feed.
+
+    Args:
+        feed_url: The feed URL to check.
+
+    Returns:
+        bool: True if the feed is a YouTube feed, False otherwise.
+    """
+    return "youtube.com/feeds/videos.xml" in feed_url
+
+
 def should_send_embed_check(reader: Reader, entry: Entry) -> bool:
     """Check if we should send an embed to Discord.
 
@@ -305,6 +321,10 @@ def should_send_embed_check(reader: Reader, entry: Entry) -> bool:
     Returns:
         bool: True if we should send an embed, False otherwise.
     """
+    # YouTube feeds should never use embeds - only links
+    if is_youtube_feed(entry.feed.url):
+        return False
+
     try:
         should_send_embed = bool(reader.get_tag(entry.feed, "should_send_embed"))
     except TagNotFoundError:

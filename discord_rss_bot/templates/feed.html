@@ -43,6 +43,7 @@
         </form>
         {% endif %}
 
+        {% if not "youtube.com/feeds/videos.xml" in feed.url %}
         {% if should_send_embed %}
         <form action="/use_text" method="post" class="d-inline">
             <button class="btn btn-dark btn-sm" name="feed_url" value="{{ feed.url }}">
@@ -56,6 +57,7 @@
             </button>
         </form>
         {% endif %}
+        {% endif %}
     </div>
 
     <!-- Additional Links -->
@@ -65,9 +67,11 @@
         <a class="text-muted d-block" href="/custom?feed_url={{ feed.url|encode_url }}">
             Customize message {% if not should_send_embed %}(Currently active){% endif %}
         </a>
+        {% if not "youtube.com/feeds/videos.xml" in feed.url %}
         <a class="text-muted d-block" href="/embed?feed_url={{ feed.url|encode_url }}">
             Customize embed {% if should_send_embed %}(Currently active){% endif %}
         </a>
+        {% endif %}
     </div>
 </div>
 
