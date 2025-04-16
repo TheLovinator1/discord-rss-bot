@@ -7,6 +7,7 @@ import re
 from typing import TYPE_CHECKING
 from urllib.parse import ParseResult, urlparse
 
+import tldextract
 from discord_webhook import DiscordEmbed, DiscordWebhook
 from fastapi import HTTPException
 from reader import Entry, EntryNotFoundError, Feed, FeedExistsError, Reader, ReaderError, StorageError, TagNotFoundError
@@ -70,12 +71,10 @@ def extract_domain(url: str) -> str:  # noqa: PLR0911
         if domain in domain_mapping:
             return domain_mapping[domain]
 
-        # For other domains, capitalize the first part before the TLD
-        parts: list[str] = domain.split(".")
-        min_domain_parts = 2
-        if len(parts) >= min_domain_parts:
-            return parts[0].capitalize()
-
+        # Use tldextract to get the domain (SLD)
+        ext = tldextract.extract(url)
+        if ext.domain:
+            return ext.domain.capitalize()
         return domain.capitalize()
     except (ValueError, AttributeError, TypeError) as e:
         logger.warning("Error extracting domain from %s: %s", url, e)

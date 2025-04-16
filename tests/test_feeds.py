@@ -257,3 +257,22 @@ def test_extract_domain_special_characters() -> None:
     """Test extract_domain for URLs with special characters."""
     url: str = "https://www.ex-ample.com/feed"
     assert extract_domain(url) == "Ex-ample", "Domains with special characters should return the capitalized domain."
+
+
+@pytest.mark.parametrize(
+    argnames=("url", "expected"),
+    argvalues=[
+        ("https://blog.something.com", "Something"),
+        ("https://www.something.com", "Something"),
+        ("https://subdomain.example.co.uk", "Example"),
+        ("https://github.com/user/repo", "GitHub"),
+        ("https://youtube.com/feeds/videos.xml?channel_id=abc", "YouTube"),
+        ("https://reddit.com/r/python/.rss", "Reddit"),
+        ("", "Other"),
+        ("not a url", "Other"),
+        ("https://www.example.com", "Example"),
+        ("https://foo.bar.baz.com", "Baz"),
+    ],
+)
+def test_extract_domain(url: str, expected: str) -> None:
+    assert extract_domain(url) == expected
