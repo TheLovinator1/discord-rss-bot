@@ -24,7 +24,7 @@ default_custom_embed: dict[str, str] = {
 }
 
 
-@lru_cache
+@lru_cache(maxsize=1)
 def get_reader(custom_location: Path | None = None) -> Reader:
     """Get the reader.
 
@@ -35,5 +35,10 @@ def get_reader(custom_location: Path | None = None) -> Reader:
         The reader.
     """
     db_location: Path = custom_location or Path(data_dir) / "db.sqlite"
+    reader: Reader = make_reader(url=str(db_location))
 
-    return make_reader(url=str(db_location))
+    # https://reader.readthedocs.io/en/latest/api.html#reader.types.UpdateConfig
+    # Set the update interval to 15 minutes
+    reader.set_tag((), ".reader.update", {"interval": 15})
+
+    return reader

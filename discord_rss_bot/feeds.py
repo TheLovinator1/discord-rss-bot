@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime
 import logging
+import os
 import pprint
 import re
 from typing import TYPE_CHECKING, Any
@@ -303,7 +304,10 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
     reader: Reader = get_reader() if custom_reader is None else custom_reader
 
     # Check for new entries for every feed.
-    reader.update_feeds()
+    reader.update_feeds(
+        scheduled=True,
+        workers=os.cpu_count() or 1,
+    )
 
     # Loop through the unread entries.
     entries: Iterable[Entry] = reader.get_entries(feed=feed, read=False)

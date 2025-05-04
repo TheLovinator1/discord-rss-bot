@@ -100,9 +100,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     add_missing_tags(reader)
     scheduler: AsyncIOScheduler = AsyncIOScheduler()
 
-    # Update all feeds every 15 minutes.
+    # Run job every minute to check for new entries. Feeds will be checked every 15 minutes.
     # TODO(TheLovinator): Make this configurable.
-    scheduler.add_job(send_to_discord, "interval", minutes=15, next_run_time=datetime.now(tz=UTC))
+    scheduler.add_job(send_to_discord, "interval", minutes=1, next_run_time=datetime.now(tz=UTC))
     scheduler.start()
     logger.info("Scheduler started.")
     yield
