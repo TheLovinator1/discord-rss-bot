@@ -289,7 +289,7 @@ def set_entry_as_read(reader: Reader, entry: Entry) -> None:
         logger.exception("Error setting entry to read: %s", entry.id)
 
 
-def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = None, *, do_once: bool = False) -> None:
+def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = None, *, do_once: bool = False) -> None:  # noqa: PLR0912
     """Send entries to Discord.
 
     If response was not ok, we will log the error and mark the entry as unread, so it will be sent again next time.
@@ -320,6 +320,11 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
             continue
 
         should_send_embed: bool = should_send_embed_check(reader, entry)
+
+        # Youtube feeds only need to send the link
+        if is_youtube_feed(entry.feed.url):
+            should_send_embed = False
+
         if should_send_embed:
             webhook = create_embed_webhook(webhook_url, entry)
         else:
@@ -341,11 +346,27 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
             continue
 
         # Check if the feed has a whitelist, and if it does, check if the entry is whitelisted.
-        if has_white_tags(reader, entry.feed):
-            if should_be_sent(reader, entry):
-                execute_webhook(webhook, entry)
-                return
+        if has_white_tags(reader, entry.feed) and not should_be_sent(reader, entry):
+            logger.info("Entry was not whitelisted: %s", entry.id)
             continue
+
+        # Use a custom webhook for Hoyolab feeds.
+        if is_c3kay_feed(entry.feed.url):
+            entry_link: str | None = entry.link
+            if entry_link:
+                post_id: str | None = extract_post_id_from_hoyolab_url(entry_link)
+                if post_id:
+                    post_data: dict[str, Any] | None = fetch_hoyolab_post(post_id)
+                    if post_data:
+                        webhook = create_hoyolab_webhook(webhook_url, entry, post_data)
+                        execute_webhook(webhook, entry)
+                        return
+                    logger.warning(
+                        "Failed to create Hoyolab webhook for feed %s, falling back to regular processing",
+                        entry.feed.url,
+                    )
+            else:
+                logger.warning("No entry link found for feed %s, falling back to regular processing", entry.feed.url)
 
         # Send the entry to Discord as it is not blacklisted or feed has a whitelist.
         execute_webhook(webhook, entry)
