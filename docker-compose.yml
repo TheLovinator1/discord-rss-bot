@@ -10,7 +10,7 @@ services:
       # - /Docker/Bots/discord-rss-bot:/home/botuser/.local/share/discord_rss_bot/
       - data:/home/botuser/.local/share/discord_rss_bot/
     healthcheck:
-      test: ["CMD", "python", "discord_rss_bot/healthcheck.py"]
+      test: [ "CMD", "uv", "run", "./discord_rss_bot/healthcheck.py" ]
       interval: 1m
       timeout: 10s
       retries: 3
