@@ -2,8 +2,20 @@
 
 Subscribe to RSS feeds and get updates to a Discord webhook.
 
-> [!NOTE]
-> You should look at [MonitoRSS](https://github.com/synzen/monitorss) for a more feature-rich project.
+## Features
+
+- Subscribe to RSS feeds and get updates to a Discord webhook.
+- Web interface to manage subscriptions.
+- Customizable message format for each feed.
+- Choose between Discord embed or plain text.
+- Regex filters for RSS feeds.
+- Blacklist/whitelist words in the title/description/author/etc.
+- Gets extra information from APIs if available, currently for:
+  - [https://feeds.c3kay.de/](https://feeds.c3kay.de/)
+    - Genshin Impact News
+    - Honkai Impact 3rd News
+    - Honkai Starrail News
+    - Zenless Zone Zero News
 
 ## Installation
 

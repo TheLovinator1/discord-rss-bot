@@ -152,14 +152,7 @@ def get_first_image(summary: str | None, content: str | None) -> str:
                 logger.warning("Invalid URL: %s", src)
                 continue
 
-            # Genshins first image is a divider, so we ignore it.
-            # https://hyl-static-res-prod.hoyolab.com/divider_config/PC/line_3.png
-            skip_images: list[str] = [
-                "https://img-os-static.hoyolab.com/divider_config/",
-                "https://hyl-static-res-prod.hoyolab.com/divider_config/",
-            ]
-            if not str(image.attrs["src"]).startswith(tuple(skip_images)):
-                return str(image.attrs["src"])
+            return str(image.attrs["src"])
     if summary and (images := BeautifulSoup(summary, features="lxml").find_all("img")):
         for image in images:
             if not isinstance(image, Tag) or "src" not in image.attrs:
@@ -170,9 +163,7 @@ def get_first_image(summary: str | None, content: str | None) -> str:
                 logger.warning("Invalid URL: %s", image.attrs["src"])
                 continue
 
-            # Genshins first image is a divider, so we ignore it.
-            if not str(image.attrs["src"]).startswith("https://img-os-static.hoyolab.com/divider_config"):
-                return str(image.attrs["src"])
+            return str(image.attrs["src"])
     return ""
 
 

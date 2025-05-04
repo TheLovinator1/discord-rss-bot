@@ -4,7 +4,7 @@ import datetime
 import logging
 import pprint
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from urllib.parse import ParseResult, urlparse
 
 import tldextract
@@ -20,6 +20,12 @@ from discord_rss_bot.custom_message import (
 )
 from discord_rss_bot.filter.blacklist import entry_should_be_skipped
 from discord_rss_bot.filter.whitelist import has_white_tags, should_be_sent
+from discord_rss_bot.hoyolab_api import (
+    create_hoyolab_webhook,
+    extract_post_id_from_hoyolab_url,
+    fetch_hoyolab_post,
+    is_c3kay_feed,
+)
 from discord_rss_bot.is_url_valid import is_url_valid
 from discord_rss_bot.missing_tags import add_missing_tags
 from discord_rss_bot.settings import default_custom_message, get_reader
@@ -81,7 +87,7 @@ def extract_domain(url: str) -> str:  # noqa: PLR0911
         return "Other"
 
 
-def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None) -> str | None:
+def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None) -> str | None:  # noqa: PLR0912
     """Send a single entry to Discord.
 
     Args:
@@ -98,6 +104,24 @@ def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None) -> 
     webhook_url: str = str(reader.get_tag(entry.feed_url, "webhook", ""))
     if not webhook_url:
         return "No webhook URL found."
+
+    # Check if this is a c3kay feed
+    if is_c3kay_feed(entry.feed.url):
+        entry_link: str | None = entry.link
+        if entry_link:
+            post_id: str | None = extract_post_id_from_hoyolab_url(entry_link)
+            if post_id:
+                post_data: dict[str, Any] | None = fetch_hoyolab_post(post_id)
+                if post_data:
+                    webhook = create_hoyolab_webhook(webhook_url, entry, post_data)
+                    execute_webhook(webhook, entry)
+                    return None
+                logger.warning(
+                    "Failed to create Hoyolab webhook for feed %s, falling back to regular processing",
+                    entry.feed.url,
+                )
+        else:
+            logger.warning("No entry link found for feed %s, falling back to regular processing", entry.feed.url)
 
     webhook_message: str = ""
 
