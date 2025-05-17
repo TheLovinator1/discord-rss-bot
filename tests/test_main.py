@@ -229,3 +229,41 @@ def test_delete_webhook() -> None:
     response = client.get(url="/webhooks")
     assert response.status_code == 200, f"Failed to get /webhooks: {response.text}"
     assert webhook_name not in response.text, f"Webhook found in /webhooks: {response.text}"
+
+
+def test_update_feed_success() -> None:
+    """Test updating an existing feed."""
+    # Remove the feed if it already exists before we run the test
+    feeds: Response = client.get("/")
+    if feed_url in feeds.text:
+        client.post(url="/remove", data={"feed_url": feed_url})
+        client.post(url="/remove", data={"feed_url": encoded_feed_url(feed_url)})
+
+    # Add the webhook
+    response: Response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": webhook_name, "webhook_url": webhook_url},
+    )
+    assert response.status_code == 200, f"Failed to add webhook: {response.text}"
+    assert webhook_name in response.text, f"Webhook not found in /webhooks: {response.text}"
+
+    # Add the feed
+    response: Response = client.post(url="/add", data={"feed_url": feed_url, "webhook_dropdown": webhook_name})
+    assert response.status_code == 200, f"Failed to add feed: {response.text}"
+
+    # Update the feed
+    response: Response = client.get(url="/update", params={"feed_url": encoded_feed_url(feed_url)})
+    assert response.status_code == 200, f"Failed to update feed: {response.status_code}, {response.text}"
+
+
+def test_update_feed_not_found() -> None:
+    """Test updating a non-existent feed."""
+    # Generate a feed URL that does not exist
+    nonexistent_feed_url = "https://nonexistent-feed.example.com/rss.xml"
+
+    # Try to update the non-existent feed
+    response: Response = client.get(url="/update", params={"feed_url": urllib.parse.quote(nonexistent_feed_url)})
+
+    # Check that it returns a 404 status code
+    assert response.status_code == 404, f"Expected 404 for non-existent feed, got: {response.status_code}"
+    assert "Feed not found" in response.text

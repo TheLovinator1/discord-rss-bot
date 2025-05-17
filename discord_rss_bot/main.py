@@ -921,6 +921,29 @@ async def remove_feed(feed_url: Annotated[str, Form()]):
     return RedirectResponse(url="/", status_code=303)
 
 
+@app.get("/update", response_class=HTMLResponse)
+async def update_feed(request: Request, feed_url: str):
+    """Update a feed.
+
+    Args:
+        request: The request object.
+        feed_url: The feed URL to update.
+
+    Raises:
+        HTTPException: If the feed is not found.
+
+    Returns:
+        RedirectResponse: Redirect to the feed page.
+    """
+    try:
+        reader.update_feed(urllib.parse.unquote(feed_url))
+    except FeedNotFoundError as e:
+        raise HTTPException(status_code=404, detail="Feed not found") from e
+
+    logger.info("Manually updated feed: %s", feed_url)
+    return RedirectResponse(url="/feed?feed_url=" + urllib.parse.quote(feed_url), status_code=303)
+
+
 @app.get("/search", response_class=HTMLResponse)
 async def search(request: Request, query: str):
     """Get entries matching a full-text search query.
