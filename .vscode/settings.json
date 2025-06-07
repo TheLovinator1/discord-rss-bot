@@ -10,7 +10,10 @@
     "markdownified",
     "markdownify",
     "pipx",
-    "thead"
+    "pyproject",
+    "thead",
+    "thelovinator",
+    "uvicorn"
   ],
   "python.analysis.typeCheckingMode": "basic"
 }
