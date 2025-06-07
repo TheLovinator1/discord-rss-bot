@@ -5,59 +5,29 @@ description = "RSS bot for Discord"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "apscheduler",
-    "discord-webhook",
-    "fastapi",
-    "httpx",
-    "jinja2",
-    "lxml",
-    "markdownify",
-    "platformdirs",
-    "python-dotenv",
-    "python-multipart",
-    "reader",
-    "sentry-sdk[fastapi]",
-    "tldextract",
-    "uvicorn",
+    "apscheduler>=3.11.0",
+    "discord-webhook>=1.4.1",
+    "fastapi>=0.115.12",
+    "httpx>=0.28.1",
+    "jinja2>=3.1.6",
+    "lxml>=5.4.0",
+    "markdownify>=1.1.0",
+    "platformdirs>=4.3.8",
+    "python-dotenv>=1.1.0",
+    "python-multipart>=0.0.20",
+    "reader>=3.18",
+    "sentry-sdk[fastapi]>=2.29.1",
+    "tldextract>=5.3.0",
+    "uvicorn>=0.34.3",
 ]
 
 [dependency-groups]
 dev = ["pytest"]
 
-[tool.poetry]
-name = "discord-rss-bot"
-version = "1.0.0"
-description = "RSS bot for Discord"
-authors = ["Joakim Hellsén <tlovinator@gmail.com>"]
-
-[tool.poetry.dependencies]
-python = "^3.12"
-apscheduler = "*"
-discord-webhook = "*"
-fastapi = "*"
-httpx = "*"
-jinja2 = "*"
-lxml = "*"
-markdownify = "*"
-platformdirs = "*"
-python-dotenv = "*"
-python-multipart = "*"
-reader = "*"
-sentry-sdk = { version = "*", extras = ["fastapi"] }
-uvicorn = "*"
-
-[tool.poetry.group.dev.dependencies]
-pytest = "*"
-
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
-[tool.djlint]
-ignore = "D004,D018,J018,T001,J004"
-profile = "jinja"
-max_line_length = 120
-format_attribute_template_tags = true
 
 [tool.ruff]
 preview = true
