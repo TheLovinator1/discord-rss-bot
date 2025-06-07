@@ -1,4 +1,11 @@
 repos:
+  # Ensure the lockfile is up-to-date and autoexport uv.lock to requirements.txt
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.7.12
+    hooks:
+      - id: uv-lock
+      - id: uv-export
+
   # Automatically add trailing commas to calls and literals.
   - repo: https://github.com/asottile/add-trailing-comma
     rev: v3.2.0
