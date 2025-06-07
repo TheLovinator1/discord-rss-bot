@@ -117,6 +117,9 @@ def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None) -> 
     if not webhook_url:
         return "No webhook URL found."
 
+    # If https://discord.com/quests/<quest_id> is in the URL, send a separate message with the URL.
+    send_discord_quest_notification(entry, webhook_url)
+
     # Check if this is a c3kay feed
     if is_c3kay_feed(entry.feed.url):
         entry_link: str | None = entry.link
@@ -166,6 +169,44 @@ def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None) -> 
 
     execute_webhook(webhook, entry)
     return None
+
+
+def send_discord_quest_notification(entry: Entry, webhook_url: str) -> None:
+    """Send a separate message to Discord if the entry is a quest notification."""
+    quest_regex: re.Pattern[str] = re.compile(r"https://discord\.com/quests/\d+")
+
+    def send_notification(quest_url: str) -> None:
+        """Helper function to send quest notification to Discord."""
+        logger.info("Sending quest notification to Discord: %s", quest_url)
+        webhook = DiscordWebhook(
+            url=webhook_url,
+            content=quest_url,
+            rate_limit_retry=True,
+        )
+        execute_webhook(webhook, entry)
+
+    # Iterate through the content of the entry
+    for content in entry.content:
+        if content.type == "text" and content.value:
+            match = quest_regex.search(content.value)
+            if match:
+                send_notification(match.group(0))
+                return
+
+        elif content.type == "text/html" and content.value:
+            # Convert HTML to text and check for quest links
+            text_value = markdownify(
+                html=content.value,
+                strip=["img", "table", "td", "tr", "tbody", "thead"],
+                escape_misc=False,
+                heading_style="ATX",
+            )
+            match: re.Match[str] | None = quest_regex.search(text_value)
+            if match:
+                send_notification(match.group(0))
+                return
+
+    logger.info("No quest notification found in entry: %s", entry.id)
 
 
 def set_description(custom_embed: CustomEmbed, discord_embed: DiscordEmbed) -> None:
