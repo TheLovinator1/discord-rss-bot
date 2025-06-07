@@ -1,7 +1,7 @@
 repos:
   # Automatically add trailing commas to calls and literals.
   - repo: https://github.com/asottile/add-trailing-comma
-    rev: v3.1.0
+    rev: v3.2.0
     hooks:
       - id: add-trailing-comma
 
@@ -31,14 +31,14 @@ repos:
 
   # Run Pyupgrade on all Python files. This will upgrade the code to Python 3.12.
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.19.1
+    rev: v3.20.0
     hooks:
       - id: pyupgrade
         args: ["--py312-plus"]
 
   # An extremely fast Python linter and formatter.
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.11.8
+    rev: v0.11.13
     hooks:
       - id: ruff-format
       - id: ruff
