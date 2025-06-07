@@ -11,7 +11,18 @@ from urllib.parse import ParseResult, urlparse
 import tldextract
 from discord_webhook import DiscordEmbed, DiscordWebhook
 from fastapi import HTTPException
-from reader import Entry, EntryNotFoundError, Feed, FeedExistsError, Reader, ReaderError, StorageError, TagNotFoundError
+from markdownify import markdownify
+from reader import (
+    Entry,
+    EntryNotFoundError,
+    Feed,
+    FeedExistsError,
+    FeedNotFoundError,
+    Reader,
+    ReaderError,
+    StorageError,
+    TagNotFoundError,
+)
 
 from discord_rss_bot.custom_message import (
     CustomEmbed,
@@ -389,6 +400,20 @@ def execute_webhook(webhook: DiscordWebhook, entry: Entry) -> None:
         entry (Entry): The entry to send to Discord.
 
     """
+    reader: Reader = get_reader()
+
+    # If the feed has been paused or deleted, we will not send the entry to Discord.
+    entry_feed: Feed = entry.feed
+    if entry_feed.updates_enabled is False:
+        logger.warning("Feed is paused, not sending entry to Discord: %s", entry_feed.url)
+        return
+
+    try:
+        reader.get_feed(entry_feed.url)
+    except FeedNotFoundError:
+        logger.warning("Feed not found in reader, not sending entry to Discord: %s", entry_feed.url)
+        return
+
     response: Response = webhook.execute()
     if response.status_code not in {200, 204}:
         msg: str = f"Error sending entry to Discord: {response.text}\n{pprint.pformat(webhook.json)}"
