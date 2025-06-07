@@ -1070,9 +1070,9 @@ if __name__ == "__main__":
 
     uvicorn.run(
         "main:app",
-        log_level="info",
+        log_level="debug",
         host="0.0.0.0",  # noqa: S104
-        port=5000,
+        port=3000,
         proxy_headers=True,
         forwarded_allow_ips="*",
     )
