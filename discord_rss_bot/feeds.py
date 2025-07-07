@@ -352,6 +352,7 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
         feed: The feed to send to Discord.
         do_once: If we should only send one entry. This is used in the test.
     """
+    logger.info("Starting to send entries to Discord.")
     # Get the default reader if we didn't get a custom one.
     reader: Reader = get_reader() if custom_reader is None else custom_reader
 

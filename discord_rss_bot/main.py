@@ -89,20 +89,17 @@ reader: Reader = get_reader()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
-    """Lifespan for the FastAPI app.
-
-    Args:
-        app: The FastAPI app.
-
-    Yields:
-        None: Nothing.
-    """
+    """Lifespan function for the FastAPI app."""
     add_missing_tags(reader)
-    scheduler: AsyncIOScheduler = AsyncIOScheduler()
-
-    # Run job every minute to check for new entries. Feeds will be checked every 15 minutes.
-    # TODO(TheLovinator): Make this configurable.
-    scheduler.add_job(send_to_discord, "interval", minutes=1, next_run_time=datetime.now(tz=UTC))
+    scheduler: AsyncIOScheduler = AsyncIOScheduler(timezone=UTC)
+    scheduler.add_job(
+        func=send_to_discord,
+        trigger="interval",
+        minutes=1,
+        id="send_to_discord",
+        max_instances=3,
+        next_run_time=datetime.now(tz=UTC),
+    )
     scheduler.start()
     logger.info("Scheduler started.")
     yield
