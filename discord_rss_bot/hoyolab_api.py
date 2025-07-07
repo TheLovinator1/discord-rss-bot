@@ -68,7 +68,7 @@ def fetch_hoyolab_post(post_id: str) -> dict[str, Any] | None:
         if response.status_code == http_ok:
             data: dict[str, Any] = response.json()
             if data.get("retcode") == 0 and "data" in data and "post" in data["data"]:
-                return data["data"]["post"]
+                return data["data"]
 
         logger.warning("Failed to fetch Hoyolab post %s: %s", post_id, response.text)
     except (requests.RequestException, ValueError):
@@ -185,6 +185,14 @@ def create_hoyolab_webhook(webhook_url: str, entry: Entry, post_data: dict[str, 
     event_end_date: str = post.get("event_end_date", "")
     if event_end_date and event_end_date != "0":
         discord_embed.add_embed_field(name="End", value=f"<t:{event_end_date}:R>")
+
+    # Add tags/topics if available
+    topics: list[dict[str, Any]] = post_data.get("topics", [])
+    if topics:
+        topic_names: list[str] = [str(topic.get("name", "")) for topic in topics if topic.get("name")]
+        if topic_names:
+            tags_text: str = ", ".join(topic_names)
+            discord_embed.add_embed_field(name="Tags", value=tags_text)
 
     created_at: str = post.get("created_at", "")
     if created_at and created_at != "0":
