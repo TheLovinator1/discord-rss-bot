@@ -39,9 +39,8 @@ or [install directly on your computer](#install-directly-on-your-computer).
 
 ### Install directly on your computer
 
-- Install the latest version of needed software:
-  - [uv](https://docs.astral.sh/uv/#installation)
-  - `powershell -ExecutionPolicy ByPass -c "irm <https://astral.sh/uv/install.ps1> | iex"`
+- Install the latest of [uv](https://docs.astral.sh/uv/#installation):
+    - `powershell -ExecutionPolicy ByPass -c "irm <https://astral.sh/uv/install.ps1> | iex"`
 - Download the project from GitHub with Git or download
   the [ZIP](https://github.com/TheLovinator1/discord-rss-bot/archive/refs/heads/master.zip).
   - If you want to update the bot, you can run `git pull` in the project folder or download the ZIP again.
@@ -61,5 +60,6 @@ or [install directly on your computer](#install-directly-on-your-computer).
 
 ## Contact
 
-Email: [mailto:tlovinator@gmail.com](tlovinator@gmail.com)
+Email: [tlovinator@gmail.com](mailto:tlovinator@gmail.com)
+
 Discord: TheLovinator#9276
