@@ -1,7 +1,7 @@
 repos:
   # Ensure the lockfile is up-to-date and autoexport uv.lock to requirements.txt
   - repo: https://github.com/astral-sh/uv-pre-commit
-    rev: 0.7.12
+    rev: 0.7.14
     hooks:
       - id: uv-lock
       - id: uv-export
@@ -45,7 +45,7 @@ repos:
 
   # An extremely fast Python linter and formatter.
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.11.13
+    rev: v0.12.0
     hooks:
       - id: ruff-format
       - id: ruff
