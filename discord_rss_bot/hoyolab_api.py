@@ -116,6 +116,14 @@ def create_hoyolab_webhook(webhook_url: str, entry: Entry, post_data: dict[str, 
     discord_embed.set_title(subject)
     discord_embed.set_url(entry_link)
 
+    # Set description if available and short enough
+    if description:
+        # Use the same length limit as other parts of the codebase
+        max_description_length: int = 2000
+        if len(description) > max_description_length:
+            description = f"{description[:max_description_length]}..."
+        discord_embed.set_description(description)
+
     # Get post.image_list
     image_list: list[dict[str, Any]] = post_data.get("image_list", [])
     if image_list:
