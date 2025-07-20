@@ -295,9 +295,9 @@ soupsieve==2.7 \
     --hash=sha256:6e60cc5c1ffaf1cebcc12e8188320b72071e922c2e897f737cadce79ad5d30c4 \
     --hash=sha256:ad282f9b6926286d2ead4750552c8a6142bc4c783fd66b0293547c8fe6ae126a
     # via beautifulsoup4
-starlette==0.47.1 \
-    --hash=sha256:5e11c9f5c7c3f24959edbf2dffdc01bba860228acf657129467d8a7468591527 \
-    --hash=sha256:aef012dd2b6be325ffa16698f9dc533614fb1cebd593a906b90dc1025529a79b
+starlette==0.47.2 \
+    --hash=sha256:6ae9aa5db235e4846decc1e7b79c4f346adf41e9777aebeb49dfd09bbd7023d8 \
+    --hash=sha256:c5847e96134e5c5371ee9fac6fdf1a67336d5815e09eb2a01fdb57a351ef915b
     # via fastapi
 tldextract==5.3.0 \
     --hash=sha256:b3d2b70a1594a0ecfa6967d57251527d58e00bb5a91a74387baa0d87a0678609 \
