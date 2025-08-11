@@ -25,7 +25,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # Download the latest commit from the master branch
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Set up QEMU
       - id: qemu
