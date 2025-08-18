@@ -315,9 +315,9 @@ reader==3.18 \
     --hash=sha256:757604cc4321f23e15f2529159874feb04dca6caa29ba0c932010304d91c1ae3 \
     --hash=sha256:b6df6fa86aec1cfff7520107ce69e3356f1431d626e9fc91dcb486c5cca191d8
     # via discord-rss-bot
-requests==2.32.4 \
-    --hash=sha256:27babd3cda2a6d50b30443204ee89830707d396671944c998b5975b031ac2b2c \
-    --hash=sha256:27d0316682c8a29834d3264820024b62a36942083d52caf2f14c0591336d3422
+requests==2.32.5 \
+    --hash=sha256:2462f94637a34fd532264295e186976db0f5d453d1cdd31473c85a6a161affb6 \
+    --hash=sha256:dbba0bac56e100853db0ea71b82b4dfd5fe2bf6d3754a8893c3af500cec7d7cf
     # via
     #   discord-webhook
     #   reader
