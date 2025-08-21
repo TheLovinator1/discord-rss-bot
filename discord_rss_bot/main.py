@@ -53,7 +53,7 @@ LOGGING_CONFIG = {
     "disable_existing_loggers": True,
     "formatters": {
         "standard": {
-            "format": "%(asctime)s [%(processName)s: %(process)d] [%(threadName)s: %(thread)d] [%(levelname)s] %(name)s: %(message)s",  # noqa: E501
+            "format": "%(asctime)s [%(processName)s: %(process)d] [%(threadName)s: %(thread)d] [%(levelname)s] %(name)s: %(message)s",
         },
     },
     "handlers": {
@@ -181,9 +181,7 @@ async def post_delete_webhook(webhook_url: Annotated[str, Form()]) -> RedirectRe
     webhooks = cast("list[dict[str, str]]", webhooks)
 
     # Only add the webhook if it doesn't already exist.
-    webhooks_to_remove: list[dict[str, str]] = [
-        webhook for webhook in webhooks if webhook["url"] == webhook_url.strip()
-    ]
+    webhooks_to_remove: list[dict[str, str]] = [webhook for webhook in webhooks if webhook["url"] == webhook_url.strip()]
 
     # Remove the webhooks outside the loop.
     for webhook in webhooks_to_remove:

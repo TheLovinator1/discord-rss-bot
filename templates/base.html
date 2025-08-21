@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <script type="speculationrules">
+        {"prefetch":[{"where":{"and":[{"href_matches":"/*"},{"not":{"href_matches":"/accounts/logout/"}}]}}],"prerender":[{"where":{"and":[{"href_matches":"/*"},{"not":{"href_matches":"/accounts/logout/"}}]},"eagerness":"eager"}]}
+        </script>
+        <script>
+        if (!HTMLScriptElement.supports || !HTMLScriptElement.supports('speculationrules')) {
+            const preloadedUrls = {};
+
+            function pointerenterHandler () {
+            if (!preloadedUrls[this.href]) {
+                preloadedUrls[this.href] = true;
+
+                const prefetcher = document.createElement('link');
+
+                prefetcher.as = prefetcher.relList.supports('prefetch') ? 'document' : 'fetch';
+                prefetcher.rel = prefetcher.relList.supports('prefetch') ? 'prefetch' : 'preload';
+                prefetcher.href = this.href;
+
+                document.head.appendChild(prefetcher);
+            }
+            }
+
+            document.querySelectorAll('a[href^="/"]').forEach(item => {
+            item.addEventListener('pointerenter', pointerenterHandler);
+            });
+        }
+        </script>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="description" content="A RSS bot for Discord">
+        <meta name="keywords"
+              content="Discord, RSS, discord-bot, TheLovinator, lemon24">
+        <title>
+            {% block title %}
+                discord-rss-bot
+            {% endblock title %}
+        </title>
+        <style>
+            html { color-scheme: light dark; }
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol"; line-height: 1.4; padding: 0 15px; font-size: 115%;}
+        </style>
+    </head>
+    <body>
+        <a href="{% url 'core:feeds' %}">Home</a> |
+        <a href="{% url 'core:webhooks' %}">Webhooks</a> |
+        {% if user.is_authenticated %}
+            {% if user.is_staff %}
+                <a href="{% url 'admin:index' %}">Admin</a> |
+            {% endif %}
+            <a href="{% url 'accounts:profile' %}">{{ user.username }}</a>
+        {% else %}
+            <a href="{% url 'accounts:login' %}">Login</a> |
+            <a href="{% url 'accounts:signup' %}">Sign Up</a>
+        {% endif %}
+        {% if messages %}
+            <ul>
+                {% for message in messages %}
+                    <li>
+                        {% if message.level == DEFAULT_MESSAGE_LEVELS.ERROR %}Important:{% endif %}
+                        {{ message|linebreaksbr }}
+                    </li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+        {% block content %}
+            <!-- Main content will be injected here -->
+        {% endblock content %}
+    </body>
+</html>

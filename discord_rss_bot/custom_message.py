@@ -229,7 +229,7 @@ def replace_tags_in_embed(feed: Feed, entry: Entry) -> CustomEmbed:
     entry_updated: str = entry.updated.strftime("%Y-%m-%d %H:%M:%S") if entry.updated else "Never"
 
     if embed.title and not embed.author_name and embed.author_url:
-        msg = "You are using author_url without author_name, but has title set. We will use author_name instead of title when sending the embed to Discord."  # noqa: E501
+        msg = "You are using author_url without author_name, but has title set. We will use author_name instead of title when sending the embed to Discord."
         logger.info(msg)
         embed.author_name = embed.title
         embed.title = ""

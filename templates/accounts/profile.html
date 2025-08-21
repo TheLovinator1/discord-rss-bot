@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}
+    {{ user.username }}
+{% endblock title %}
+{% block content %}
+    <h2>{{ user.username }}</h2>
+    <p>Joined {{ user.date_joined|date:"F d, Y" }}</p>
+    <table>
+        <tr>
+            <td>
+                <strong>Date Joined:</strong>
+            </td>
+            <td>{{ user.date_joined|date:"F d, Y" }}</td>
+        </tr>
+        <tr>
+            <td>
+                <strong>Last Login:</strong>
+            </td>
+            <td>{{ user.last_login|date:"F d, Y H:i"|default:"Never" }}</td>
+        </tr>
+        <tr>
+            <td>
+                <strong>Email:</strong>
+            </td>
+            <td>{{ user.email|default:"Not provided" }}</td>
+        </tr>
+    </table>
+    <a href="{% url 'accounts:logout' %}">Logout</a>
+{% endblock content %}

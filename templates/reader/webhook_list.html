@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}
+    Webhooks
+{% endblock title %}
+{% block content %}
+    <ul>
+        {% for webhook in object_list %}<li>{{ webhook }}</li>{% endfor %}
+    </ul>
+{% endblock content %}

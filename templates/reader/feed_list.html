@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}
+    Feeds
+{% endblock title %}
+{% block content %}
+    <ul>
+        {% for feed in object_list %}<li>{{ feed }}</li>{% endfor %}
+    </ul>
+{% endblock content %}

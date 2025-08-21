@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}
+    Sign Up
+{% endblock title %}
+{% block content %}
+    <h4>Sign Up</h4>
+    {% if form.errors %}
+        <ul>
+            {% for field, errors in form.errors.items %}
+                {% for error in errors %}<li>{{ error }}</li>{% endfor %}
+            {% endfor %}
+        </ul>
+    {% endif %}
+    <form method="post">
+        {% csrf_token %}
+        <label for="{{ form.username.id_for_label }}">Username</label>
+        <input type="text"
+               name="username"
+               id="{{ form.username.id_for_label }}"
+               value="{{ form.username.value|default:'' }}"
+               required>
+        {% if form.username.help_text %}{{ form.username.help_text }}{% endif %}
+        <label for="{{ form.password1.id_for_label }}">Password</label>
+        <input type="password"
+               name="password1"
+               id="{{ form.password1.id_for_label }}"
+               required>
+        {% if form.password1.help_text %}{{ form.password1.help_text }}{% endif %}
+        <label for="{{ form.password2.id_for_label }}">Confirm Password</label>
+        <input type="password"
+               name="password2"
+               id="{{ form.password2.id_for_label }}"
+               required>
+        {% if form.password2.help_text %}{{ form.password2.help_text }}{% endif %}
+        <button type="submit">Sign Up</button>
+    </form>
+    <p>
+        Already have an account? <a href="{% url 'accounts:login' %}">Login here</a>
+    </p>
+{% endblock content %}
