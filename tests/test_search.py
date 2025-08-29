@@ -6,14 +6,14 @@ from typing import TYPE_CHECKING
 
 from reader import Feed, Reader, make_reader
 
-from discord_rss_bot.search import create_html_for_search_results
+from discord_rss_bot.search import create_search_context
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
 
-def test_create_html_for_search_results() -> None:
-    """Test create_html_for_search_results."""
+def test_create_search_context() -> None:
+    """Test create_search_context."""
     # Create a reader.
     with tempfile.TemporaryDirectory() as temp_dir:
         # Create the temp directory.
@@ -43,10 +43,9 @@ def test_create_html_for_search_results() -> None:
         reader.enable_search()
         reader.update_search()
 
-        # Create the HTML and check if it is not empty.
-        search_html: str = create_html_for_search_results("a", reader)
-        assert search_html is not None, f"The search HTML should not be None. Got: {search_html}"
-        assert len(search_html) > 10, f"The search HTML should be longer than 10 characters. Got: {len(search_html)}"
+        # Create the search context.
+        context: dict = create_search_context("test", custom_reader=reader)
+        assert context is not None, f"The context should not be None. Got: {context}"
 
         # Close the reader, so we can delete the directory.
         reader.close()

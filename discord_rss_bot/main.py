@@ -954,7 +954,7 @@ async def search(request: Request, query: str):
     """
     reader.update_search()
     context = create_search_context(query)
-    return templates.TemplateResponse("search.html", {"request": request, **context})
+    return templates.TemplateResponse(request=request, name="search.html", context={"request": request, **context})
 
 
 @app.get("/post_entry", response_class=HTMLResponse)
