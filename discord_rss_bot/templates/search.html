@@ -1,10 +1,18 @@
 {% extends "base.html" %}
 {% block title %}
-| Search
+    | Search
 {% endblock title %}
 {% block content %}
-<div class="p-2 border border-dark text-muted">
-    Your search for "{{- query -}}" returned {{- search_amount.total -}} results.
-</div>
-{{- search_html | safe -}}
+    <div class="p-2 border border-dark text-muted">
+        Your search for "{{ query }}" returned {{ search_amount.total }} results.
+    </div>
+    {% for result in results %}
+        <div class="p-2 mb-2 border border-dark">
+            <a class="text-muted text-decoration-none"
+               href="/feed?feed_url={{ result.feed_url }}">
+                <h2>{{ result.title|safe }}</h2>
+            </a>
+            <div class="text-muted">{{ result.summary|safe }}</div>
+        </div>
+    {% endfor %}
 {% endblock content %}

@@ -11,58 +11,72 @@ if TYPE_CHECKING:
     from reader import EntrySearchResult, Feed, HighlightedString, Reader
 
 
-def create_html_for_search_results(query: str, custom_reader: Reader | None = None) -> str:
-    """Create HTML for the search results.
+def create_search_context(query: str, custom_reader: Reader | None = None) -> dict:
+    """Build context for search.html template.
+
+    If custom_reader is None, use the default reader from settings.
 
     Args:
-        query: Our search query
-        custom_reader: The reader. If None, we will get the reader from the settings.
+        query (str): The search query.
+        custom_reader (Reader | None): Optional custom Reader instance.
 
     Returns:
-        str: The HTML.
+        dict: Context dictionary for rendering the search results.
     """
-    # TODO(TheLovinator): There is a .content that also contains text, we should use that if .summary is not available.
-    # TODO(TheLovinator): We should also add <span> tags to the title.
-
-    # Get the default reader if we didn't get a custom one.
     reader: Reader = get_reader() if custom_reader is None else custom_reader
-
     search_results: Iterable[EntrySearchResult] = reader.search_entries(query)
 
-    html: str = ""
+    results: list[dict] = []
     for result in search_results:
+        feed: Feed = reader.get_feed(result.feed_url)
+        feed_url: str = urllib.parse.quote(feed.url)
+
+        # Prefer summary, fall back to content
         if ".summary" in result.content:
-            result_summary: str = add_span_with_slice(result.content[".summary"])
-            feed: Feed = reader.get_feed(result.feed_url)
-            feed_url: str = urllib.parse.quote(feed.url)
+            highlighted = result.content[".summary"]
+        else:
+            content_keys = [k for k in result.content if k.startswith(".content")]
+            highlighted = result.content[content_keys[0]] if content_keys else None
 
-            html += f"""
-            <div class="p-2 mb-2 border border-dark">
-                <a class="text-muted text-decoration-none" href="/feed?feed_url={feed_url}">
-                    <h2>{result.metadata[".title"]}</h2>
-                </a>
-                {result_summary}
-            </div>
-            """
+        summary: str = add_spans(highlighted) if highlighted else "(no preview available)"
 
-    return html
+        results.append({
+            "title": add_spans(result.metadata.get(".title")),
+            "summary": summary,
+            "feed_url": feed_url,
+        })
+
+    return {
+        "query": query,
+        "search_amount": {"total": len(results)},
+        "results": results,
+    }
 
 
-def add_span_with_slice(highlighted_string: HighlightedString) -> str:
-    """Add span tags to the string to highlight the search results.
+def add_spans(highlighted_string: HighlightedString | None) -> str:
+    """Wrap all highlighted parts with <span> tags.
 
     Args:
-        highlighted_string: The highlighted string.
+        highlighted_string (HighlightedString | None): The highlighted string to process.
 
     Returns:
-        str: The string with added <span> tags.
+        str: The processed string with <span> tags around highlighted parts.
     """
-    # TODO(TheLovinator): We are looping through the highlights and only using the last one. We should use all of them.
-    before_span, span_part, after_span = "", "", ""
+    if highlighted_string is None:
+        return ""
+
+    value: str = highlighted_string.value
+    parts: list[str] = []
+    last_index = 0
 
     for txt_slice in highlighted_string.highlights:
-        before_span: str = f"{highlighted_string.value[: txt_slice.start]}"
-        span_part: str = f"<span class='bg-warning'>{highlighted_string.value[txt_slice.start : txt_slice.stop]}</span>"
-        after_span: str = f"{highlighted_string.value[txt_slice.stop :]}"
+        parts.extend((
+            value[last_index : txt_slice.start],
+            f"<span class='bg-warning'>{value[txt_slice.start : txt_slice.stop]}</span>",
+        ))
+        last_index = txt_slice.stop
 
-    return f"{before_span}{span_part}{after_span}"
+    # add any trailing text
+    parts.append(value[last_index:])
+
+    return "".join(parts)

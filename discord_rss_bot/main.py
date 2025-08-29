@@ -39,7 +39,7 @@ from discord_rss_bot.custom_message import (
 )
 from discord_rss_bot.feeds import create_feed, extract_domain, send_entry_to_discord, send_to_discord
 from discord_rss_bot.missing_tags import add_missing_tags
-from discord_rss_bot.search import create_html_for_search_results
+from discord_rss_bot.search import create_search_context
 from discord_rss_bot.settings import get_reader
 
 if TYPE_CHECKING:
@@ -953,14 +953,8 @@ async def search(request: Request, query: str):
         HTMLResponse: The search page.
     """
     reader.update_search()
-
-    context = {
-        "request": request,
-        "search_html": create_html_for_search_results(query),
-        "query": query,
-        "search_amount": reader.search_entry_counts(query),
-    }
-    return templates.TemplateResponse(request=request, name="search.html", context=context)
+    context = create_search_context(query)
+    return templates.TemplateResponse("search.html", {"request": request, **context})
 
 
 @app.get("/post_entry", response_class=HTMLResponse)
