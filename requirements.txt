@@ -454,9 +454,9 @@ requests-file==2.1.0 \
     --hash=sha256:0f549a3f3b0699415ac04d167e9cb39bccfb730cb832b4d20be3d9867356e658 \
     --hash=sha256:cf270de5a4c5874e84599fc5778303d496c10ae5e870bfa378818f35d21bda5c
     # via tldextract
-sentry-sdk==2.37.0 \
-    --hash=sha256:2c661a482dd5accf3df58464f31733545745bb4d5cf8f5e46e0e1c4eed88479f \
-    --hash=sha256:89c1ed205d5c25926558b64a9bed8a5b4fb295b007cecc32c0ec4bf7694da2e1
+sentry-sdk==2.37.1 \
+    --hash=sha256:531751da91aa62a909b42a7be155b41f6bb0de9df6ae98441d23b95de2f98475 \
+    --hash=sha256:baaaea6608ed3a639766a69ded06b254b106d32ad9d180bdbe58f3db9364592b
     # via discord-rss-bot
 sgmllib3k==1.0.0 \
     --hash=sha256:7868fb1c8bfa764c1ac563d3cf369c381d1325d36124933a726f29fcdaa812e9
