@@ -539,9 +539,9 @@ PyYAML==6.0.3 \
     --hash=sha256:fa160448684b4e94d80416c0fa4aac48967a969efe22931448d853ada8baf926 \
     --hash=sha256:fc09d0aa354569bc501d4e787133afc08552722d3ab34836a80547331bb5d4a0
     # via djlint
-reader==3.18 \
-    --hash=sha256:757604cc4321f23e15f2529159874feb04dca6caa29ba0c932010304d91c1ae3 \
-    --hash=sha256:b6df6fa86aec1cfff7520107ce69e3356f1431d626e9fc91dcb486c5cca191d8
+reader==3.19 \
+    --hash=sha256:7dd2a190ab3ffe1c759b19c5710fadf2cc6bf9135391cc69a73ca1f94266446c \
+    --hash=sha256:7e2c3a89e9cac4bf3cbca991b4966a2c48773d4664deaa429ebfc9ec8bcd7f96
     # via discord-rss-bot
 regex==2025.9.18 \
     --hash=sha256:032720248cbeeae6444c269b78cb15664458b7bb9ed02401d3da59fe4d68c3a5 \
