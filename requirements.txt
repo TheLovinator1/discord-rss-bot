@@ -105,9 +105,9 @@ editorconfig==0.17.1 \
     # via
     #   cssbeautifier
     #   jsbeautifier
-fastapi==0.118.1 \
-    --hash=sha256:063f9d4ff5bcdfd1ef6e4e6b44ed5fb5f4bf370b39cdce1c9aed22413c371cfe \
-    --hash=sha256:be88c15c995464d14d2be1d7059860551aeffb9df889688bcea7050c9635badf
+fastapi==0.118.2 \
+    --hash=sha256:d1f842612e6a305f95abe784b7f8d3215477742e7c67a16fccd20bd79db68150 \
+    --hash=sha256:d5388dbe76d97cb6ccd2c93b4dd981608062ebf6335280edfa9a11af82443e18
     # via
     #   discord-rss-bot
     #   sentry-sdk
