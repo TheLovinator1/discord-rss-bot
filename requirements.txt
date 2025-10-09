@@ -672,9 +672,9 @@ requests-file==2.1.0 \
     --hash=sha256:0f549a3f3b0699415ac04d167e9cb39bccfb730cb832b4d20be3d9867356e658 \
     --hash=sha256:cf270de5a4c5874e84599fc5778303d496c10ae5e870bfa378818f35d21bda5c
     # via tldextract
-sentry-sdk==2.40.0 \
-    --hash=sha256:b9c4672fb2cafabcc28586ab8fd0ceeff9b2352afcf2b936e13d5ba06d141b9f \
-    --hash=sha256:d5f6ae0f27ea73e7b09c70ad7d42242326eb44765e87a15d8c5aab96b80013e6
+sentry-sdk==2.41.0 \
+    --hash=sha256:343cde6540574113d13d178d1b2093e011ac21dd55abd3a1ec7e540f0d18a5bd \
+    --hash=sha256:e7af3f4d7f8bac4c56fbaf95adb0d111f061cce58d5df91cfcd4e69782759b10
     # via discord-rss-bot
 sgmllib3k==1.0.0 \
     --hash=sha256:7868fb1c8bfa764c1ac563d3cf369c381d1325d36124933a726f29fcdaa812e9
