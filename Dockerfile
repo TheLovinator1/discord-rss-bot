@@ -1,4 +1,4 @@
-FROM python:3.13-slim
+FROM python:3.14-slim
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 RUN useradd --create-home botuser && \
     mkdir -p /home/botuser/discord-rss-bot/ /home/botuser/.local/share/discord_rss_bot/ && \
