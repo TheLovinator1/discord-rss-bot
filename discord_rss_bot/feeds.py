@@ -69,7 +69,7 @@ def extract_domain(url: str) -> str:  # noqa: PLR0911
             return "YouTube"
 
         # Special handling for Reddit feeds
-        if "reddit.com" in url or re.search(r"/r/[a-zA-Z0-9_]+\.rss", url):
+        if "reddit.com" in url and ".rss" in url:
             return "Reddit"
 
         # Parse the URL and extract the domain
