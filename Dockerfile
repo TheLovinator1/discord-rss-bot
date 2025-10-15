@@ -5,7 +5,6 @@ RUN useradd --create-home botuser && \
     chown -R botuser:botuser /home/botuser/
 USER botuser
 WORKDIR /home/botuser/discord-rss-bot
-COPY --chown=botuser:botuser requirements.txt /home/botuser/discord-rss-bot/
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --no-install-project
