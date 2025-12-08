@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 import json
 import logging
 from dataclasses import dataclass
@@ -67,6 +68,10 @@ def replace_tags_in_text_message(entry: Entry) -> str:
     summary: str = entry.summary or ""
 
     first_image: str = get_first_image(summary, content)
+
+    # Unescape HTML entities (e.g., &lt;h1&gt; becomes <h1>) before converting to markdown
+    summary = html.unescape(summary)
+    content = html.unescape(content)
 
     summary = markdownify(
         html=summary,
@@ -198,6 +203,10 @@ def replace_tags_in_embed(feed: Feed, entry: Entry) -> CustomEmbed:
     summary: str = entry.summary or ""
 
     first_image: str = get_first_image(summary, content)
+
+    # Unescape HTML entities (e.g., &lt;h1&gt; becomes <h1>) before converting to markdown
+    summary = html.unescape(summary)
+    content = html.unescape(content)
 
     summary = markdownify(
         html=summary,
