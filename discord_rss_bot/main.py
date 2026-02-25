@@ -38,6 +38,7 @@ from discord_rss_bot.custom_message import (
     save_embed,
 )
 from discord_rss_bot.feeds import create_feed, extract_domain, send_entry_to_discord, send_to_discord
+from discord_rss_bot.git_backup import commit_state_change
 from discord_rss_bot.missing_tags import add_missing_tags
 from discord_rss_bot.search import create_search_context
 from discord_rss_bot.settings import get_reader
@@ -151,6 +152,8 @@ async def post_add_webhook(
 
         reader.set_tag((), "webhooks", webhooks)  # pyright: ignore[reportArgumentType]
 
+        commit_state_change(reader, f"Add webhook {webhook_name.strip()}")
+
         return RedirectResponse(url="/", status_code=303)
 
     # TODO(TheLovinator): Show this error on the page.
@@ -196,6 +199,8 @@ async def post_delete_webhook(webhook_url: Annotated[str, Form()]) -> RedirectRe
     # Add our new list of webhooks to the database.
     reader.set_tag((), "webhooks", webhooks)  # pyright: ignore[reportArgumentType]
 
+    commit_state_change(reader, f"Delete webhook {webhook_url.strip()}")
+
     return RedirectResponse(url="/", status_code=303)
 
 
@@ -215,6 +220,7 @@ async def post_create_feed(
     """
     clean_feed_url: str = feed_url.strip()
     create_feed(reader, feed_url, webhook_dropdown)
+    commit_state_change(reader, f"Add feed {clean_feed_url}")
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
 
@@ -285,6 +291,8 @@ async def post_set_whitelist(
     reader.set_tag(clean_feed_url, "regex_whitelist_summary", regex_whitelist_summary)  # pyright: ignore[reportArgumentType][call-overload]
     reader.set_tag(clean_feed_url, "regex_whitelist_content", regex_whitelist_content)  # pyright: ignore[reportArgumentType][call-overload]
     reader.set_tag(clean_feed_url, "regex_whitelist_author", regex_whitelist_author)  # pyright: ignore[reportArgumentType][call-overload]
+
+    commit_state_change(reader, f"Update whitelist for {clean_feed_url}")
 
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
@@ -367,6 +375,7 @@ async def post_set_blacklist(
     reader.set_tag(clean_feed_url, "regex_blacklist_summary", regex_blacklist_summary)  # pyright: ignore[reportArgumentType][call-overload]
     reader.set_tag(clean_feed_url, "regex_blacklist_content", regex_blacklist_content)  # pyright: ignore[reportArgumentType][call-overload]
     reader.set_tag(clean_feed_url, "regex_blacklist_author", regex_blacklist_author)  # pyright: ignore[reportArgumentType][call-overload]
+    commit_state_change(reader, f"Update blacklist for {clean_feed_url}")
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
 
@@ -914,6 +923,8 @@ async def remove_feed(feed_url: Annotated[str, Form()]):
         reader.delete_feed(urllib.parse.unquote(feed_url))
     except FeedNotFoundError as e:
         raise HTTPException(status_code=404, detail="Feed not found") from e
+
+    commit_state_change(reader, f"Remove feed {urllib.parse.unquote(feed_url)}")
 
     return RedirectResponse(url="/", status_code=303)
 
