@@ -31,8 +31,10 @@ from markdownify import markdownify
 from reader import Entry
 from reader import EntryNotFoundError
 from reader import Feed
+from reader import FeedExistsError
 from reader import FeedNotFoundError
 from reader import Reader
+from reader import ReaderError
 from reader import TagNotFoundError
 from starlette.responses import RedirectResponse
 
@@ -697,6 +699,45 @@ async def post_set_update_interval(
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
 
+@app.post("/change_feed_url")
+async def post_change_feed_url(
+    old_feed_url: Annotated[str, Form()],
+    new_feed_url: Annotated[str, Form()],
+) -> RedirectResponse:
+    """Change the URL for an existing feed.
+
+    Args:
+        old_feed_url: Current feed URL.
+        new_feed_url: New feed URL to change to.
+
+    Returns:
+        RedirectResponse: Redirect to the feed page for the resulting URL.
+
+    Raises:
+        HTTPException: If the old feed is not found, the new URL already exists, or change fails.
+    """
+    clean_old_feed_url: str = old_feed_url.strip()
+    clean_new_feed_url: str = new_feed_url.strip()
+
+    if not clean_old_feed_url or not clean_new_feed_url:
+        raise HTTPException(status_code=400, detail="Feed URLs cannot be empty")
+
+    if clean_old_feed_url == clean_new_feed_url:
+        return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_old_feed_url)}", status_code=303)
+
+    try:
+        reader.change_feed_url(clean_old_feed_url, clean_new_feed_url)
+    except FeedNotFoundError as e:
+        raise HTTPException(status_code=404, detail=f"Feed not found: {clean_old_feed_url}") from e
+    except FeedExistsError as e:
+        raise HTTPException(status_code=409, detail=f"Feed already exists: {clean_new_feed_url}") from e
+    except ReaderError as e:
+        raise HTTPException(status_code=400, detail=f"Failed to change feed URL: {e}") from e
+
+    commit_state_change(reader, f"Change feed URL from {clean_old_feed_url} to {clean_new_feed_url}")
+    return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_new_feed_url)}", status_code=303)
+
+
 @app.post("/reset_update_interval")
 async def post_reset_update_interval(
     feed_url: Annotated[str, Form()],
@@ -804,7 +845,7 @@ async def get_feed(feed_url: str, request: Request, starting_after: str = ""):  
         except EntryNotFoundError as e:
             current_entries = list(reader.get_entries(feed=clean_feed_url))
             msg: str = f"{e}\n\n{[entry.id for entry in current_entries]}"
-            html: str = create_html_for_feed(current_entries)
+            html: str = create_html_for_feed(current_entries, clean_feed_url)
 
             # Get feed and global intervals for error case too
             feed_interval: int | None = None
@@ -860,7 +901,7 @@ async def get_feed(feed_url: str, request: Request, starting_after: str = ""):  
         last_entry = entries[-1]
 
     # Create the html for the entries.
-    html: str = create_html_for_feed(entries)
+    html: str = create_html_for_feed(entries, clean_feed_url)
 
     try:
         should_send_embed: bool = bool(reader.get_tag(feed, "should_send_embed"))
@@ -907,11 +948,12 @@ async def get_feed(feed_url: str, request: Request, starting_after: str = ""):  
     return templates.TemplateResponse(request=request, name="feed.html", context=context)
 
 
-def create_html_for_feed(entries: Iterable[Entry]) -> str:
+def create_html_for_feed(entries: Iterable[Entry], current_feed_url: str = "") -> str:  # noqa: PLR0914
     """Create HTML for the search results.
 
     Args:
         entries: The entries to create HTML for.
+        current_feed_url: The feed URL currently being viewed in /feed.
 
     Returns:
         str: The HTML for the search results.
@@ -940,6 +982,12 @@ def create_html_for_feed(entries: Iterable[Entry]) -> str:
         if entry_is_whitelisted(entry):
             whitelisted = "<span class='badge bg-success'>Whitelisted</span>"
 
+        source_feed_url: str = getattr(entry, "original_feed_url", None) or entry.feed.url
+
+        from_another_feed: str = ""
+        if current_feed_url and source_feed_url != current_feed_url:
+            from_another_feed = f"<span class='badge bg-warning text-dark'>From another feed: {source_feed_url}</span>"
+
         entry_id: str = urllib.parse.quote(entry.id)
         to_discord_html: str = f"<a class='text-muted' href='/post_entry?entry_id={entry_id}'>Send to Discord</a>"
 
@@ -966,14 +1014,14 @@ def create_html_for_feed(entries: Iterable[Entry]) -> str:
         image_html: str = f"<img src='{first_image}' class='img-fluid'>" if first_image else ""
 
         html += f"""<div class="p-2 mb-2 border border-dark">
-{blacklisted}{whitelisted}<a class="text-muted text-decoration-none" href="{entry.link}"><h2>{entry.title}</h2></a>
+{blacklisted}{whitelisted}{from_another_feed}<a class="text-muted text-decoration-none" href="{entry.link}"><h2>{entry.title}</h2></a>
 {f"By {entry.author} @" if entry.author else ""}{published} - {to_discord_html}
 
 {text}
 {video_embed_html}
 {image_html}
 </div>
-"""
+"""  # noqa: E501
     return html.strip()
 
 

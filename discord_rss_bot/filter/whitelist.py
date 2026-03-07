@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from discord_rss_bot.filter.utils import is_regex_match, is_word_in_text
+from discord_rss_bot.filter.utils import is_regex_match
+from discord_rss_bot.filter.utils import is_word_in_text
 
 if TYPE_CHECKING:
-    from reader import Entry, Feed, Reader
+    from reader import Entry
+    from reader import Feed
+    from reader import Reader
 
 
 def has_white_tags(custom_reader: Reader, feed: Feed) -> bool:

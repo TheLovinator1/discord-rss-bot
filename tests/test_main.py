@@ -2,17 +2,22 @@ from __future__ import annotations
 
 import re
 import urllib.parse
+from dataclasses import dataclass
+from dataclasses import field
 from typing import TYPE_CHECKING
+from typing import cast
 
 from fastapi.testclient import TestClient
 
 from discord_rss_bot.main import app
+from discord_rss_bot.main import create_html_for_feed
 
 if TYPE_CHECKING:
     from pathlib import Path
 
     import pytest
     from httpx import Response
+    from reader import Entry
 
 client: TestClient = TestClient(app)
 webhook_name: str = "Hello, I am a webhook!"
@@ -212,6 +217,45 @@ def test_remove_feed() -> None:
     assert feed_url not in response.text, f"Feed found in /: {response.text}"
 
 
+def test_change_feed_url() -> None:
+    """Test changing a feed URL from the feed page endpoint."""
+    new_feed_url = "https://lovinator.space/rss_test_small.xml"
+
+    # Ensure test feeds do not already exist.
+    client.post(url="/remove", data={"feed_url": feed_url})
+    client.post(url="/remove", data={"feed_url": new_feed_url})
+
+    # Ensure webhook exists.
+    client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    response: Response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": webhook_name, "webhook_url": webhook_url},
+    )
+    assert response.status_code == 200, f"Failed to add webhook: {response.text}"
+
+    # Add the original feed.
+    response = client.post(url="/add", data={"feed_url": feed_url, "webhook_dropdown": webhook_name})
+    assert response.status_code == 200, f"Failed to add feed: {response.text}"
+
+    # Change feed URL.
+    response = client.post(
+        url="/change_feed_url",
+        data={"old_feed_url": feed_url, "new_feed_url": new_feed_url},
+    )
+    assert response.status_code == 200, f"Failed to change feed URL: {response.text}"
+
+    # New feed should be accessible.
+    response = client.get(url="/feed", params={"feed_url": new_feed_url})
+    assert response.status_code == 200, f"New feed URL is not accessible: {response.text}"
+
+    # Old feed should no longer be accessible.
+    response = client.get(url="/feed", params={"feed_url": feed_url})
+    assert response.status_code == 404, "Old feed URL should no longer exist"
+
+    # Cleanup.
+    client.post(url="/remove", data={"feed_url": new_feed_url})
+
+
 def test_delete_webhook() -> None:
     """Test the /delete_webhook page."""
     # Remove the feed if it already exists before we run the test.
@@ -393,7 +437,8 @@ def test_show_more_entries_pagination_works() -> None:
 
             # Request the second page
             response: Response = client.get(
-                url="/feed", params={"feed_url": feed_url, "starting_after": starting_after_id}
+                url="/feed",
+                params={"feed_url": feed_url, "starting_after": starting_after_id},
             )
             assert response.status_code == 200, f"Failed to get paginated feed: {response.text}"
 
@@ -439,3 +484,49 @@ def test_show_more_entries_button_context_variable() -> None:
             assert "Show more entries" not in response.text, (
                 f"Button should not be visible when there are {entry_count} entries (20 or fewer)"
             )
+
+
+def test_create_html_marks_entries_from_another_feed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Entries from another feed should be marked in /feed html output."""
+
+    @dataclass(slots=True)
+    class DummyContent:
+        value: str
+
+    @dataclass(slots=True)
+    class DummyFeed:
+        url: str
+
+    @dataclass(slots=True)
+    class DummyEntry:
+        feed: DummyFeed
+        id: str
+        original_feed_url: str | None = None
+        link: str = "https://example.com/post"
+        title: str = "Example title"
+        author: str = "Author"
+        summary: str = "Summary"
+        content: list[DummyContent] = field(default_factory=lambda: [DummyContent("Content")])
+        published: None = None
+
+        def __post_init__(self) -> None:
+            if self.original_feed_url is None:
+                self.original_feed_url = self.feed.url
+
+    selected_feed_url = "https://example.com/feed-a.xml"
+    same_feed_entry = DummyEntry(DummyFeed(selected_feed_url), "same")
+    # feed.url matches selected feed, but original_feed_url differs; marker should still show.
+    other_feed_entry = DummyEntry(
+        DummyFeed(selected_feed_url),
+        "other",
+        original_feed_url="https://example.com/feed-b.xml",
+    )
+
+    monkeypatch.setattr("discord_rss_bot.main.replace_tags_in_text_message", lambda _entry: "Rendered content")
+    monkeypatch.setattr("discord_rss_bot.main.entry_is_blacklisted", lambda _entry: False)
+    monkeypatch.setattr("discord_rss_bot.main.entry_is_whitelisted", lambda _entry: False)
+
+    html = create_html_for_feed(cast("list[Entry]", [same_feed_entry, other_feed_entry]), selected_feed_url)
+
+    assert "From another feed: https://example.com/feed-b.xml" in html
+    assert "From another feed: https://example.com/feed-a.xml" not in html

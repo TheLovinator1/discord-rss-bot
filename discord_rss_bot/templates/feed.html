@@ -76,6 +76,22 @@
                 </a>
             {% endif %}
         </div>
+        <!-- Feed URL Configuration -->
+        <div class="mt-4 border-top border-secondary pt-3">
+            <h5 class="mb-3">Feed URL</h5>
+            <p class="text-muted mb-2">Change the URL for this feed. This can be useful if a feed has moved.</p>
+            <form action="/change_feed_url" method="post" class="mb-2">
+                <input type="hidden" name="old_feed_url" value="{{ feed.url }}" />
+                <div class="input-group input-group-sm mb-2">
+                    <input type="url"
+                           class="form-control form-control-sm"
+                           name="new_feed_url"
+                           value="{{ feed.url }}"
+                           required />
+                    <button class="btn btn-warning" type="submit">Update URL</button>
+                </div>
+            </form>
+        </div>
         <!-- Feed Metadata -->
         <div class="mt-4 border-top border-secondary pt-3">
             <h5 class="mb-3">Feed Information</h5>

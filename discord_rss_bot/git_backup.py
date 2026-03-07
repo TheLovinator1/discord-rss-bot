@@ -179,7 +179,7 @@ def export_state(reader: Reader, backup_path: Path) -> None:
 
     try:
         webhooks: list[str | int | float | bool | dict[str, Any] | list[Any] | None] = list(
-            reader.get_tag((), "webhooks", [])
+            reader.get_tag((), "webhooks", []),
         )
     except TagNotFoundError:
         webhooks = []

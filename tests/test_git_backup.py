@@ -25,7 +25,8 @@ if TYPE_CHECKING:
 
 
 SKIP_IF_NO_GIT: pytest.MarkDecorator = pytest.mark.skipif(
-    shutil.which("git") is None, reason="git executable not found"
+    shutil.which("git") is None,
+    reason="git executable not found",
 )
 
 
