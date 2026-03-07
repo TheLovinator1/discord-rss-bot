@@ -4,7 +4,9 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from reader import Feed, Reader, make_reader
+from reader import Feed
+from reader import Reader
+from reader import make_reader
 
 from discord_rss_bot.search import create_search_context
 

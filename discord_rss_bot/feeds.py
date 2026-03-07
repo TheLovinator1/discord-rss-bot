@@ -98,7 +98,7 @@ def extract_domain(url: str) -> str:  # noqa: PLR0911
         return "Other"
 
 
-def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None) -> str | None:  # noqa: PLR0912
+def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None) -> str | None:  # noqa: C901, PLR0912
     """Send a single entry to Discord.
 
     Args:
@@ -240,7 +240,7 @@ def set_title(custom_embed: CustomEmbed, discord_embed: DiscordEmbed) -> None:
     discord_embed.set_title(embed_title) if embed_title else None
 
 
-def create_embed_webhook(webhook_url: str, entry: Entry) -> DiscordWebhook:
+def create_embed_webhook(webhook_url: str, entry: Entry) -> DiscordWebhook:  # noqa: C901
     """Create a webhook with an embed.
 
     Args:
@@ -341,7 +341,7 @@ def set_entry_as_read(reader: Reader, entry: Entry) -> None:
         logger.exception("Error setting entry to read: %s", entry.id)
 
 
-def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = None, *, do_once: bool = False) -> None:  # noqa: PLR0912
+def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = None, *, do_once: bool = False) -> None:  # noqa: C901, PLR0912
     """Send entries to Discord.
 
     If response was not ok, we will log the error and mark the entry as unread, so it will be sent again next time.
@@ -520,7 +520,7 @@ def truncate_webhook_message(webhook_message: str) -> str:
     return webhook_message
 
 
-def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:
+def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:  # noqa: C901
     """Add a new feed, update it and mark every entry as read.
 
     Args:

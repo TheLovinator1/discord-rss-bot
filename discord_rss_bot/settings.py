@@ -6,6 +6,7 @@ from pathlib import Path
 
 from platformdirs import user_data_dir
 from reader import Reader
+from reader import TagNotFoundError
 from reader import make_reader
 
 if typing.TYPE_CHECKING:
@@ -39,7 +40,12 @@ def get_reader(custom_location: Path | None = None) -> Reader:
     reader: Reader = make_reader(url=str(db_location))
 
     # https://reader.readthedocs.io/en/latest/api.html#reader.types.UpdateConfig
-    # Set the update interval to 15 minutes
-    reader.set_tag((), ".reader.update", {"interval": 15})
+    # Set the default update interval to 15 minutes if not already configured
+    # Users can change this via the Settings page or per-feed in the feed page
+    try:
+        reader.get_tag((), ".reader.update")
+    except TagNotFoundError:
+        # Set default
+        reader.set_tag((), ".reader.update", {"interval": 15})
 
     return reader

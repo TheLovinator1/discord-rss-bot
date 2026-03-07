@@ -100,6 +100,46 @@ logging.config.dictConfig(LOGGING_CONFIG)
 logger: logging.Logger = logging.getLogger(__name__)
 reader: Reader = get_reader()
 
+# Time constants for relative time formatting
+SECONDS_PER_MINUTE = 60
+SECONDS_PER_HOUR = 3600
+SECONDS_PER_DAY = 86400
+
+
+def relative_time(dt: datetime | None) -> str:
+    """Convert a datetime to a relative time string (e.g., '2 hours ago', 'in 5 minutes').
+
+    Args:
+        dt: The datetime to convert (should be timezone-aware).
+
+    Returns:
+        A human-readable relative time string.
+    """
+    if dt is None:
+        return "Never"
+
+    now = datetime.now(tz=UTC)
+    diff = dt - now
+    seconds = int(abs(diff.total_seconds()))
+    is_future = diff.total_seconds() > 0
+
+    # Determine the appropriate unit and value
+    if seconds < SECONDS_PER_MINUTE:
+        value = seconds
+        unit = "s"
+    elif seconds < SECONDS_PER_HOUR:
+        value = seconds // SECONDS_PER_MINUTE
+        unit = "m"
+    elif seconds < SECONDS_PER_DAY:
+        value = seconds // SECONDS_PER_HOUR
+        unit = "h"
+    else:
+        value = seconds // SECONDS_PER_DAY
+        unit = "d"
+
+    # Format based on future or past
+    return f"in {value}{unit}" if is_future else f"{value}{unit} ago"
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
@@ -131,6 +171,7 @@ templates.env.filters["encode_url"] = lambda url: urllib.parse.quote(url) if url
 templates.env.filters["entry_is_whitelisted"] = entry_is_whitelisted
 templates.env.filters["entry_is_blacklisted"] = entry_is_blacklisted
 templates.env.filters["discord_markdown"] = markdownify
+templates.env.filters["relative_time"] = relative_time
 templates.env.globals["get_backup_path"] = get_backup_path
 
 
@@ -613,6 +654,102 @@ async def post_use_text(feed_url: Annotated[str, Form()]) -> RedirectResponse:
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
 
+@app.post("/set_update_interval")
+async def post_set_update_interval(
+    feed_url: Annotated[str, Form()],
+    interval_minutes: Annotated[int | None, Form()] = None,
+    redirect_to: Annotated[str, Form()] = "",
+) -> RedirectResponse:
+    """Set the update interval for a feed.
+
+    Args:
+        feed_url: The feed to change.
+        interval_minutes: The update interval in minutes (None to reset to global default).
+        redirect_to: Optional redirect URL (defaults to feed page).
+
+    Returns:
+        RedirectResponse: Redirect to the specified page or feed page.
+    """
+    clean_feed_url: str = feed_url.strip()
+
+    # If no interval specified, reset to global default
+    if interval_minutes is None:
+        try:
+            reader.delete_tag(clean_feed_url, ".reader.update")
+            commit_state_change(reader, f"Reset update interval to default for {clean_feed_url}")
+        except TagNotFoundError:
+            pass
+    else:
+        # Validate interval (minimum 1 minute, no maximum)
+        interval_minutes = max(interval_minutes, 1)
+        reader.set_tag(clean_feed_url, ".reader.update", {"interval": interval_minutes})  # pyright: ignore[reportArgumentType]
+        commit_state_change(reader, f"Set update interval to {interval_minutes} minutes for {clean_feed_url}")
+
+    # Update the feed immediately to recalculate update_after with the new interval
+    try:
+        reader.update_feed(clean_feed_url)
+        logger.info("Updated feed after interval change: %s", clean_feed_url)
+    except Exception:
+        logger.exception("Failed to update feed after interval change: %s", clean_feed_url)
+
+    if redirect_to:
+        return RedirectResponse(url=redirect_to, status_code=303)
+    return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
+
+
+@app.post("/reset_update_interval")
+async def post_reset_update_interval(
+    feed_url: Annotated[str, Form()],
+    redirect_to: Annotated[str, Form()] = "",
+) -> RedirectResponse:
+    """Reset the update interval for a feed to use the global default.
+
+    Args:
+        feed_url: The feed to change.
+        redirect_to: Optional redirect URL (defaults to feed page).
+
+    Returns:
+        RedirectResponse: Redirect to the specified page or feed page.
+    """
+    clean_feed_url: str = feed_url.strip()
+
+    try:
+        reader.delete_tag(clean_feed_url, ".reader.update")
+        commit_state_change(reader, f"Reset update interval to default for {clean_feed_url}")
+    except TagNotFoundError:
+        # Tag doesn't exist, which is fine
+        pass
+
+    # Update the feed immediately to recalculate update_after with the new interval
+    try:
+        reader.update_feed(clean_feed_url)
+        logger.info("Updated feed after interval reset: %s", clean_feed_url)
+    except Exception:
+        logger.exception("Failed to update feed after interval reset: %s", clean_feed_url)
+
+    if redirect_to:
+        return RedirectResponse(url=redirect_to, status_code=303)
+    return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
+
+
+@app.post("/set_global_update_interval")
+async def post_set_global_update_interval(interval_minutes: Annotated[int, Form()]) -> RedirectResponse:
+    """Set the global default update interval.
+
+    Args:
+        interval_minutes: The update interval in minutes.
+
+    Returns:
+        RedirectResponse: Redirect to the settings page.
+    """
+    # Validate interval (minimum 1 minute, no maximum)
+    interval_minutes = max(interval_minutes, 1)
+
+    reader.set_tag((), ".reader.update", {"interval": interval_minutes})  # pyright: ignore[reportArgumentType]
+    commit_state_change(reader, f"Set global update interval to {interval_minutes} minutes")
+    return RedirectResponse(url="/settings", status_code=303)
+
+
 @app.get("/add", response_class=HTMLResponse)
 def get_add(request: Request):
     """Page for adding a new feed.
@@ -631,7 +768,7 @@ def get_add(request: Request):
 
 
 @app.get("/feed", response_class=HTMLResponse)
-async def get_feed(feed_url: str, request: Request, starting_after: str = ""):
+async def get_feed(feed_url: str, request: Request, starting_after: str = ""):  # noqa: C901, PLR0912, PLR0914, PLR0915
     """Get a feed by URL.
 
     Args:
@@ -656,7 +793,7 @@ async def get_feed(feed_url: str, request: Request, starting_after: str = ""):
 
     # Only show button if more than 10 entries.
     total_entries: int = reader.get_entry_counts(feed=feed).total or 0
-    show_more_entires_button: bool = total_entries > entries_per_page
+    is_show_more_entries_button_visible: bool = total_entries > entries_per_page
 
     # Get entries from the feed.
     if starting_after:
@@ -669,6 +806,27 @@ async def get_feed(feed_url: str, request: Request, starting_after: str = ""):
             msg: str = f"{e}\n\n{[entry.id for entry in current_entries]}"
             html: str = create_html_for_feed(current_entries)
 
+            # Get feed and global intervals for error case too
+            feed_interval: int | None = None
+            try:
+                feed_update_config = reader.get_tag(feed, ".reader.update")
+                if isinstance(feed_update_config, dict) and "interval" in feed_update_config:
+                    interval_value = feed_update_config["interval"]
+                    if isinstance(interval_value, int):
+                        feed_interval = interval_value
+            except TagNotFoundError:
+                pass
+
+            global_interval: int = 60
+            try:
+                global_update_config = reader.get_tag((), ".reader.update")
+                if isinstance(global_update_config, dict) and "interval" in global_update_config:
+                    interval_value = global_update_config["interval"]
+                    if isinstance(interval_value, int):
+                        global_interval = interval_value
+            except TagNotFoundError:
+                pass
+
             context = {
                 "request": request,
                 "feed": feed,
@@ -678,8 +836,10 @@ async def get_feed(feed_url: str, request: Request, starting_after: str = ""):
                 "should_send_embed": False,
                 "last_entry": None,
                 "messages": msg,
-                "show_more_entires_button": show_more_entires_button,
+                "is_show_more_entries_button_visible": is_show_more_entries_button_visible,
                 "total_entries": total_entries,
+                "feed_interval": feed_interval,
+                "global_interval": global_interval,
             }
             return templates.TemplateResponse(request=request, name="feed.html", context=context)
 
@@ -708,6 +868,29 @@ async def get_feed(feed_url: str, request: Request, starting_after: str = ""):
         add_missing_tags(reader)
         should_send_embed: bool = bool(reader.get_tag(feed, "should_send_embed"))
 
+    # Get the update interval for this feed
+    feed_interval: int | None = None
+    try:
+        feed_update_config = reader.get_tag(feed, ".reader.update")
+        if isinstance(feed_update_config, dict) and "interval" in feed_update_config:
+            interval_value = feed_update_config["interval"]
+            if isinstance(interval_value, int):
+                feed_interval = interval_value
+    except TagNotFoundError:
+        # No custom interval set for this feed, will use global default
+        pass
+
+    # Get the global default update interval
+    global_interval: int = 60  # Default to 60 minutes if not set
+    try:
+        global_update_config = reader.get_tag((), ".reader.update")
+        if isinstance(global_update_config, dict) and "interval" in global_update_config:
+            interval_value = global_update_config["interval"]
+            if isinstance(interval_value, int):
+                global_interval = interval_value
+    except TagNotFoundError:
+        pass
+
     context = {
         "request": request,
         "feed": feed,
@@ -716,8 +899,10 @@ async def get_feed(feed_url: str, request: Request, starting_after: str = ""):
         "html": html,
         "should_send_embed": should_send_embed,
         "last_entry": last_entry,
-        "show_more_entires_button": show_more_entires_button,
+        "is_show_more_entries_button_visible": is_show_more_entries_button_visible,
         "total_entries": total_entries,
+        "feed_interval": feed_interval,
+        "global_interval": global_interval,
     }
     return templates.TemplateResponse(request=request, name="feed.html", context=context)
 
@@ -845,6 +1030,56 @@ def get_data_from_hook_url(hook_name: str, hook_url: str) -> WebhookInfo:
             our_hook.token = webhook_json["token"] or None
             our_hook.avatar_mod = int(webhook_json["channel_id"] or 0) % 5
     return our_hook
+
+
+@app.get("/settings", response_class=HTMLResponse)
+async def get_settings(request: Request):
+    """Settings page.
+
+    Args:
+        request: The request object.
+
+    Returns:
+        HTMLResponse: The settings page.
+    """
+    # Get the global default update interval
+    global_interval: int = 60  # Default to 60 minutes if not set
+    try:
+        global_update_config = reader.get_tag((), ".reader.update")
+        if isinstance(global_update_config, dict) and "interval" in global_update_config:
+            interval_value = global_update_config["interval"]
+            if isinstance(interval_value, int):
+                global_interval = interval_value
+    except TagNotFoundError:
+        pass
+
+    # Get all feeds with their intervals
+    feeds: Iterable[Feed] = reader.get_feeds()
+    feed_intervals = []
+    for feed in feeds:
+        feed_interval: int | None = None
+        try:
+            feed_update_config = reader.get_tag(feed, ".reader.update")
+            if isinstance(feed_update_config, dict) and "interval" in feed_update_config:
+                interval_value = feed_update_config["interval"]
+                if isinstance(interval_value, int):
+                    feed_interval = interval_value
+        except TagNotFoundError:
+            pass
+
+        feed_intervals.append({
+            "feed": feed,
+            "interval": feed_interval,
+            "effective_interval": feed_interval or global_interval,
+            "domain": extract_domain(feed.url),
+        })
+
+    context = {
+        "request": request,
+        "global_interval": global_interval,
+        "feed_intervals": feed_intervals,
+    }
+    return templates.TemplateResponse(request=request, name="settings.html", context=context)
 
 
 @app.get("/webhooks", response_class=HTMLResponse)

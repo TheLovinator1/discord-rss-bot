@@ -14,6 +14,7 @@ Discord: TheLovinator#9276
 - Choose between Discord embed or plain text.
 - Regex filters for RSS feeds.
 - Blacklist/whitelist words in the title/description/author/etc.
+- Set different update frequencies for each feed or use a global default.
 - Gets extra information from APIs if available, currently for:
   - [https://feeds.c3kay.de/](https://feeds.c3kay.de/)
     - Genshin Impact News

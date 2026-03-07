@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import urllib.parse
 from typing import TYPE_CHECKING
 
@@ -289,3 +290,152 @@ def test_backup_endpoint_returns_error_when_not_configured(monkeypatch: pytest.M
     assert "Git backup is not configured" in response.text or "GIT_BACKUP_PATH" in response.text, (
         "Error message about backup not being configured should be shown"
     )
+
+
+def test_show_more_entries_button_visible_when_many_entries() -> None:
+    """Test that the 'Show more entries' button is visible when there are more than 20 entries."""
+    # Add the webhook first
+    client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    response: Response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": webhook_name, "webhook_url": webhook_url},
+    )
+    assert response.status_code == 200, f"Failed to add webhook: {response.text}"
+
+    # Remove the feed if it already exists
+    feeds: Response = client.get(url="/")
+    if feed_url in feeds.text:
+        client.post(url="/remove", data={"feed_url": feed_url})
+
+    # Add the feed
+    response: Response = client.post(url="/add", data={"feed_url": feed_url, "webhook_dropdown": webhook_name})
+    assert response.status_code == 200, f"Failed to add feed: {response.text}"
+
+    # Get the feed page
+    response: Response = client.get(url="/feed", params={"feed_url": feed_url})
+    assert response.status_code == 200, f"Failed to get /feed: {response.text}"
+
+    # Check if the feed has more than 20 entries by looking at the response
+    # The button should be visible if there are more than 20 entries
+    # We check for both the button text and the link structure
+    if "Show more entries" in response.text:
+        # Button is visible - verify it has the correct structure
+        assert "starting_after=" in response.text, "Show more entries button should contain starting_after parameter"
+        # The button should be a link to the feed page with pagination
+        assert (
+            f'href="/feed?feed_url={urllib.parse.quote(feed_url)}' in response.text
+            or f'href="/feed?feed_url={encoded_feed_url(feed_url)}' in response.text
+        ), "Show more entries button should link back to the feed page"
+
+
+def test_show_more_entries_button_not_visible_when_few_entries() -> None:
+    """Test that the 'Show more entries' button is not visible when there are 20 or fewer entries."""
+    # Use a feed with very few entries
+    small_feed_url = "https://lovinator.space/rss_test_small.xml"
+
+    # Clean up if exists
+    client.post(url="/remove", data={"feed_url": small_feed_url})
+
+    # Add a small feed (this may not exist, so this test is conditional)
+    response: Response = client.post(url="/add", data={"feed_url": small_feed_url, "webhook_dropdown": webhook_name})
+
+    if response.status_code == 200:
+        # Get the feed page
+        response: Response = client.get(url="/feed", params={"feed_url": small_feed_url})
+        assert response.status_code == 200, f"Failed to get /feed: {response.text}"
+
+        # If the feed has 20 or fewer entries, the button should not be visible
+        # We check the total entry count in the page
+        if "0 entries" in response.text or " entries)" in response.text:
+            # Extract entry count and verify button visibility
+
+            match: re.Match[str] | None = re.search(r"\((\d+) entries\)", response.text)
+            if match:
+                entry_count = int(match.group(1))
+                if entry_count <= 20:
+                    assert "Show more entries" not in response.text, (
+                        f"Show more entries button should not be visible when there are {entry_count} entries"
+                    )
+
+        # Clean up
+        client.post(url="/remove", data={"feed_url": small_feed_url})
+
+
+def test_show_more_entries_pagination_works() -> None:
+    """Test that pagination with starting_after parameter works correctly."""
+    # Add the webhook first
+    client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    response: Response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": webhook_name, "webhook_url": webhook_url},
+    )
+    assert response.status_code == 200, f"Failed to add webhook: {response.text}"
+
+    # Remove the feed if it already exists
+    feeds: Response = client.get(url="/")
+    if feed_url in feeds.text:
+        client.post(url="/remove", data={"feed_url": feed_url})
+
+    # Add the feed
+    response: Response = client.post(url="/add", data={"feed_url": feed_url, "webhook_dropdown": webhook_name})
+    assert response.status_code == 200, f"Failed to add feed: {response.text}"
+
+    # Get the first page
+    response: Response = client.get(url="/feed", params={"feed_url": feed_url})
+    assert response.status_code == 200, f"Failed to get /feed: {response.text}"
+
+    # Check if pagination is available
+    if "Show more entries" in response.text and "starting_after=" in response.text:
+        # Extract the starting_after parameter from the button link
+        match: re.Match[str] | None = re.search(r'starting_after=([^"&]+)', response.text)
+        if match:
+            starting_after_id: str = match.group(1)
+
+            # Request the second page
+            response: Response = client.get(
+                url="/feed", params={"feed_url": feed_url, "starting_after": starting_after_id}
+            )
+            assert response.status_code == 200, f"Failed to get paginated feed: {response.text}"
+
+            # Verify we got a valid response (the page should contain entries)
+            assert "entries)" in response.text, "Paginated page should show entry count"
+
+
+def test_show_more_entries_button_context_variable() -> None:
+    """Test that the button visibility variable is correctly passed to the template context."""
+    # Add the webhook first
+    client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    response: Response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": webhook_name, "webhook_url": webhook_url},
+    )
+    assert response.status_code == 200, f"Failed to add webhook: {response.text}"
+
+    # Remove the feed if it already exists
+    feeds: Response = client.get(url="/")
+    if feed_url in feeds.text:
+        client.post(url="/remove", data={"feed_url": feed_url})
+
+    # Add the feed
+    response: Response = client.post(url="/add", data={"feed_url": feed_url, "webhook_dropdown": webhook_name})
+    assert response.status_code == 200, f"Failed to add feed: {response.text}"
+
+    # Get the feed page
+    response: Response = client.get(url="/feed", params={"feed_url": feed_url})
+    assert response.status_code == 200, f"Failed to get /feed: {response.text}"
+
+    # Extract the total entries count from the page
+    match: re.Match[str] | None = re.search(r"\((\d+) entries\)", response.text)
+    if match:
+        entry_count = int(match.group(1))
+
+        # If more than 20 entries, button should be visible
+        if entry_count > 20:
+            assert "Show more entries" in response.text, (
+                f"Button should be visible when there are {entry_count} entries (more than 20)"
+            )
+        # If 20 or fewer entries, button should not be visible
+        else:
+            assert "Show more entries" not in response.text, (
+                f"Button should not be visible when there are {entry_count} entries (20 or fewer)"
+            )

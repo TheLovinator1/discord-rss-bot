@@ -4,19 +4,20 @@ import os
 import tempfile
 from pathlib import Path
 from typing import LiteralString
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
+from unittest.mock import patch
 
 import pytest
-from reader import Feed, Reader, make_reader
+from reader import Feed
+from reader import Reader
+from reader import make_reader
 
-from discord_rss_bot.feeds import (
-    extract_domain,
-    is_youtube_feed,
-    send_entry_to_discord,
-    send_to_discord,
-    should_send_embed_check,
-    truncate_webhook_message,
-)
+from discord_rss_bot.feeds import extract_domain
+from discord_rss_bot.feeds import is_youtube_feed
+from discord_rss_bot.feeds import send_entry_to_discord
+from discord_rss_bot.feeds import send_to_discord
+from discord_rss_bot.feeds import should_send_embed_check
+from discord_rss_bot.feeds import truncate_webhook_message
 from discord_rss_bot.missing_tags import add_missing_tags
 
 

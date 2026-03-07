@@ -4,10 +4,12 @@ import contextlib
 import json
 import logging
 import re
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
+from typing import Any
 
 import requests
-from discord_webhook import DiscordEmbed, DiscordWebhook
+from discord_webhook import DiscordEmbed
+from discord_webhook import DiscordWebhook
 
 if TYPE_CHECKING:
     from reader import Entry

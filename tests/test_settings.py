@@ -6,7 +6,9 @@ from pathlib import Path
 
 from reader import Reader
 
-from discord_rss_bot.settings import data_dir, default_custom_message, get_reader
+from discord_rss_bot.settings import data_dir
+from discord_rss_bot.settings import default_custom_message
+from discord_rss_bot.settings import get_reader
 
 
 def test_reader() -> None:

@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}
+    | Settings
+{% endblock title %}
+{% block content %}
+    <section>
+        <div class="text-light">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <h2 class="mb-0">Global Settings</h2>
+            </div>
+            <p class="text-muted mt-2 mb-4">
+                Set a default interval for all feeds. Individual feeds can still override this value.
+            </p>
+            <div class="mb-4">
+                <div>
+                    Current default is {{ global_interval }} min.
+                    Even though we check ETags and Last-Modified headers, choosing a very low interval may cause issues with some feeds or cause excessive load on the server hosting the feed. Remember to be kind.
+                </div>
+            </div>
+        </div>
+        <form action="/set_global_update_interval" method="post" class="mb-2">
+            <div class="settings-form-row mb-2">
+                <label for="interval_minutes" class="form-label mb-1">Default interval (minutes)</label>
+                <div class="input-group input-group-lg">
+                    <input id="interval_minutes"
+                           type="number"
+                           class="form-control settings-input"
+                           name="interval_minutes"
+                           placeholder="Minutes"
+                           min="1"
+                           value="{{ global_interval }}"
+                           required />
+                    <button class="btn btn-primary px-4" type="submit">Save</button>
+                </div>
+            </div>
+        </form>
+    </section>
+    <section class="mt-5">
+        <div class="text-light">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <h2 class="mb-0">Feed Update Intervals</h2>
+            </div>
+            <p class="text-muted mt-2 mb-4">
+                Customize the update interval for individual feeds. Leave empty or reset to use the global default.
+            </p>
+        </div>
+        {% if feed_intervals %}
+            <div class="table-responsive">
+                <table class="table table-dark table-hover">
+                    <thead>
+                        <tr>
+                            <th>Feed</th>
+                            <th>Domain</th>
+                            <th>Status</th>
+                            <th>Interval</th>
+                            <th>Last Updated</th>
+                            <th>Next Update</th>
+                            <th>Set Interval (min)</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in feed_intervals %}
+                            <tr>
+                                <td>
+                                    <a href="/feed?feed_url={{ item.feed.url|encode_url }}"
+                                       class="text-light text-decoration-none">{{ item.feed.title }}</a>
+                                </td>
+                                <td>
+                                    <span class="text-muted small">{{ item.domain }}</span>
+                                </td>
+                                <td>
+                                    <span class="badge {{ 'bg-success' if item.feed.updates_enabled else 'bg-danger' }}">
+                                        {{ 'Enabled' if item.feed.updates_enabled else 'Disabled' }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span>{{ item.effective_interval }} min</span>
+                                    {% if item.interval %}
+                                        <span class="badge bg-info ms-1">Custom</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary ms-1">Global</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small class="text-muted">{{ item.feed.last_updated | relative_time }}</small>
+                                </td>
+                                <td>
+                                    <small class="text-muted">{{ item.feed.update_after | relative_time }}</small>
+                                </td>
+                                <td>
+                                    <form action="/set_update_interval" method="post" class="d-flex gap-2">
+                                        <input type="hidden" name="feed_url" value="{{ item.feed.url }}" />
+                                        <input type="hidden" name="redirect_to" value="/settings" />
+                                        <input type="number"
+                                               class="form-control form-control-sm interval-input"
+                                               name="interval_minutes"
+                                               placeholder="Minutes"
+                                               min="1"
+                                               value="{{ item.interval if item.interval else global_interval }}" />
+                                        <button class="btn btn-primary btn-sm" type="submit">Set</button>
+                                    </form>
+                                </td>
+                                <td>
+                                    {% if item.interval %}
+                                        <form action="/reset_update_interval" method="post" class="d-inline">
+                                            <input type="hidden" name="feed_url" value="{{ item.feed.url }}" />
+                                            <input type="hidden" name="redirect_to" value="/settings" />
+                                            <button class="btn btn-outline-secondary btn-sm" type="submit">Reset</button>
+                                        </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="text-muted">No feeds added yet.</p>
+        {% endif %}
+    </section>
+{% endblock content %}

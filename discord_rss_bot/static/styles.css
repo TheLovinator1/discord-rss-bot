@@ -13,3 +13,7 @@ body {
 .form-text {
     color: #acabab;
 }
+
+.interval-input {
+    max-width: 120px;
+}

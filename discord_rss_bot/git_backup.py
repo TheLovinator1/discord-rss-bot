@@ -30,6 +30,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import Any
 
+from reader import TagNotFoundError
+
 if TYPE_CHECKING:
     from reader import Reader
 
@@ -66,6 +68,7 @@ _FEED_TAGS: tuple[str, ...] = (
     "regex_whitelist_summary",
     "regex_whitelist_content",
     "regex_whitelist_author",
+    ".reader.update",
 )
 
 
@@ -178,10 +181,21 @@ def export_state(reader: Reader, backup_path: Path) -> None:
         webhooks: list[str | int | float | bool | dict[str, Any] | list[Any] | None] = list(
             reader.get_tag((), "webhooks", [])
         )
-    except Exception:  # noqa: BLE001
+    except TagNotFoundError:
         webhooks = []
 
+    # Export global update interval if set
+    global_update_interval: dict[str, Any] | None = None
+    try:
+        global_update_config = reader.get_tag((), ".reader.update", None)
+        if isinstance(global_update_config, dict):
+            global_update_interval = global_update_config
+    except TagNotFoundError:
+        pass
+
     state: dict = {"feeds": feeds_state, "webhooks": webhooks}
+    if global_update_interval is not None:
+        state["global_update_interval"] = global_update_interval
     state_file: Path = backup_path / "state.json"
     state_file.write_text(json.dumps(state, indent=2, default=str), encoding="utf-8")
 
