@@ -28,14 +28,19 @@ dev = ["djlint", "pytest"]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
-
 [tool.ruff]
+
 preview = true
+unsafe-fixes = true
+fix = true
 line-length = 120
+
 lint.select = ["ALL"]
+lint.unfixable = ["F841"]                                            # Don't automatically remove unused variables
 lint.pydocstyle.convention = "google"
 lint.isort.required-imports = ["from __future__ import annotations"]
-lint.pycodestyle.ignore-overlong-task-comments = true
+lint.isort.force-single-line = true
+
 
 lint.ignore = [
     "ANN201",  # Checks that public functions and methods have return type annotations.

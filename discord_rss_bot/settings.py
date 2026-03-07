@@ -5,7 +5,8 @@ from functools import lru_cache
 from pathlib import Path
 
 from platformdirs import user_data_dir
-from reader import Reader, make_reader
+from reader import Reader
+from reader import make_reader
 
 if typing.TYPE_CHECKING:
     from reader.types import JSONType

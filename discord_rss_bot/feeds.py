@@ -5,42 +5,41 @@ import logging
 import os
 import pprint
 import re
-from typing import TYPE_CHECKING, Any
-from urllib.parse import ParseResult, urlparse
+from typing import TYPE_CHECKING
+from typing import Any
+from urllib.parse import ParseResult
+from urllib.parse import urlparse
 
 import tldextract
-from discord_webhook import DiscordEmbed, DiscordWebhook
+from discord_webhook import DiscordEmbed
+from discord_webhook import DiscordWebhook
 from fastapi import HTTPException
 from markdownify import markdownify
-from reader import (
-    Entry,
-    EntryNotFoundError,
-    Feed,
-    FeedExistsError,
-    FeedNotFoundError,
-    Reader,
-    ReaderError,
-    StorageError,
-    TagNotFoundError,
-)
+from reader import Entry
+from reader import EntryNotFoundError
+from reader import Feed
+from reader import FeedExistsError
+from reader import FeedNotFoundError
+from reader import Reader
+from reader import ReaderError
+from reader import StorageError
+from reader import TagNotFoundError
 
-from discord_rss_bot.custom_message import (
-    CustomEmbed,
-    get_custom_message,
-    replace_tags_in_embed,
-    replace_tags_in_text_message,
-)
+from discord_rss_bot.custom_message import CustomEmbed
+from discord_rss_bot.custom_message import get_custom_message
+from discord_rss_bot.custom_message import replace_tags_in_embed
+from discord_rss_bot.custom_message import replace_tags_in_text_message
 from discord_rss_bot.filter.blacklist import entry_should_be_skipped
-from discord_rss_bot.filter.whitelist import has_white_tags, should_be_sent
-from discord_rss_bot.hoyolab_api import (
-    create_hoyolab_webhook,
-    extract_post_id_from_hoyolab_url,
-    fetch_hoyolab_post,
-    is_c3kay_feed,
-)
+from discord_rss_bot.filter.whitelist import has_white_tags
+from discord_rss_bot.filter.whitelist import should_be_sent
+from discord_rss_bot.hoyolab_api import create_hoyolab_webhook
+from discord_rss_bot.hoyolab_api import extract_post_id_from_hoyolab_url
+from discord_rss_bot.hoyolab_api import fetch_hoyolab_post
+from discord_rss_bot.hoyolab_api import is_c3kay_feed
 from discord_rss_bot.is_url_valid import is_url_valid
 from discord_rss_bot.missing_tags import add_missing_tags
-from discord_rss_bot.settings import default_custom_message, get_reader
+from discord_rss_bot.settings import default_custom_message
+from discord_rss_bot.settings import get_reader
 
 if TYPE_CHECKING:
     from collections.abc import Iterable

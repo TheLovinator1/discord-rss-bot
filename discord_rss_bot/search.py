@@ -8,7 +8,10 @@ from discord_rss_bot.settings import get_reader
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from reader import EntrySearchResult, Feed, HighlightedString, Reader
+    from reader import EntrySearchResult
+    from reader import Feed
+    from reader import HighlightedString
+    from reader import Reader
 
 
 def create_search_context(query: str, custom_reader: Reader | None = None) -> dict:

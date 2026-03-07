@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from reader import Feed, Reader, TagNotFoundError
+from reader import Feed
+from reader import Reader
+from reader import TagNotFoundError
 
-from discord_rss_bot.settings import default_custom_embed, default_custom_message
+from discord_rss_bot.settings import default_custom_embed
+from discord_rss_bot.settings import default_custom_message
 
 
 def add_custom_message(reader: Reader, feed: Feed) -> None:

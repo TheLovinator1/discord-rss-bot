@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from discord_rss_bot.filter.utils import is_regex_match, is_word_in_text
+from discord_rss_bot.filter.utils import is_regex_match
+from discord_rss_bot.filter.utils import is_word_in_text
 
 
 def test_is_word_in_text() -> None:

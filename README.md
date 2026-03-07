@@ -2,6 +2,10 @@
 
 Subscribe to RSS feeds and get updates to a Discord webhook.
 
+Email: [tlovinator@gmail.com](mailto:tlovinator@gmail.com)
+
+Discord: TheLovinator#9276
+
 ## Features
 
 - Subscribe to RSS feeds and get updates to a Discord webhook.
@@ -40,7 +44,7 @@ or [install directly on your computer](#install-directly-on-your-computer).
 ### Install directly on your computer
 
 - Install the latest of [uv](https://docs.astral.sh/uv/#installation):
-    - `powershell -ExecutionPolicy ByPass -c "irm <https://astral.sh/uv/install.ps1> | iex"`
+  - `powershell -ExecutionPolicy ByPass -c "irm <https://astral.sh/uv/install.ps1> | iex"`
 - Download the project from GitHub with Git or download
   the [ZIP](https://github.com/TheLovinator1/discord-rss-bot/archive/refs/heads/master.zip).
   - If you want to update the bot, you can run `git pull` in the project folder or download the ZIP again.
@@ -58,8 +62,49 @@ or [install directly on your computer](#install-directly-on-your-computer).
   - Use [Windows Task Scheduler](https://en.wikipedia.org/wiki/Windows_Task_Scheduler).
   - Or add a shortcut to `%userprofile%\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup`.
 
-## Contact
+## Git Backup (State Version Control)
 
-Email: [tlovinator@gmail.com](mailto:tlovinator@gmail.com)
+The bot can commit every configuration change (adding/removing feeds, webhook
+changes, blacklist/whitelist updates) to a separate private Git repository so
+you get a full, auditable history of state changes — similar to `etckeeper`.
 
-Discord: TheLovinator#9276
+### Configuration
+
+Set the following environment variables (e.g. in `docker-compose.yml` or a
+`.env` file):
+
+| Variable            | Required | Description                                                                                                                         |
+| ------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `GIT_BACKUP_PATH`   | Yes      | Local path where the backup git repository is stored. The bot will initialise it automatically if it does not yet exist.            |
+| `GIT_BACKUP_REMOTE` | No       | Remote URL to push to after each commit (e.g. `git@github.com:you/private-config.git`). Leave unset to keep the history local only. |
+
+### What is backed up
+
+After every relevant change a `state.json` file is written and committed.
+The file contains:
+
+- All feed URLs together with their webhook URL, custom message, embed
+  settings, and any blacklist/whitelist filters.
+- The global list of Discord webhooks.
+
+### Docker example
+
+```yaml
+services:
+  discord-rss-bot:
+    image: ghcr.io/thelovinator1/discord-rss-bot:latest
+    volumes:
+      - ./data:/data
+    environment:
+      - GIT_BACKUP_PATH=/data/backup
+      - GIT_BACKUP_REMOTE=git@github.com:you/private-config.git
+```
+
+For SSH-based remotes mount your SSH key into the container and make sure the
+host key is trusted, e.g.:
+
+```yaml
+    volumes:
+      - ./data:/data
+      - ~/.ssh:/root/.ssh:ro
+```

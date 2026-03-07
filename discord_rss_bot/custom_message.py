@@ -5,9 +5,13 @@ import json
 import logging
 from dataclasses import dataclass
 
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup
+from bs4 import Tag
 from markdownify import markdownify
-from reader import Entry, Feed, Reader, TagNotFoundError
+from reader import Entry
+from reader import Feed
+from reader import Reader
+from reader import TagNotFoundError
 
 from discord_rss_bot.is_url_valid import is_url_valid
 from discord_rss_bot.settings import get_reader

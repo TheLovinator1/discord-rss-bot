@@ -7,48 +7,62 @@ import typing
 import urllib.parse
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC
+from datetime import datetime
 from functools import lru_cache
-from typing import TYPE_CHECKING, Annotated, cast
+from typing import TYPE_CHECKING
+from typing import Annotated
+from typing import Any
+from typing import cast
 
 import httpx
 import sentry_sdk
 import uvicorn
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi import FastAPI
+from fastapi import Form
+from fastapi import HTTPException
+from fastapi import Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from httpx import Response
 from markdownify import markdownify
-from reader import Entry, EntryNotFoundError, Feed, FeedNotFoundError, Reader, TagNotFoundError
+from reader import Entry
+from reader import EntryNotFoundError
+from reader import Feed
+from reader import FeedNotFoundError
+from reader import Reader
+from reader import TagNotFoundError
 from starlette.responses import RedirectResponse
 
 from discord_rss_bot import settings
-from discord_rss_bot.custom_filters import (
-    entry_is_blacklisted,
-    entry_is_whitelisted,
-)
-from discord_rss_bot.custom_message import (
-    CustomEmbed,
-    get_custom_message,
-    get_embed,
-    get_first_image,
-    replace_tags_in_text_message,
-    save_embed,
-)
-from discord_rss_bot.feeds import create_feed, extract_domain, send_entry_to_discord, send_to_discord
+from discord_rss_bot.custom_filters import entry_is_blacklisted
+from discord_rss_bot.custom_filters import entry_is_whitelisted
+from discord_rss_bot.custom_message import CustomEmbed
+from discord_rss_bot.custom_message import get_custom_message
+from discord_rss_bot.custom_message import get_embed
+from discord_rss_bot.custom_message import get_first_image
+from discord_rss_bot.custom_message import replace_tags_in_text_message
+from discord_rss_bot.custom_message import save_embed
+from discord_rss_bot.feeds import create_feed
+from discord_rss_bot.feeds import extract_domain
+from discord_rss_bot.feeds import send_entry_to_discord
+from discord_rss_bot.feeds import send_to_discord
+from discord_rss_bot.git_backup import commit_state_change
+from discord_rss_bot.git_backup import get_backup_path
 from discord_rss_bot.missing_tags import add_missing_tags
 from discord_rss_bot.search import create_search_context
 from discord_rss_bot.settings import get_reader
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator, Iterable
+    from collections.abc import AsyncGenerator
+    from collections.abc import Iterable
 
     from reader.types import JSONType
 
 
-LOGGING_CONFIG = {
+LOGGING_CONFIG: dict[str, Any] = {
     "version": 1,
     "disable_existing_loggers": True,
     "formatters": {
@@ -130,11 +144,11 @@ async def post_add_webhook(
         webhook_name: The name of the webhook.
         webhook_url: The url of the webhook.
 
-    Raises:
-        HTTPException: If the webhook already exists.
-
     Returns:
         RedirectResponse: Redirect to the index page.
+
+    Raises:
+        HTTPException: If the webhook already exists.
     """
     # Get current webhooks from the database if they exist otherwise use an empty list.
     webhooks = list(reader.get_tag((), "webhooks", []))
@@ -151,6 +165,8 @@ async def post_add_webhook(
 
         reader.set_tag((), "webhooks", webhooks)  # pyright: ignore[reportArgumentType]
 
+        commit_state_change(reader, f"Add webhook {webhook_name.strip()}")
+
         return RedirectResponse(url="/", status_code=303)
 
     # TODO(TheLovinator): Show this error on the page.
@@ -165,11 +181,12 @@ async def post_delete_webhook(webhook_url: Annotated[str, Form()]) -> RedirectRe
     Args:
         webhook_url: The url of the webhook.
 
+    Returns:
+        RedirectResponse: Redirect to the index page.
+
     Raises:
         HTTPException: If the webhook could not be deleted
 
-    Returns:
-        RedirectResponse: Redirect to the index page.
     """
     # TODO(TheLovinator): Check if the webhook is in use by any feeds before deleting it.
     # TODO(TheLovinator): Replace HTTPException with a custom exception for both of these.
@@ -196,6 +213,8 @@ async def post_delete_webhook(webhook_url: Annotated[str, Form()]) -> RedirectRe
     # Add our new list of webhooks to the database.
     reader.set_tag((), "webhooks", webhooks)  # pyright: ignore[reportArgumentType]
 
+    commit_state_change(reader, f"Delete webhook {webhook_url.strip()}")
+
     return RedirectResponse(url="/", status_code=303)
 
 
@@ -215,6 +234,7 @@ async def post_create_feed(
     """
     clean_feed_url: str = feed_url.strip()
     create_feed(reader, feed_url, webhook_dropdown)
+    commit_state_change(reader, f"Add feed {clean_feed_url}")
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
 
@@ -285,6 +305,8 @@ async def post_set_whitelist(
     reader.set_tag(clean_feed_url, "regex_whitelist_summary", regex_whitelist_summary)  # pyright: ignore[reportArgumentType][call-overload]
     reader.set_tag(clean_feed_url, "regex_whitelist_content", regex_whitelist_content)  # pyright: ignore[reportArgumentType][call-overload]
     reader.set_tag(clean_feed_url, "regex_whitelist_author", regex_whitelist_author)  # pyright: ignore[reportArgumentType][call-overload]
+
+    commit_state_change(reader, f"Update whitelist for {clean_feed_url}")
 
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
@@ -367,6 +389,7 @@ async def post_set_blacklist(
     reader.set_tag(clean_feed_url, "regex_blacklist_summary", regex_blacklist_summary)  # pyright: ignore[reportArgumentType][call-overload]
     reader.set_tag(clean_feed_url, "regex_blacklist_content", regex_blacklist_content)  # pyright: ignore[reportArgumentType][call-overload]
     reader.set_tag(clean_feed_url, "regex_blacklist_author", regex_blacklist_author)  # pyright: ignore[reportArgumentType][call-overload]
+    commit_state_change(reader, f"Update blacklist for {clean_feed_url}")
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
 
@@ -433,6 +456,7 @@ async def post_set_custom(
         reader.set_tag(feed_url, "custom_message", default_custom_message)
 
     clean_feed_url: str = feed_url.strip()
+    commit_state_change(reader, f"Update custom message for {clean_feed_url}")
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
 
@@ -552,6 +576,7 @@ async def post_embed(
     # Save the data.
     save_embed(reader, feed, custom_embed)
 
+    commit_state_change(reader, f"Update embed settings for {clean_feed_url}")
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
 
@@ -567,6 +592,7 @@ async def post_use_embed(feed_url: Annotated[str, Form()]) -> RedirectResponse:
     """
     clean_feed_url: str = feed_url.strip()
     reader.set_tag(clean_feed_url, "should_send_embed", True)  # pyright: ignore[reportArgumentType]
+    commit_state_change(reader, f"Enable embed mode for {clean_feed_url}")
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
 
@@ -582,6 +608,7 @@ async def post_use_text(feed_url: Annotated[str, Form()]) -> RedirectResponse:
     """
     clean_feed_url: str = feed_url.strip()
     reader.set_tag(clean_feed_url, "should_send_embed", False)  # pyright: ignore[reportArgumentType]
+    commit_state_change(reader, f"Disable embed mode for {clean_feed_url}")
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
 
@@ -611,11 +638,11 @@ async def get_feed(feed_url: str, request: Request, starting_after: str = ""):
         request: The request object.
         starting_after: The entry to start after. Used for pagination.
 
-    Raises:
-        HTTPException: If the feed is not found.
-
     Returns:
         HTMLResponse: The feed page.
+
+    Raises:
+        HTTPException: If the feed is not found.
     """
     entries_per_page: int = 20
 
@@ -845,23 +872,25 @@ async def get_webhooks(request: Request):
 
 
 @app.get("/", response_class=HTMLResponse)
-def get_index(request: Request):
+def get_index(request: Request, message: str = ""):
     """This is the root of the website.
 
     Args:
         request: The request object.
+        message: Optional message to display to the user.
 
     Returns:
         HTMLResponse: The index page.
     """
-    return templates.TemplateResponse(request=request, name="index.html", context=make_context_index(request))
+    return templates.TemplateResponse(request=request, name="index.html", context=make_context_index(request, message))
 
 
-def make_context_index(request: Request):
+def make_context_index(request: Request, message: str = ""):
     """Create the needed context for the index page.
 
     Args:
         request: The request object.
+        message: Optional message to display to the user.
 
     Returns:
             dict: The context for the index page.
@@ -894,6 +923,7 @@ def make_context_index(request: Request):
         "webhooks": hooks,
         "broken_feeds": broken_feeds,
         "feeds_without_attached_webhook": feeds_without_attached_webhook,
+        "messages": message or None,
     }
 
 
@@ -904,16 +934,19 @@ async def remove_feed(feed_url: Annotated[str, Form()]):
     Args:
         feed_url: The feed to add.
 
-    Raises:
-        HTTPException: Feed not found
 
     Returns:
         RedirectResponse: Redirect to the index page.
+
+    Raises:
+        HTTPException: Feed not found
     """
     try:
         reader.delete_feed(urllib.parse.unquote(feed_url))
     except FeedNotFoundError as e:
         raise HTTPException(status_code=404, detail="Feed not found") from e
+
+    commit_state_change(reader, f"Remove feed {urllib.parse.unquote(feed_url)}")
 
     return RedirectResponse(url="/", status_code=303)
 
@@ -926,11 +959,12 @@ async def update_feed(request: Request, feed_url: str):
         request: The request object.
         feed_url: The feed URL to update.
 
-    Raises:
-        HTTPException: If the feed is not found.
 
     Returns:
         RedirectResponse: Redirect to the feed page.
+
+    Raises:
+        HTTPException: If the feed is not found.
     """
     try:
         reader.update_feed(urllib.parse.unquote(feed_url))
@@ -939,6 +973,33 @@ async def update_feed(request: Request, feed_url: str):
 
     logger.info("Manually updated feed: %s", feed_url)
     return RedirectResponse(url="/feed?feed_url=" + urllib.parse.quote(feed_url), status_code=303)
+
+
+@app.post("/backup")
+async def manual_backup(request: Request) -> RedirectResponse:
+    """Manually trigger a git backup of the current state.
+
+    Args:
+        request: The request object.
+
+    Returns:
+        RedirectResponse: Redirect to the index page with a success or error message.
+    """
+    backup_path = get_backup_path()
+    if backup_path is None:
+        message = "Git backup is not configured. Set GIT_BACKUP_PATH environment variable to enable backups."
+        logger.warning("Manual git backup attempted but GIT_BACKUP_PATH is not configured")
+        return RedirectResponse(url=f"/?message={urllib.parse.quote(message)}", status_code=303)
+
+    try:
+        commit_state_change(reader, "Manual backup triggered from web UI")
+        message = "Successfully created git backup!"
+        logger.info("Manual git backup completed successfully")
+    except Exception as e:
+        message = f"Failed to create git backup: {e}"
+        logger.exception("Manual git backup failed")
+
+    return RedirectResponse(url=f"/?message={urllib.parse.quote(message)}", status_code=303)
 
 
 @app.get("/search", response_class=HTMLResponse)
@@ -988,11 +1049,12 @@ def modify_webhook(old_hook: Annotated[str, Form()], new_hook: Annotated[str, Fo
         old_hook: The webhook to modify.
         new_hook: The new webhook.
 
+    Returns:
+        RedirectResponse: Redirect to the webhook page.
+
     Raises:
         HTTPException: Webhook could not be modified.
 
-    Returns:
-        RedirectResponse: Redirect to the webhook page.
     """
     # Get current webhooks from the database if they exist otherwise use an empty list.
     webhooks = list(reader.get_tag((), "webhooks", []))
@@ -1042,11 +1104,11 @@ def extract_youtube_video_id(url: str) -> str | None:
 
     # Handle standard YouTube URLs (youtube.com/watch?v=VIDEO_ID)
     if "youtube.com/watch" in url and "v=" in url:
-        return url.split("v=")[1].split("&")[0]
+        return url.split("v=")[1].split("&", maxsplit=1)[0]
 
     # Handle shortened YouTube URLs (youtu.be/VIDEO_ID)
     if "youtu.be/" in url:
-        return url.split("youtu.be/")[1].split("?")[0]
+        return url.split("youtu.be/")[1].split("?", maxsplit=1)[0]
 
     return None
 

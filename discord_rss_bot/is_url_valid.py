@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from urllib.parse import ParseResult, urlparse
+from urllib.parse import ParseResult
+from urllib.parse import urlparse
 
 
 def is_url_valid(url: str) -> bool:
