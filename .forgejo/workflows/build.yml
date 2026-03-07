@@ -9,6 +9,10 @@
 # 4. Install uv and ruff for the runner user
 # 5. Login to GitHub Container Registry:
 #         echo "ghp_YOUR_TOKEN_HERE" | sudo -u forgejo-runner docker login ghcr.io -u TheLovinator1 --password-stdin
+# 6. Configure sudoers for deployment (sudo EDITOR=nvim visudo):
+#         forgejo-runner ALL=(discord-rss) NOPASSWD: /usr/bin/git -C /home/discord-rss/discord-rss-bot pull
+#         forgejo-runner ALL=(discord-rss) NOPASSWD: /usr/bin/uv sync -U
+#         forgejo-runner ALL=(root) NOPASSWD: /bin/systemctl restart discord-rss-bot
 
 name: Test and build Docker image
 on:
@@ -86,3 +90,11 @@ jobs:
           else
             docker buildx build --platform linux/amd64,linux/arm64 "${tag_args[@]}" --push .
           fi
+
+      # Deploy to production server
+      - name: Deploy to Server
+        if: success() && forge.ref == 'refs/heads/master'
+        run: |
+          sudo -u discord-rss git -C /home/discord-rss/discord-rss-bot pull
+          sudo -u discord-rss uv sync -U
+          sudo systemctl restart discord-rss-bot
