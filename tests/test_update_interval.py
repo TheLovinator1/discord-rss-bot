@@ -58,8 +58,21 @@ def test_per_feed_update_interval() -> None:
 
 def test_reset_feed_update_interval() -> None:
     """Test resetting feed update interval to global default."""
+    # Ensure feed/webhook setup exists regardless of test order
+    client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    client.post(url="/remove", data={"feed_url": feed_url})
+
+    response: Response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": webhook_name, "webhook_url": webhook_url},
+    )
+    assert response.status_code == 200, f"Failed to add webhook: {response.text}"
+
+    response = client.post(url="/add", data={"feed_url": feed_url, "webhook_dropdown": webhook_name})
+    assert response.status_code == 200, f"Failed to add feed: {response.text}"
+
     # First set a custom interval
-    response: Response = client.post("/set_update_interval", data={"feed_url": feed_url, "interval_minutes": "15"})
+    response = client.post("/set_update_interval", data={"feed_url": feed_url, "interval_minutes": "15"})
     assert response.status_code == 200, f"Failed to set feed interval: {response.text}"
 
     # Reset to global default

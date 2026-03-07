@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import typing
 from functools import lru_cache
 from pathlib import Path
@@ -12,7 +13,12 @@ from reader import make_reader
 if typing.TYPE_CHECKING:
     from reader.types import JSONType
 
-data_dir: str = user_data_dir(appname="discord_rss_bot", appauthor="TheLovinator", roaming=True, ensure_exists=True)
+data_dir: str = os.getenv("DISCORD_RSS_BOT_DATA_DIR", "").strip() or user_data_dir(
+    appname="discord_rss_bot",
+    appauthor="TheLovinator",
+    roaming=True,
+    ensure_exists=True,
+)
 
 
 # TODO(TheLovinator): Add default things to the database and make the edible.

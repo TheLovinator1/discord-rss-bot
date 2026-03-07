@@ -44,7 +44,6 @@ type TAG_VALUE = (
     | list[str | int | float | bool | dict[str, Any] | list[Any] | None]
     | None
 )
-"""Type alias for the value of a feed tag, which can be a nested structure of dicts and lists, or None."""
 
 # Tags that are exported per-feed (empty values are omitted).
 _FEED_TAGS: tuple[str, ...] = (

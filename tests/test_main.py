@@ -81,6 +81,14 @@ def test_add_webhook() -> None:
 
 def test_create_feed() -> None:
     """Test the /create_feed page."""
+    # Ensure webhook exists for this test regardless of test order.
+    client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    response: Response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": webhook_name, "webhook_url": webhook_url},
+    )
+    assert response.status_code == 200, f"Failed to add webhook: {response.text}"
+
     # Remove the feed if it already exists before we run the test.
     feeds: Response = client.get(url="/")
     if feed_url in feeds.text:
@@ -99,6 +107,14 @@ def test_create_feed() -> None:
 
 def test_get() -> None:
     """Test the /create_feed page."""
+    # Ensure webhook exists for this test regardless of test order.
+    client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    response: Response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": webhook_name, "webhook_url": webhook_url},
+    )
+    assert response.status_code == 200, f"Failed to add webhook: {response.text}"
+
     # Remove the feed if it already exists before we run the test.
     feeds: Response = client.get("/")
     if feed_url in feeds.text:
@@ -144,6 +160,14 @@ def test_get() -> None:
 
 def test_pause_feed() -> None:
     """Test the /pause_feed page."""
+    # Ensure webhook exists for this test regardless of test order.
+    client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    response: Response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": webhook_name, "webhook_url": webhook_url},
+    )
+    assert response.status_code == 200, f"Failed to add webhook: {response.text}"
+
     # Remove the feed if it already exists before we run the test.
     feeds: Response = client.get(url="/")
     if feed_url in feeds.text:
@@ -152,6 +176,7 @@ def test_pause_feed() -> None:
 
     # Add the feed.
     response: Response = client.post(url="/add", data={"feed_url": feed_url, "webhook_dropdown": webhook_name})
+    assert response.status_code == 200, f"Failed to add feed: {response.text}"
 
     # Unpause the feed if it is paused.
     feeds: Response = client.get(url="/")
@@ -171,6 +196,14 @@ def test_pause_feed() -> None:
 
 def test_unpause_feed() -> None:
     """Test the /unpause_feed page."""
+    # Ensure webhook exists for this test regardless of test order.
+    client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    response: Response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": webhook_name, "webhook_url": webhook_url},
+    )
+    assert response.status_code == 200, f"Failed to add webhook: {response.text}"
+
     # Remove the feed if it already exists before we run the test.
     feeds: Response = client.get("/")
     if feed_url in feeds.text:
@@ -179,6 +212,7 @@ def test_unpause_feed() -> None:
 
     # Add the feed.
     response: Response = client.post(url="/add", data={"feed_url": feed_url, "webhook_dropdown": webhook_name})
+    assert response.status_code == 200, f"Failed to add feed: {response.text}"
 
     # Pause the feed if it is unpaused.
     feeds: Response = client.get(url="/")
@@ -198,6 +232,14 @@ def test_unpause_feed() -> None:
 
 def test_remove_feed() -> None:
     """Test the /remove page."""
+    # Ensure webhook exists for this test regardless of test order.
+    client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    response: Response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": webhook_name, "webhook_url": webhook_url},
+    )
+    assert response.status_code == 200, f"Failed to add webhook: {response.text}"
+
     # Remove the feed if it already exists before we run the test.
     feeds: Response = client.get(url="/")
     if feed_url in feeds.text:
@@ -206,6 +248,7 @@ def test_remove_feed() -> None:
 
     # Add the feed.
     response: Response = client.post(url="/add", data={"feed_url": feed_url, "webhook_dropdown": webhook_name})
+    assert response.status_code == 200, f"Failed to add feed: {response.text}"
 
     # Remove the feed.
     response: Response = client.post(url="/remove", data={"feed_url": feed_url})
@@ -374,6 +417,14 @@ def test_show_more_entries_button_visible_when_many_entries() -> None:
 
 def test_show_more_entries_button_not_visible_when_few_entries() -> None:
     """Test that the 'Show more entries' button is not visible when there are 20 or fewer entries."""
+    # Ensure webhook exists for this test regardless of test order.
+    client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    response: Response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": webhook_name, "webhook_url": webhook_url},
+    )
+    assert response.status_code == 200, f"Failed to add webhook: {response.text}"
+
     # Use a feed with very few entries
     small_feed_url = "https://lovinator.space/rss_test_small.xml"
 
