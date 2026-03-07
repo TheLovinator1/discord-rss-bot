@@ -19,16 +19,18 @@
                 <li class="nav-item">
                     <a class="nav-link" href="/webhooks">Webhooks</a>
                 </li>
-                <li class="nav-item nav-link d-none d-md-block">|</li>
-                <li class="nav-item">
-                    <form action="/backup" method="post" class="d-inline">
-                        <button type="submit"
-                                class="nav-link btn btn-link text-decoration-none"
-                                onclick="return confirm('Create a manual git backup of the current state?');">
-                            Backup
-                        </button>
-                    </form>
-                </li>
+                {% if get_backup_path() %}
+                    <li class="nav-item nav-link d-none d-md-block">|</li>
+                    <li class="nav-item">
+                        <form action="/backup" method="post" class="d-inline">
+                            <button type="submit"
+                                    class="nav-link btn btn-link text-decoration-none"
+                                    onclick="return confirm('Create a manual git backup of the current state?');">
+                                Backup
+                            </button>
+                        </form>
+                    </li>
+                {% endif %}
             </ul>
             {# Search #}
             <form action="/search" method="get" class="ms-auto w-50 input-group">

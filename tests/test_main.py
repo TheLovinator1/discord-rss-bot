@@ -8,6 +8,9 @@ from fastapi.testclient import TestClient
 from discord_rss_bot.main import app
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
+    import pytest
     from httpx import Response
 
 client: TestClient = TestClient(app)
@@ -242,3 +245,47 @@ def test_update_feed_not_found() -> None:
     # Check that it returns a 404 status code
     assert response.status_code == 404, f"Expected 404 for non-existent feed, got: {response.status_code}"
     assert "Feed not found" in response.text
+
+
+def test_navbar_backup_link_hidden_when_not_configured(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test that the backup link is not shown in the navbar when GIT_BACKUP_PATH is not set."""
+    # Ensure GIT_BACKUP_PATH is not set
+    monkeypatch.delenv("GIT_BACKUP_PATH", raising=False)
+
+    # Get the index page
+    response: Response = client.get(url="/")
+    assert response.status_code == 200, f"Failed to get /: {response.text}"
+
+    # Check that the backup button is not in the response
+    assert "Backup" not in response.text or 'action="/backup"' not in response.text, (
+        "Backup button should not be visible when GIT_BACKUP_PATH is not configured"
+    )
+
+
+def test_navbar_backup_link_visible_when_configured(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Test that the backup link is shown in the navbar when GIT_BACKUP_PATH is set."""
+    # Set GIT_BACKUP_PATH
+    monkeypatch.setenv("GIT_BACKUP_PATH", str(tmp_path))
+
+    # Get the index page
+    response: Response = client.get(url="/")
+    assert response.status_code == 200, f"Failed to get /: {response.text}"
+
+    # Check that the backup button is in the response
+    assert "Backup" in response.text, "Backup button text should be visible when GIT_BACKUP_PATH is configured"
+    assert 'action="/backup"' in response.text, "Backup form should be visible when GIT_BACKUP_PATH is configured"
+
+
+def test_backup_endpoint_returns_error_when_not_configured(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test that the backup endpoint returns an error when GIT_BACKUP_PATH is not set."""
+    # Ensure GIT_BACKUP_PATH is not set
+    monkeypatch.delenv("GIT_BACKUP_PATH", raising=False)
+
+    # Try to trigger a backup
+    response: Response = client.post(url="/backup")
+
+    # Should redirect to index with error message
+    assert response.status_code == 200, f"Failed to post /backup: {response.text}"
+    assert "Git backup is not configured" in response.text or "GIT_BACKUP_PATH" in response.text, (
+        "Error message about backup not being configured should be shown"
+    )

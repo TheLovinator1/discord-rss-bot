@@ -131,6 +131,7 @@ templates.env.filters["encode_url"] = lambda url: urllib.parse.quote(url) if url
 templates.env.filters["entry_is_whitelisted"] = entry_is_whitelisted
 templates.env.filters["entry_is_blacklisted"] = entry_is_blacklisted
 templates.env.filters["discord_markdown"] = markdownify
+templates.env.globals["get_backup_path"] = get_backup_path
 
 
 @app.post("/add_webhook")
