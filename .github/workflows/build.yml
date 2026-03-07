@@ -36,7 +36,7 @@ jobs:
           cache-image: false
 
       # Set up Buildx so we can build multi-arch images
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       # Install the latest version of ruff
       - uses: astral-sh/ruff-action@v3
