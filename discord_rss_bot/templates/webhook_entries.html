@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}
+    | {{ webhook_name }} - Latest Entries
+{% endblock title %}
+{% block content %}
+    <div class="card mb-3 border border-dark p-3 text-light">
+        <!-- Webhook Title -->
+        <h2>{{ webhook_name }} - Latest Entries ({{ total_entries }} total from {{ feeds_count }} feeds)</h2>
+        <!-- Webhook Info -->
+        <div class="mt-3">
+            <p class="text-muted">
+                <code>{{ webhook_url }}</code>
+            </p>
+        </div>
+    </div>
+    {# Rendered HTML content #}
+    {% if entries %}
+        <pre>{{ html|safe }}</pre>
+        {% if is_show_more_entries_button_visible and last_entry %}
+            <a class="btn btn-dark mt-3"
+               href="/webhook_entries?webhook_url={{ webhook_url|encode_url }}&starting_after={{ last_entry.feed.url|encode_url }}|{{ last_entry.id|encode_url }}">
+                Show more entries
+            </a>
+        {% endif %}
+    {% elif feeds_count == 0 %}
+        <div>
+            <p>
+                No feeds found for {{ webhook_name }}. <a href="/add" class="alert-link">Add feeds</a> to this webhook to see entries here.
+            </p>
+        </div>
+    {% else %}
+        <div>
+            <p>
+                No entries found for {{ webhook_name }}. <a href="/settings" class="alert-link">Update feeds</a> to fetch new entries.
+            </p>
+        </div>
+    {% endif %}
+{% endblock content %}

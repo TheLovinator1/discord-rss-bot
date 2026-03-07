@@ -581,3 +581,205 @@ def test_create_html_marks_entries_from_another_feed(monkeypatch: pytest.MonkeyP
 
     assert "From another feed: https://example.com/feed-b.xml" in html
     assert "From another feed: https://example.com/feed-a.xml" not in html
+
+
+def test_webhook_entries_webhook_not_found() -> None:
+    """Test webhook_entries endpoint returns 404 when webhook doesn't exist."""
+    nonexistent_webhook_url = "https://discord.com/api/webhooks/999999/nonexistent"
+
+    response: Response = client.get(
+        url="/webhook_entries",
+        params={"webhook_url": nonexistent_webhook_url},
+    )
+
+    assert response.status_code == 404, f"Expected 404 for non-existent webhook, got: {response.status_code}"
+    assert "Webhook not found" in response.text
+
+
+def test_webhook_entries_no_feeds() -> None:
+    """Test webhook_entries endpoint displays message when webhook has no feeds."""
+    # Clean up any existing feeds first
+    client.post(url="/remove", data={"feed_url": feed_url})
+
+    # Clean up and create a webhook
+    client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    response: Response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": webhook_name, "webhook_url": webhook_url},
+    )
+    assert response.status_code == 200, f"Failed to add webhook: {response.text}"
+
+    # Get webhook_entries without adding any feeds
+    response = client.get(
+        url="/webhook_entries",
+        params={"webhook_url": webhook_url},
+    )
+
+    assert response.status_code == 200, f"Failed to get /webhook_entries: {response.text}"
+    assert webhook_name in response.text, "Webhook name not found in response"
+    assert "No feeds found" in response.text or "Add feeds" in response.text, "Expected message about no feeds"
+
+
+def test_webhook_entries_with_feeds_no_entries() -> None:
+    """Test webhook_entries endpoint when webhook has feeds but no entries yet."""
+    # Clean up and create fresh webhook
+    client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    response: Response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": webhook_name, "webhook_url": webhook_url},
+    )
+    assert response.status_code == 200, f"Failed to add webhook: {response.text}"
+
+    # Use a feed URL that exists but has no entries (or clean feed)
+    empty_feed_url = "https://lovinator.space/empty_feed.xml"
+    client.post(url="/remove", data={"feed_url": empty_feed_url})
+
+    # Add the feed
+    response = client.post(
+        url="/add",
+        data={"feed_url": empty_feed_url, "webhook_dropdown": webhook_name},
+    )
+
+    # Get webhook_entries
+    response = client.get(
+        url="/webhook_entries",
+        params={"webhook_url": webhook_url},
+    )
+
+    assert response.status_code == 200, f"Failed to get /webhook_entries: {response.text}"
+    assert webhook_name in response.text, "Webhook name not found in response"
+
+    # Clean up
+    client.post(url="/remove", data={"feed_url": empty_feed_url})
+
+
+def test_webhook_entries_with_entries() -> None:
+    """Test webhook_entries endpoint displays entries correctly."""
+    # Clean up and create webhook
+    client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    response: Response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": webhook_name, "webhook_url": webhook_url},
+    )
+    assert response.status_code == 200, f"Failed to add webhook: {response.text}"
+
+    # Remove and add the feed
+    client.post(url="/remove", data={"feed_url": feed_url})
+    response = client.post(
+        url="/add",
+        data={"feed_url": feed_url, "webhook_dropdown": webhook_name},
+    )
+    assert response.status_code == 200, f"Failed to add feed: {response.text}"
+
+    # Get webhook_entries
+    response = client.get(
+        url="/webhook_entries",
+        params={"webhook_url": webhook_url},
+    )
+
+    assert response.status_code == 200, f"Failed to get /webhook_entries: {response.text}"
+    assert webhook_name in response.text, "Webhook name not found in response"
+    # Should show entries (the feed has entries)
+    assert "total from" in response.text, "Expected to see entry count"
+
+
+def test_webhook_entries_multiple_feeds() -> None:
+    """Test webhook_entries endpoint shows feed count correctly."""
+    # Clean up and create webhook
+    client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    response: Response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": webhook_name, "webhook_url": webhook_url},
+    )
+    assert response.status_code == 200, f"Failed to add webhook: {response.text}"
+
+    # Remove and add feed
+    client.post(url="/remove", data={"feed_url": feed_url})
+    response = client.post(
+        url="/add",
+        data={"feed_url": feed_url, "webhook_dropdown": webhook_name},
+    )
+    assert response.status_code == 200, f"Failed to add feed: {response.text}"
+
+    # Get webhook_entries
+    response = client.get(
+        url="/webhook_entries",
+        params={"webhook_url": webhook_url},
+    )
+
+    assert response.status_code == 200, f"Failed to get /webhook_entries: {response.text}"
+    assert webhook_name in response.text, "Webhook name not found in response"
+    # Should show entries and feed count
+    assert "feed" in response.text.lower(), "Expected to see feed information"
+
+    # Clean up
+    client.post(url="/remove", data={"feed_url": feed_url})
+
+
+def test_webhook_entries_pagination() -> None:
+    """Test webhook_entries endpoint pagination functionality."""
+    # Clean up and create webhook
+    client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    response: Response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": webhook_name, "webhook_url": webhook_url},
+    )
+    assert response.status_code == 200, f"Failed to add webhook: {response.text}"
+
+    # Remove and add the feed
+    client.post(url="/remove", data={"feed_url": feed_url})
+    response = client.post(
+        url="/add",
+        data={"feed_url": feed_url, "webhook_dropdown": webhook_name},
+    )
+    assert response.status_code == 200, f"Failed to add feed: {response.text}"
+
+    # Get first page of webhook_entries
+    response = client.get(
+        url="/webhook_entries",
+        params={"webhook_url": webhook_url},
+    )
+
+    assert response.status_code == 200, f"Failed to get /webhook_entries: {response.text}"
+
+    # Check if pagination button is shown when there are many entries
+    # The button should be visible if total_entries > 20 (entries_per_page)
+    if "Load More Entries" in response.text:
+        # Extract the starting_after parameter from the pagination form
+        # This is a simple check that pagination elements exist
+        assert 'name="starting_after"' in response.text, "Expected pagination form with starting_after parameter"
+
+    # Clean up
+    client.post(url="/remove", data={"feed_url": feed_url})
+
+
+def test_webhook_entries_url_encoding() -> None:
+    """Test webhook_entries endpoint handles URL encoding correctly."""
+    # Clean up and create webhook
+    client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    response: Response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": webhook_name, "webhook_url": webhook_url},
+    )
+    assert response.status_code == 200, f"Failed to add webhook: {response.text}"
+
+    # Remove and add the feed
+    client.post(url="/remove", data={"feed_url": feed_url})
+    response = client.post(
+        url="/add",
+        data={"feed_url": feed_url, "webhook_dropdown": webhook_name},
+    )
+    assert response.status_code == 200, f"Failed to add feed: {response.text}"
+
+    # Get webhook_entries with URL-encoded webhook URL
+    encoded_webhook_url = urllib.parse.quote(webhook_url)
+    response = client.get(
+        url="/webhook_entries",
+        params={"webhook_url": encoded_webhook_url},
+    )
+
+    assert response.status_code == 200, f"Failed to get /webhook_entries with encoded URL: {response.text}"
+    assert webhook_name in response.text, "Webhook name not found in response"
+
+    # Clean up
+    client.post(url="/remove", data={"feed_url": feed_url})

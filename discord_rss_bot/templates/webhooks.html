@@ -1,55 +1,63 @@
 {% extends "base.html" %}
 {% block title %}
-| Webhooks
+    | Webhooks
 {% endblock title %}
 {% block content %}
-<div class="container my-4 text-light">
-    {% for hook in hooks_with_data %}
-    <div class="border border-dark mb-4 shadow-sm p-3">
-        <div class="text-muted">
-            <h4>{{ hook.custom_name }}</h4>
-            <ul class="list-unstyled">
-                <li>
-                    <strong>
-                        <abbr title="Name configured in Discord">
-                            Discord name:</strong> {{ hook.name }}
-                    </abbr>
-                </li>
-                <li>
-                    <strong>Webhook:</strong>
-                    <a class="text-muted"
-                        href="{{ hook.url }}">{{ hook.url | replace("https://discord.com/api/webhooks", "") }}</a>
-                </li>
-            </ul>
-            <hr>
-            <form action="/modify_webhook" method="post" class="row g-3">
-                <input type="hidden" name="old_hook" value="{{ hook.url }}" />
-                <div class="col-md-8">
-                    <label for="new_hook" class="form-label">Modify Webhook</label>
-                    <input type="text" name="new_hook" id="new_hook" class="form-control border text-muted bg-dark"
-                        placeholder="Enter new webhook URL" />
-
+    <div class="container my-4 text-light">
+        {% for hook in hooks_with_data %}
+            <div class="border border-dark mb-4 shadow-sm p-3">
+                <div class="text-muted">
+                    <h4>{{ hook.custom_name }}</h4>
+                    <ul class="list-unstyled">
+                        <li>
+                            <strong>
+                                <abbr title="Name configured in Discord">
+                                    Discord name:</strong> {{ hook.name }}
+                                </abbr>
+                            </li>
+                            <li>
+                                <strong>Webhook:</strong>
+                                <a class="text-muted" href="{{ hook.url }}">{{ hook.url | replace('https://discord.com/api/webhooks', '') }}</a>
+                            </li>
+                        </ul>
+                        <hr />
+                        <form action="/modify_webhook" method="post" class="row g-3">
+                            <input type="hidden" name="old_hook" value="{{ hook.url }}" />
+                            <div class="col-md-8">
+                                <label for="new_hook" class="form-label">Modify Webhook</label>
+                                <input type="text"
+                                       name="new_hook"
+                                       id="new_hook"
+                                       class="form-control border text-muted bg-dark"
+                                       placeholder="Enter new webhook URL" />
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <button type="submit" class="btn btn-primary w-100">Modify</button>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="d-flex justify-content-between mt-2 gap-2">
+                        <div>
+                            <a href="/webhook_entries?webhook_url={{ hook.url|encode_url }}"
+                               class="btn btn-info btn-sm">View Latest Entries</a>
+                        </div>
+                        <form action="/delete_webhook" method="post">
+                            <input type="hidden" name="webhook_url" value="{{ hook.url }}" />
+                            <button type="submit"
+                                    class="btn btn-danger"
+                                    onclick="return confirm('Are you sure you want to delete this webhook?');">
+                                Delete
+                            </button>
+                        </form>
+                    </div>
                 </div>
-                <div class="col-md-4 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary w-100">Modify</button>
-                </div>
-            </form>
+            {% endfor %}
+            <div class="border border-dark p-3">
+                You can append <code>?thread_id=THREAD_ID</code> to the URL to send messages to a thread.
+            </div>
+            <br />
+            <div class="text-end">
+                <a class="btn btn-primary mb-3" href="/add_webhook">Add New Webhook</a>
+            </div>
         </div>
-        <div class="d-flex justify-content-between mt-2">
-            <form action="/delete_webhook" method="post">
-                <input type="hidden" name="webhook_url" value="{{ hook.url }}" />
-                <button type="submit" class="btn btn-danger"
-                    onclick="return confirm('Are you sure you want to delete this webhook?');">Delete</button>
-            </form>
-        </div>
-    </div>
-    {% endfor %}
-    <div class="border border-dark p-3">
-        You can append <code>?thread_id=THREAD_ID</code> to the URL to send messages to a thread.
-    </div>
-    <br>
-    <div class="text-end">
-        <a class="btn btn-primary mb-3" href="/add_webhook">Add New Webhook</a>
-    </div>
-</div>
-{% endblock content %}
+    {% endblock content %}
