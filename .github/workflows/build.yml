@@ -1,4 +1,15 @@
 ---
+# Required setup for self-hosted runner:
+# 1. Install dependencies:
+#         sudo pacman -S qemu-user-static qemu-user-static-binfmt docker
+# 2. Add runner to docker group:
+#         sudo usermod -aG docker forgejo-runner
+# 3. Restart runner service to apply group membership:
+#         sudo systemctl restart forgejo-runner
+# 4. Install uv and ruff for the runner user
+# 5. Login to GitHub Container Registry:
+#         echo "ghp_YOUR_TOKEN_HERE" | sudo -u forgejo-runner docker login ghcr.io -u TheLovinator1 --password-stdin
+
 name: Test and build Docker image
 on:
   push:
@@ -7,41 +18,34 @@ on:
   pull_request:
   workflow_dispatch:
   schedule:
-    - cron: "0 15 * * 0"
+    - cron: "0 0 1 * *"
 
 env:
   TEST_WEBHOOK_URL: ${{ secrets.TEST_WEBHOOK_URL }}
 
 jobs:
   docker:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
-      # GitHub Container Registry
-      - uses: docker/login-action@v4
-        if: github.event_name != 'pull_request'
-        with:
-          registry: ghcr.io
-          username: thelovinator1
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       # Download the latest commit from the master branch
       - uses: actions/checkout@v6
 
-      # Set up QEMU
-      - id: qemu
-        uses: docker/setup-qemu-action@v4
-        with:
-          image: tonistiigi/binfmt:master
-          platforms: linux/amd64,linux/arm64
-          cache-image: false
+      # Verify local tools are available on the self-hosted runner
+      - name: Check local toolchain
+        run: |
+          python --version
+          uv --version
+          ruff --version
+          docker version
 
-      # Set up Buildx so we can build multi-arch images
-      - uses: docker/setup-buildx-action@v4
-
-      # Install the latest version of ruff
-      - uses: astral-sh/ruff-action@v3
-        with:
-          version: "latest"
+      # Bootstrap a local Buildx builder for multi-arch builds
+      # (requires qemu-user-static and qemu-user-static-binfmt installed via pacman)
+      - name: Configure local buildx for multi-arch
+        run: |
+          docker buildx inspect local-multiarch-builder >/dev/null 2>&1 || \
+            docker buildx create --name local-multiarch-builder --driver docker-container
+          docker buildx use local-multiarch-builder
+          docker buildx inspect --bootstrap
 
       # Lint the Python code using ruff
       - run: ruff check --exit-non-zero-on-fix --verbose
@@ -52,38 +56,37 @@ jobs:
       # Lint Dockerfile
       - run: docker build --check .
 
-      # Set up Python 3.13
-      - uses: actions/setup-python@v6
-        with:
-          python-version: 3.14
-
       # Install dependencies
-      - uses: astral-sh/setup-uv@v7
-        with:
-          version: "latest"
       - run: uv sync --all-extras --all-groups
 
       # Run tests
       - run: uv run pytest
 
-      # Extract metadata (tags, labels) from Git reference and GitHub events for Docker
-      - id: meta
-        uses: docker/metadata-action@v6
-        env:
-          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
-        with:
-          images: |
-            ghcr.io/thelovinator1/discord-rss-bot
-          tags: |
-            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'master') }}
-            type=raw,value=master,enable=${{ github.ref == format('refs/heads/{0}', 'master') }}
+      # Compute image tags
+      - id: tags
+        name: Compute image tags
+        run: |
+          IMAGE="ghcr.io/thelovinator1/discord-rss-bot"
+          if [ "${FORGEJO_REF}" = "refs/heads/master" ]; then
+            echo "tags=${IMAGE}:latest,${IMAGE}:master" >> "$FORGEJO_OUTPUT"
+          else
+            SHORT_SHA="$(echo "$FORGEJO_SHA" | cut -c1-12)"
+            echo "tags=${IMAGE}:sha-${SHORT_SHA}" >> "$FORGEJO_OUTPUT"
+          fi
 
-     # Build and push the Docker image
-      - uses: docker/build-push-action@v7
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
-          labels: ${{ steps.meta.outputs.labels }}
-          tags: ${{ steps.meta.outputs.tags }}
-          annotations: ${{ steps.meta.outputs.annotations }}
+      # Build (and optionally push) Docker image
+      - name: Build and push Docker image
+        env:
+          TAGS: ${{ steps.tags.outputs.tags }}
+        run: |
+          IFS=',' read -r -a tag_array <<< "$TAGS"
+          tag_args=()
+          for tag in "${tag_array[@]}"; do
+            tag_args+=( -t "$tag" )
+          done
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            docker buildx build --platform linux/amd64,linux/arm64 "${tag_args[@]}" --load .
+          else
+            docker buildx build --platform linux/amd64,linux/arm64 "${tag_args[@]}" --push .
+          fi
