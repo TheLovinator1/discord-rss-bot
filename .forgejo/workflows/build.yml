@@ -1,7 +1,7 @@
 ---
 # Required setup for self-hosted runner:
 # 1. Install dependencies:
-#         sudo pacman -S qemu-user-static qemu-user-static-binfmt docker
+#         sudo pacman -S qemu-user-static qemu-user-static-binfmt docker docker-buildx
 # 2. Add runner to docker group:
 #         sudo usermod -aG docker forgejo-runner
 # 3. Restart runner service to apply group membership:
@@ -19,9 +19,6 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "0 0 1 * *"
-
-env:
-  TEST_WEBHOOK_URL: ${{ secrets.TEST_WEBHOOK_URL }}
 
 jobs:
   docker:
@@ -47,22 +44,21 @@ jobs:
           docker buildx use local-multiarch-builder
           docker buildx inspect --bootstrap
 
-      # Lint the Python code using ruff
-      - run: ruff check --exit-non-zero-on-fix --verbose
+      - name: Lint Python code
+        run: ruff check --exit-non-zero-on-fix --verbose
 
-      # Check if the Python code needs formatting
-      - run: ruff format --check --verbose
+      - name: Check Python formatting
+        run: ruff format --check --verbose
 
-      # Lint Dockerfile
-      - run: docker build --check .
+      - name: Lint Dockerfile
+        run: docker build --check .
 
-      # Install dependencies
-      - run: uv sync --all-extras --all-groups
+      - name: Install dependencies
+        run: uv sync --all-extras --all-groups
 
-      # Run tests
-      - run: uv run pytest
+      - name: Run tests
+        run: uv run pytest
 
-      # Compute image tags
       - id: tags
         name: Compute image tags
         run: |
@@ -85,7 +81,7 @@ jobs:
             tag_args+=( -t "$tag" )
           done
 
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
+          if [ "${{ forge.event_name }}" = "pull_request" ]; then
             docker buildx build --platform linux/amd64,linux/arm64 "${tag_args[@]}" --load .
           else
             docker buildx build --platform linux/amd64,linux/arm64 "${tag_args[@]}" --push .
