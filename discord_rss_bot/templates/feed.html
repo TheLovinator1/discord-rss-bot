@@ -79,7 +79,6 @@
         <!-- Feed URL Configuration -->
         <div class="mt-4 border-top border-secondary pt-3">
             <h5 class="mb-3">Feed URL</h5>
-            <p class="text-muted mb-2">Change the URL for this feed. This can be useful if a feed has moved.</p>
             <form action="/change_feed_url" method="post" class="mb-2">
                 <input type="hidden" name="old_feed_url" value="{{ feed.url }}" />
                 <div class="input-group input-group-sm mb-2">
@@ -115,32 +114,43 @@
         </div>
         <!-- Update Interval Configuration -->
         <div class="mt-4 border-top border-secondary pt-3">
-            <h5 class="mb-3">Update Interval</h5>
-            {% if feed_interval %}
-                <p class="text-muted mb-2">
-                    Current: <strong>{{ feed_interval }} minutes</strong>
+            <h5 class="mb-3">
+                Update Interval <span class="badge
+              {% if feed_interval %}
+                  bg-info
+              {% else %}
+                  bg-secondary
+              {% endif %}">
+                {% if feed_interval %}
+                    Custom
+                {% else %}
+                    Using global default
+                {% endif %}
+            </span>
+        </h5>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="text-muted">Current: <strong>
+                {% if feed_interval %}
+                    {{ feed_interval }}
                     {% if feed_interval >= 60 %}({{ (feed_interval / 60) | round(1) }} hours){% endif %}
-                    <span class="badge bg-info">Custom</span>
-                </p>
-            {% else %}
-                <p class="text-muted mb-2">
-                    Current: <strong>{{ global_interval }} minutes</strong>
+                {% else %}
+                    {{ global_interval }}
                     {% if global_interval >= 60 %}({{ (global_interval / 60) | round(1) }} hours){% endif %}
-                    <span class="badge bg-secondary">Using global default</span>
-                </p>
-            {% endif %}
-            <form action="/set_update_interval" method="post" class="mb-2">
+                {% endif %}
+            minutes</strong></span>
+            <form action="/set_update_interval"
+                  method="post"
+                  class="d-inline-flex gap-2 align-items-center">
                 <input type="hidden" name="feed_url" value="{{ feed.url }}" />
-                <div class="input-group input-group-sm mb-2">
-                    <input type="number"
-                           class="form-control form-control-sm interval-input"
-                           name="interval_minutes"
-                           placeholder="Minutes"
-                           min="1"
-                           value="{{ feed_interval if feed_interval else global_interval }}"
-                           required />
-                    <button class="btn btn-primary" type="submit">Set Interval</button>
-                </div>
+                <input type="number"
+                       class="form-control form-control-sm interval-input"
+                       style="width: 100px"
+                       name="interval_minutes"
+                       placeholder="Minutes"
+                       min="1"
+                       value="{{ feed_interval if feed_interval else global_interval }}"
+                       required />
+                <button class="btn btn-primary btn-sm" type="submit">Set Interval</button>
             </form>
             {% if feed_interval %}
                 <form action="/reset_update_interval" method="post" class="d-inline">
@@ -150,12 +160,13 @@
             {% endif %}
         </div>
     </div>
-    {# Rendered HTML content #}
-    <pre>{{ html|safe }}</pre>
-    {% if is_show_more_entries_button_visible %}
-        <a class="btn btn-dark mt-3"
-           href="/feed?feed_url={{ feed.url|encode_url }}&starting_after={{ last_entry.id|encode_url }}">
-            Show more entries
-        </a>
-    {% endif %}
+</div>
+{# Rendered HTML content #}
+<pre>{{ html|safe }}</pre>
+{% if is_show_more_entries_button_visible %}
+    <a class="btn btn-dark mt-3"
+       href="/feed?feed_url={{ feed.url|encode_url }}&starting_after={{ last_entry.id|encode_url }}">
+        Show more entries
+    </a>
+{% endif %}
 {% endblock content %}
