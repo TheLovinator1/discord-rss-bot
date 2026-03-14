@@ -3,6 +3,7 @@ from __future__ import annotations
 import html
 import json
 import logging
+import re
 from dataclasses import dataclass
 
 from bs4 import BeautifulSoup
@@ -17,6 +18,8 @@ from discord_rss_bot.is_url_valid import is_url_valid
 from discord_rss_bot.settings import get_reader
 
 logger: logging.Logger = logging.getLogger(__name__)
+
+DISCORD_TIMESTAMP_TAG_RE: re.Pattern[str] = re.compile(r"<t:\d+(?::[tTdDfFrRsS])?>")
 
 
 @dataclass(slots=True)
@@ -51,6 +54,68 @@ def try_to_replace(custom_message: str, template: str, replace_with: str) -> str
         return custom_message
 
 
+def _preserve_discord_timestamp_tags(text: str) -> tuple[str, dict[str, str]]:
+    """Replace Discord timestamp tags with placeholders before markdown conversion.
+
+    Args:
+        text: The text to replace tags in.
+
+    Returns:
+        The text with Discord timestamp tags replaced by placeholders and a mapping of placeholders to original tags.
+    """
+    replacements: dict[str, str] = {}
+
+    def replace_match(match: re.Match[str]) -> str:
+        placeholder: str = f"DISCORDTIMESTAMPPLACEHOLDER{len(replacements)}"
+        replacements[placeholder] = match.group(0)
+        return placeholder
+
+    return DISCORD_TIMESTAMP_TAG_RE.sub(replace_match, text), replacements
+
+
+def _restore_discord_timestamp_tags(text: str, replacements: dict[str, str]) -> str:
+    """Restore preserved Discord timestamp tags after markdown conversion.
+
+    Args:
+        text: The text to restore tags in.
+        replacements: A mapping of placeholders to original Discord timestamp tags.
+
+    Returns:
+        The text with placeholders replaced by the original Discord timestamp tags.
+    """
+    for placeholder, original_value in replacements.items():
+        text = text.replace(placeholder, original_value)
+    return text
+
+
+def format_entry_html_for_discord(text: str) -> str:
+    """Convert entry HTML to Discord-friendly markdown while preserving Discord timestamp tags.
+
+    Args:
+        text: The HTML text to format.
+
+    Returns:
+        The formatted text with Discord timestamp tags preserved.
+    """
+    if not text:
+        return ""
+
+    unescaped_text: str = html.unescape(text)
+    protected_text, replacements = _preserve_discord_timestamp_tags(unescaped_text)
+    formatted_text: str = markdownify(
+        html=protected_text,
+        strip=["img", "table", "td", "tr", "tbody", "thead"],
+        escape_misc=False,
+        heading_style="ATX",
+    )
+
+    if "[https://" in formatted_text or "[https://www." in formatted_text:
+        formatted_text = formatted_text.replace("[https://", "[")
+        formatted_text = formatted_text.replace("[https://www.", "[")
+
+    return _restore_discord_timestamp_tags(formatted_text, replacements)
+
+
 def replace_tags_in_text_message(entry: Entry) -> str:
     """Replace tags in custom_message.
 
@@ -73,30 +138,8 @@ def replace_tags_in_text_message(entry: Entry) -> str:
 
     first_image: str = get_first_image(summary, content)
 
-    # Unescape HTML entities (e.g., &lt;h1&gt; becomes <h1>) before converting to markdown
-    summary = html.unescape(summary)
-    content = html.unescape(content)
-
-    summary = markdownify(
-        html=summary,
-        strip=["img", "table", "td", "tr", "tbody", "thead"],
-        escape_misc=False,
-        heading_style="ATX",
-    )
-    content = markdownify(
-        html=content,
-        strip=["img", "table", "td", "tr", "tbody", "thead"],
-        escape_misc=False,
-        heading_style="ATX",
-    )
-
-    if "[https://" in content or "[https://www." in content:
-        content = content.replace("[https://", "[")
-        content = content.replace("[https://www.", "[")
-
-    if "[https://" in summary or "[https://www." in summary:
-        summary = summary.replace("[https://", "[")
-        summary = summary.replace("[https://www.", "[")
+    summary = format_entry_html_for_discord(summary)
+    content = format_entry_html_for_discord(content)
 
     feed_added: str = feed.added.strftime("%Y-%m-%d %H:%M:%S") if feed.added else "Never"
     feed_last_exception: str = feed.last_exception.value_str if feed.last_exception else ""
@@ -208,30 +251,8 @@ def replace_tags_in_embed(feed: Feed, entry: Entry) -> CustomEmbed:
 
     first_image: str = get_first_image(summary, content)
 
-    # Unescape HTML entities (e.g., &lt;h1&gt; becomes <h1>) before converting to markdown
-    summary = html.unescape(summary)
-    content = html.unescape(content)
-
-    summary = markdownify(
-        html=summary,
-        strip=["img", "table", "td", "tr", "tbody", "thead"],
-        escape_misc=False,
-        heading_style="ATX",
-    )
-    content = markdownify(
-        html=content,
-        strip=["img", "table", "td", "tr", "tbody", "thead"],
-        escape_misc=False,
-        heading_style="ATX",
-    )
-
-    if "[https://" in content or "[https://www." in content:
-        content = content.replace("[https://", "[")
-        content = content.replace("[https://www.", "[")
-
-    if "[https://" in summary or "[https://www." in summary:
-        summary = summary.replace("[https://", "[")
-        summary = summary.replace("[https://www.", "[")
+    summary = format_entry_html_for_discord(summary)
+    content = format_entry_html_for_discord(content)
 
     feed_added: str = feed.added.strftime("%Y-%m-%d %H:%M:%S") if feed.added else "Never"
     feed_last_updated: str = feed.last_updated.strftime("%Y-%m-%d %H:%M:%S") if feed.last_updated else "Never"
