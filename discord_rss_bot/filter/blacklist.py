@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from reader import Reader
 
 
-def feed_has_blacklist_tags(custom_reader: Reader, feed: Feed) -> bool:
+def feed_has_blacklist_tags(reader: Reader, feed: Feed) -> bool:
     """Return True if the feed has blacklist tags.
 
     The following tags are checked:
@@ -25,21 +25,21 @@ def feed_has_blacklist_tags(custom_reader: Reader, feed: Feed) -> bool:
     - regex_blacklist_title
 
     Args:
-        custom_reader: The reader.
+        reader: The reader.
         feed: The feed to check.
 
     Returns:
         bool: If the feed has any of the tags.
     """
-    blacklist_author: str = str(custom_reader.get_tag(feed, "blacklist_author", "")).strip()
-    blacklist_content: str = str(custom_reader.get_tag(feed, "blacklist_content", "")).strip()
-    blacklist_summary: str = str(custom_reader.get_tag(feed, "blacklist_summary", "")).strip()
-    blacklist_title: str = str(custom_reader.get_tag(feed, "blacklist_title", "")).strip()
+    blacklist_author: str = str(reader.get_tag(feed, "blacklist_author", "")).strip()
+    blacklist_content: str = str(reader.get_tag(feed, "blacklist_content", "")).strip()
+    blacklist_summary: str = str(reader.get_tag(feed, "blacklist_summary", "")).strip()
+    blacklist_title: str = str(reader.get_tag(feed, "blacklist_title", "")).strip()
 
-    regex_blacklist_author: str = str(custom_reader.get_tag(feed, "regex_blacklist_author", "")).strip()
-    regex_blacklist_content: str = str(custom_reader.get_tag(feed, "regex_blacklist_content", "")).strip()
-    regex_blacklist_summary: str = str(custom_reader.get_tag(feed, "regex_blacklist_summary", "")).strip()
-    regex_blacklist_title: str = str(custom_reader.get_tag(feed, "regex_blacklist_title", "")).strip()
+    regex_blacklist_author: str = str(reader.get_tag(feed, "regex_blacklist_author", "")).strip()
+    regex_blacklist_content: str = str(reader.get_tag(feed, "regex_blacklist_content", "")).strip()
+    regex_blacklist_summary: str = str(reader.get_tag(feed, "regex_blacklist_summary", "")).strip()
+    regex_blacklist_title: str = str(reader.get_tag(feed, "regex_blacklist_title", "")).strip()
 
     return bool(
         blacklist_title
@@ -53,11 +53,11 @@ def feed_has_blacklist_tags(custom_reader: Reader, feed: Feed) -> bool:
     )
 
 
-def entry_should_be_skipped(custom_reader: Reader, entry: Entry) -> bool:  # noqa: PLR0911
+def entry_should_be_skipped(reader: Reader, entry: Entry) -> bool:  # noqa: PLR0911
     """Return True if the entry is in the blacklist.
 
     Args:
-        custom_reader: The reader.
+        reader: The reader.
         entry: The entry to check.
 
     Returns:
@@ -65,15 +65,15 @@ def entry_should_be_skipped(custom_reader: Reader, entry: Entry) -> bool:  # noq
     """
     feed = entry.feed
 
-    blacklist_title: str = str(custom_reader.get_tag(feed, "blacklist_title", "")).strip()
-    blacklist_summary: str = str(custom_reader.get_tag(feed, "blacklist_summary", "")).strip()
-    blacklist_content: str = str(custom_reader.get_tag(feed, "blacklist_content", "")).strip()
-    blacklist_author: str = str(custom_reader.get_tag(feed, "blacklist_author", "")).strip()
+    blacklist_title: str = str(reader.get_tag(feed, "blacklist_title", "")).strip()
+    blacklist_summary: str = str(reader.get_tag(feed, "blacklist_summary", "")).strip()
+    blacklist_content: str = str(reader.get_tag(feed, "blacklist_content", "")).strip()
+    blacklist_author: str = str(reader.get_tag(feed, "blacklist_author", "")).strip()
 
-    regex_blacklist_title: str = str(custom_reader.get_tag(feed, "regex_blacklist_title", "")).strip()
-    regex_blacklist_summary: str = str(custom_reader.get_tag(feed, "regex_blacklist_summary", "")).strip()
-    regex_blacklist_content: str = str(custom_reader.get_tag(feed, "regex_blacklist_content", "")).strip()
-    regex_blacklist_author: str = str(custom_reader.get_tag(feed, "regex_blacklist_author", "")).strip()
+    regex_blacklist_title: str = str(reader.get_tag(feed, "regex_blacklist_title", "")).strip()
+    regex_blacklist_summary: str = str(reader.get_tag(feed, "regex_blacklist_summary", "")).strip()
+    regex_blacklist_content: str = str(reader.get_tag(feed, "regex_blacklist_content", "")).strip()
+    regex_blacklist_author: str = str(reader.get_tag(feed, "regex_blacklist_author", "")).strip()
     # TODO(TheLovinator): Also add support for entry_text and more.
 
     # Check regular blacklist

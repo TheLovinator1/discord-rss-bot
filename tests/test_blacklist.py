@@ -38,7 +38,7 @@ def test_has_black_tags() -> None:
 
     # Test feed without any blacklist tags
     assert_msg: str = "Feed should not have any blacklist tags"
-    assert feed_has_blacklist_tags(custom_reader=get_reader(), feed=feed) is False, assert_msg
+    assert feed_has_blacklist_tags(reader=get_reader(), feed=feed) is False, assert_msg
 
     check_if_has_tag(reader, feed, "blacklist_title")
     check_if_has_tag(reader, feed, "blacklist_summary")
@@ -58,11 +58,11 @@ def test_has_black_tags() -> None:
 def check_if_has_tag(reader: Reader, feed: Feed, blacklist_name: str) -> None:
     reader.set_tag(feed, blacklist_name, "a")  # pyright: ignore[reportArgumentType]
     assert_msg: str = f"Feed should have blacklist tags: {blacklist_name}"
-    assert feed_has_blacklist_tags(custom_reader=reader, feed=feed) is True, assert_msg
+    assert feed_has_blacklist_tags(reader=reader, feed=feed) is True, assert_msg
 
     asset_msg: str = f"Feed should not have any blacklist tags: {blacklist_name}"
     reader.delete_tag(feed, blacklist_name)
-    assert feed_has_blacklist_tags(custom_reader=reader, feed=feed) is False, asset_msg
+    assert feed_has_blacklist_tags(reader=reader, feed=feed) is False, asset_msg
 
 
 def test_should_be_skipped() -> None:

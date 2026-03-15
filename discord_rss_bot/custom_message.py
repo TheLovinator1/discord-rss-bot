@@ -12,7 +12,6 @@ from bs4 import Tag
 from markdownify import markdownify
 
 from discord_rss_bot.is_url_valid import is_url_valid
-from discord_rss_bot.settings import get_reader
 
 if TYPE_CHECKING:
     from reader import Entry
@@ -118,18 +117,18 @@ def format_entry_html_for_discord(text: str) -> str:
     return _restore_discord_timestamp_tags(formatted_text, replacements)
 
 
-def replace_tags_in_text_message(entry: Entry) -> str:
+def replace_tags_in_text_message(entry: Entry, reader: Reader) -> str:
     """Replace tags in custom_message.
 
     Args:
         entry: The entry to get the tags from.
+        reader: Custom Reader instance.
 
     Returns:
         Returns the custom_message with the tags replaced.
     """
     feed: Feed = entry.feed
-    custom_reader: Reader = get_reader()
-    custom_message: str = get_custom_message(feed=feed, custom_reader=custom_reader)
+    custom_message: str = get_custom_message(feed=feed, reader=reader)
 
     content = ""
     if entry.content:
@@ -231,18 +230,18 @@ def get_first_image(summary: str | None, content: str | None) -> str:
     return ""
 
 
-def replace_tags_in_embed(feed: Feed, entry: Entry) -> CustomEmbed:
+def replace_tags_in_embed(feed: Feed, entry: Entry, reader: Reader) -> CustomEmbed:
     """Replace tags in embed.
 
     Args:
         feed: The feed to get the tags from.
         entry: The entry to get the tags from.
+        reader: Custom Reader instance.
 
     Returns:
         Returns the embed with the tags replaced.
     """
-    custom_reader: Reader = get_reader()
-    embed: CustomEmbed = get_embed(feed=feed, custom_reader=custom_reader)
+    embed: CustomEmbed = get_embed(feed=feed, reader=reader)
 
     content = ""
     if entry.content:
@@ -333,29 +332,29 @@ def _replace_embed_tags(embed: CustomEmbed, template: str, replace_with: str) ->
     embed.footer_icon_url = try_to_replace(embed.footer_icon_url, template, replace_with)
 
 
-def get_custom_message(custom_reader: Reader, feed: Feed) -> str:
+def get_custom_message(reader: Reader, feed: Feed) -> str:
     """Get custom_message tag from feed.
 
     Args:
-        custom_reader: What Reader to use.
+        reader: What Reader to use.
         feed: The feed to get the tag from.
 
     Returns:
         Returns the contents from the custom_message tag.
     """
     try:
-        custom_message: str = str(custom_reader.get_tag(feed, "custom_message", ""))
+        custom_message: str = str(reader.get_tag(feed, "custom_message", ""))
     except ValueError:
         custom_message = ""
 
     return custom_message
 
 
-def save_embed(custom_reader: Reader, feed: Feed, embed: CustomEmbed) -> None:
+def save_embed(reader: Reader, feed: Feed, embed: CustomEmbed) -> None:
     """Set embed tag in feed.
 
     Args:
-        custom_reader: What Reader to use.
+        reader: What Reader to use.
         feed: The feed to set the tag in.
         embed: The embed to set.
     """
@@ -371,20 +370,20 @@ def save_embed(custom_reader: Reader, feed: Feed, embed: CustomEmbed) -> None:
         "footer_text": embed.footer_text,
         "footer_icon_url": embed.footer_icon_url,
     }
-    custom_reader.set_tag(feed, "embed", json.dumps(embed_dict))  # pyright: ignore[reportArgumentType]
+    reader.set_tag(feed, "embed", json.dumps(embed_dict))  # pyright: ignore[reportArgumentType]
 
 
-def get_embed(custom_reader: Reader, feed: Feed) -> CustomEmbed:
+def get_embed(reader: Reader, feed: Feed) -> CustomEmbed:
     """Get embed tag from feed.
 
     Args:
-        custom_reader: What Reader to use.
+        reader: What Reader to use.
         feed: The feed to get the tag from.
 
     Returns:
         Returns the contents from the embed tag.
     """
-    embed = custom_reader.get_tag(feed, "embed", "")
+    embed = reader.get_tag(feed, "embed", "")
 
     if embed:
         if not isinstance(embed, str):

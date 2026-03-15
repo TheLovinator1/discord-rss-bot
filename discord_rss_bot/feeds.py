@@ -96,26 +96,26 @@ def extract_domain(url: str) -> str:  # noqa: PLR0911
         return "Other"
 
 
-def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None) -> str | None:  # noqa: C901
+def send_entry_to_discord(entry: Entry, reader: Reader | None = None) -> str | None:  # noqa: C901
     """Send a single entry to Discord.
 
     Args:
         entry: The entry to send to Discord.
-        custom_reader: The reader to use. If None, the default reader will be used.
+        reader: The reader to use. If None, the default reader will be used.
 
     Returns:
         str | None: The error message if there was an error, otherwise None.
     """
     # Get the default reader if we didn't get a custom one.
-    reader: Reader = get_reader() if custom_reader is None else custom_reader
+    effective_reader: Reader = get_reader() if reader is None else reader
 
     # Get the webhook URL for the entry.
-    webhook_url: str = str(reader.get_tag(entry.feed_url, "webhook", ""))
+    webhook_url: str = str(effective_reader.get_tag(entry.feed_url, "webhook", ""))
     if not webhook_url:
         return "No webhook URL found."
 
     # If https://discord.com/quests/<quest_id> is in the URL, send a separate message with the URL.
-    send_discord_quest_notification(entry, webhook_url)
+    send_discord_quest_notification(entry, webhook_url, reader=effective_reader)
 
     # Check if this is a c3kay feed
     if is_c3kay_feed(entry.feed.url):
@@ -126,7 +126,7 @@ def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None) -> 
                 post_data: dict[str, Any] | None = fetch_hoyolab_post(post_id)
                 if post_data:
                     webhook = create_hoyolab_webhook(webhook_url, entry, post_data)
-                    execute_webhook(webhook, entry)
+                    execute_webhook(webhook, entry, reader=effective_reader)
                     return None
                 logger.warning(
                     "Failed to create Hoyolab webhook for feed %s, falling back to regular processing",
@@ -139,15 +139,15 @@ def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None) -> 
 
     # Try to get the custom message for the feed. If the user has none, we will use the default message.
     # This has to be a string for some reason so don't change it to "not custom_message.get_custom_message()"
-    if get_custom_message(reader, entry.feed) != "":  # noqa: PLC1901
-        webhook_message: str = replace_tags_in_text_message(entry=entry)
+    if get_custom_message(effective_reader, entry.feed) != "":  # noqa: PLC1901
+        webhook_message: str = replace_tags_in_text_message(entry=entry, reader=effective_reader)
 
     if not webhook_message:
         webhook_message = "No message found."
 
     # Create the webhook.
     try:
-        should_send_embed = bool(reader.get_tag(entry.feed, "should_send_embed", True))
+        should_send_embed = bool(effective_reader.get_tag(entry.feed, "should_send_embed", True))
     except StorageError:
         logger.exception("Error getting should_send_embed tag for feed: %s", entry.feed.url)
         should_send_embed = True
@@ -157,15 +157,15 @@ def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None) -> 
         should_send_embed = False
 
     if should_send_embed:
-        webhook = create_embed_webhook(webhook_url, entry)
+        webhook = create_embed_webhook(webhook_url, entry, reader=effective_reader)
     else:
         webhook: DiscordWebhook = DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)
 
-    execute_webhook(webhook, entry)
+    execute_webhook(webhook, entry, reader=effective_reader)
     return None
 
 
-def send_discord_quest_notification(entry: Entry, webhook_url: str) -> None:
+def send_discord_quest_notification(entry: Entry, webhook_url: str, reader: Reader) -> None:
     """Send a separate message to Discord if the entry is a quest notification."""
     quest_regex: re.Pattern[str] = re.compile(r"https://discord\.com/quests/\d+")
 
@@ -177,7 +177,7 @@ def send_discord_quest_notification(entry: Entry, webhook_url: str) -> None:
             content=quest_url,
             rate_limit_retry=True,
         )
-        execute_webhook(webhook, entry)
+        execute_webhook(webhook, entry, reader=reader)
 
     # Iterate through the content of the entry
     for content in entry.content:
@@ -235,12 +235,17 @@ def set_title(custom_embed: CustomEmbed, discord_embed: DiscordEmbed) -> None:
     discord_embed.set_title(embed_title) if embed_title else None
 
 
-def create_embed_webhook(webhook_url: str, entry: Entry) -> DiscordWebhook:  # noqa: C901
+def create_embed_webhook(  # noqa: C901
+    webhook_url: str,
+    entry: Entry,
+    reader: Reader,
+) -> DiscordWebhook:
     """Create a webhook with an embed.
 
     Args:
         webhook_url (str): The webhook URL.
         entry (Entry): The entry to send to Discord.
+        reader (Reader): The Reader instance to use for getting embed data.
 
     Returns:
         DiscordWebhook: The webhook with the embed.
@@ -249,7 +254,7 @@ def create_embed_webhook(webhook_url: str, entry: Entry) -> DiscordWebhook:  # n
     feed: Feed = entry.feed
 
     # Get the embed data from the database.
-    custom_embed: CustomEmbed = replace_tags_in_embed(feed=feed, entry=entry)
+    custom_embed: CustomEmbed = replace_tags_in_embed(feed=feed, entry=entry, reader=reader)
 
     discord_embed: DiscordEmbed = DiscordEmbed()
 
@@ -337,53 +342,53 @@ def set_entry_as_read(reader: Reader, entry: Entry) -> None:
         logger.exception("Error setting entry to read: %s", entry.id)
 
 
-def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = None, *, do_once: bool = False) -> None:  # noqa: C901, PLR0912
+def send_to_discord(reader: Reader | None = None, feed: Feed | None = None, *, do_once: bool = False) -> None:  # noqa: C901, PLR0912
     """Send entries to Discord.
 
     If response was not ok, we will log the error and mark the entry as unread, so it will be sent again next time.
 
     Args:
-        custom_reader: If we should use a custom reader instead of the default one.
+        reader: If we should use a custom reader instead of the default one.
         feed: The feed to send to Discord.
         do_once: If we should only send one entry. This is used in the test.
     """
     logger.info("Starting to send entries to Discord.")
     # Get the default reader if we didn't get a custom one.
-    reader: Reader = get_reader() if custom_reader is None else custom_reader
+    effective_reader: Reader = get_reader() if reader is None else reader
 
     # Check for new entries for every feed.
-    reader.update_feeds(
+    effective_reader.update_feeds(
         scheduled=True,
         workers=os.cpu_count() or 1,
     )
 
     # Loop through the unread entries.
-    entries: Iterable[Entry] = reader.get_entries(feed=feed, read=False)
+    entries: Iterable[Entry] = effective_reader.get_entries(feed=feed, read=False)
     for entry in entries:
-        set_entry_as_read(reader, entry)
+        set_entry_as_read(effective_reader, entry)
 
         if entry.added < datetime.datetime.now(tz=entry.added.tzinfo) - datetime.timedelta(days=1):
             logger.info("Entry is older than 24 hours: %s from %s", entry.id, entry.feed.url)
             continue
 
-        webhook_url: str = get_webhook_url(reader, entry)
+        webhook_url: str = get_webhook_url(effective_reader, entry)
         if not webhook_url:
             logger.info("No webhook URL found for feed: %s", entry.feed.url)
             continue
 
-        should_send_embed: bool = should_send_embed_check(reader, entry)
+        should_send_embed: bool = should_send_embed_check(effective_reader, entry)
 
         # Youtube feeds only need to send the link
         if is_youtube_feed(entry.feed.url):
             should_send_embed = False
 
         if should_send_embed:
-            webhook = create_embed_webhook(webhook_url, entry)
+            webhook = create_embed_webhook(webhook_url, entry, reader=effective_reader)
         else:
             # If the user has set the custom message to an empty string, we will use the default message, otherwise we
             # will use the custom message.
-            if get_custom_message(reader, entry.feed) != "":  # noqa: PLC1901
-                webhook_message = replace_tags_in_text_message(entry)
+            if get_custom_message(effective_reader, entry.feed) != "":  # noqa: PLC1901
+                webhook_message = replace_tags_in_text_message(entry, reader=effective_reader)
             else:
                 webhook_message: str = str(default_custom_message)
 
@@ -393,12 +398,12 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
             webhook: DiscordWebhook = DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)
 
         # Check if the entry is blacklisted, and if it is, we will skip it.
-        if entry_should_be_skipped(reader, entry):
+        if entry_should_be_skipped(effective_reader, entry):
             logger.info("Entry was blacklisted: %s", entry.id)
             continue
 
         # Check if the feed has a whitelist, and if it does, check if the entry is whitelisted.
-        if has_white_tags(reader, entry.feed) and not should_be_sent(reader, entry):
+        if has_white_tags(effective_reader, entry.feed) and not should_be_sent(effective_reader, entry):
             logger.info("Entry was not whitelisted: %s", entry.id)
             continue
 
@@ -411,7 +416,7 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
                     post_data: dict[str, Any] | None = fetch_hoyolab_post(post_id)
                     if post_data:
                         webhook = create_hoyolab_webhook(webhook_url, entry, post_data)
-                        execute_webhook(webhook, entry)
+                        execute_webhook(webhook, entry, reader=effective_reader)
                         return
                     logger.warning(
                         "Failed to create Hoyolab webhook for feed %s, falling back to regular processing",
@@ -421,7 +426,7 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
                 logger.warning("No entry link found for feed %s, falling back to regular processing", entry.feed.url)
 
         # Send the entry to Discord as it is not blacklisted or feed has a whitelist.
-        execute_webhook(webhook, entry)
+        execute_webhook(webhook, entry, reader=effective_reader)
 
         # If we only want to send one entry, we will break the loop. This is used when testing this function.
         if do_once:
@@ -429,16 +434,15 @@ def send_to_discord(custom_reader: Reader | None = None, feed: Feed | None = Non
             break
 
 
-def execute_webhook(webhook: DiscordWebhook, entry: Entry) -> None:
+def execute_webhook(webhook: DiscordWebhook, entry: Entry, reader: Reader) -> None:
     """Execute the webhook.
 
     Args:
         webhook (DiscordWebhook): The webhook to execute.
         entry (Entry): The entry to send to Discord.
+        reader (Reader): The Reader instance to use for checking feed status.
 
     """
-    reader: Reader = get_reader()
-
     # If the feed has been paused or deleted, we will not send the entry to Discord.
     entry_feed: Feed = entry.feed
     if entry_feed.updates_enabled is False:

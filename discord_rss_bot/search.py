@@ -3,8 +3,6 @@ from __future__ import annotations
 import urllib.parse
 from typing import TYPE_CHECKING
 
-from discord_rss_bot.settings import get_reader
-
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
@@ -14,19 +12,16 @@ if TYPE_CHECKING:
     from reader import Reader
 
 
-def create_search_context(query: str, custom_reader: Reader | None = None) -> dict:
+def create_search_context(query: str, reader: Reader) -> dict:
     """Build context for search.html template.
-
-    If custom_reader is None, use the default reader from settings.
 
     Args:
         query (str): The search query.
-        custom_reader (Reader | None): Optional custom Reader instance.
+        reader (Reader): Custom Reader instance.
 
     Returns:
         dict: Context dictionary for rendering the search results.
     """
-    reader: Reader = get_reader() if custom_reader is None else custom_reader
     search_results: Iterable[EntrySearchResult] = reader.search_entries(query)
 
     results: list[dict] = []

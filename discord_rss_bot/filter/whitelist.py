@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from reader import Reader
 
 
-def has_white_tags(custom_reader: Reader, feed: Feed) -> bool:
+def has_white_tags(reader: Reader, feed: Feed) -> bool:
     """Return True if the feed has whitelist tags.
 
     The following tags are checked:
@@ -25,21 +25,21 @@ def has_white_tags(custom_reader: Reader, feed: Feed) -> bool:
     - whitelist_title
 
     Args:
-        custom_reader: The reader.
+        reader: The reader.
         feed: The feed to check.
 
     Returns:
         bool: If the feed has any of the tags.
     """
-    whitelist_title: str = str(custom_reader.get_tag(feed, "whitelist_title", "")).strip()
-    whitelist_summary: str = str(custom_reader.get_tag(feed, "whitelist_summary", "")).strip()
-    whitelist_content: str = str(custom_reader.get_tag(feed, "whitelist_content", "")).strip()
-    whitelist_author: str = str(custom_reader.get_tag(feed, "whitelist_author", "")).strip()
+    whitelist_title: str = str(reader.get_tag(feed, "whitelist_title", "")).strip()
+    whitelist_summary: str = str(reader.get_tag(feed, "whitelist_summary", "")).strip()
+    whitelist_content: str = str(reader.get_tag(feed, "whitelist_content", "")).strip()
+    whitelist_author: str = str(reader.get_tag(feed, "whitelist_author", "")).strip()
 
-    regex_whitelist_title: str = str(custom_reader.get_tag(feed, "regex_whitelist_title", "")).strip()
-    regex_whitelist_summary: str = str(custom_reader.get_tag(feed, "regex_whitelist_summary", "")).strip()
-    regex_whitelist_content: str = str(custom_reader.get_tag(feed, "regex_whitelist_content", "")).strip()
-    regex_whitelist_author: str = str(custom_reader.get_tag(feed, "regex_whitelist_author", "")).strip()
+    regex_whitelist_title: str = str(reader.get_tag(feed, "regex_whitelist_title", "")).strip()
+    regex_whitelist_summary: str = str(reader.get_tag(feed, "regex_whitelist_summary", "")).strip()
+    regex_whitelist_content: str = str(reader.get_tag(feed, "regex_whitelist_content", "")).strip()
+    regex_whitelist_author: str = str(reader.get_tag(feed, "regex_whitelist_author", "")).strip()
 
     return bool(
         whitelist_title
@@ -53,11 +53,11 @@ def has_white_tags(custom_reader: Reader, feed: Feed) -> bool:
     )
 
 
-def should_be_sent(custom_reader: Reader, entry: Entry) -> bool:  # noqa: PLR0911
+def should_be_sent(reader: Reader, entry: Entry) -> bool:  # noqa: PLR0911
     """Return True if the entry is in the whitelist.
 
     Args:
-        custom_reader: The reader.
+        reader: The reader.
         entry: The entry to check.
 
     Returns:
@@ -65,16 +65,16 @@ def should_be_sent(custom_reader: Reader, entry: Entry) -> bool:  # noqa: PLR091
     """
     feed: Feed = entry.feed
     # Regular whitelist tags
-    whitelist_title: str = str(custom_reader.get_tag(feed, "whitelist_title", "")).strip()
-    whitelist_summary: str = str(custom_reader.get_tag(feed, "whitelist_summary", "")).strip()
-    whitelist_content: str = str(custom_reader.get_tag(feed, "whitelist_content", "")).strip()
-    whitelist_author: str = str(custom_reader.get_tag(feed, "whitelist_author", "")).strip()
+    whitelist_title: str = str(reader.get_tag(feed, "whitelist_title", "")).strip()
+    whitelist_summary: str = str(reader.get_tag(feed, "whitelist_summary", "")).strip()
+    whitelist_content: str = str(reader.get_tag(feed, "whitelist_content", "")).strip()
+    whitelist_author: str = str(reader.get_tag(feed, "whitelist_author", "")).strip()
 
     # Regex whitelist tags
-    regex_whitelist_title: str = str(custom_reader.get_tag(feed, "regex_whitelist_title", "")).strip()
-    regex_whitelist_summary: str = str(custom_reader.get_tag(feed, "regex_whitelist_summary", "")).strip()
-    regex_whitelist_content: str = str(custom_reader.get_tag(feed, "regex_whitelist_content", "")).strip()
-    regex_whitelist_author: str = str(custom_reader.get_tag(feed, "regex_whitelist_author", "")).strip()
+    regex_whitelist_title: str = str(reader.get_tag(feed, "regex_whitelist_title", "")).strip()
+    regex_whitelist_summary: str = str(reader.get_tag(feed, "regex_whitelist_summary", "")).strip()
+    regex_whitelist_content: str = str(reader.get_tag(feed, "regex_whitelist_content", "")).strip()
+    regex_whitelist_author: str = str(reader.get_tag(feed, "regex_whitelist_author", "")).strip()
 
     # Check regular whitelist
     if entry.title and whitelist_title and is_word_in_text(whitelist_title, entry.title):

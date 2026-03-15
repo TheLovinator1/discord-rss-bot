@@ -8,14 +8,10 @@ from discord_rss_bot.filter.blacklist import entry_should_be_skipped
 from discord_rss_bot.filter.blacklist import feed_has_blacklist_tags
 from discord_rss_bot.filter.whitelist import has_white_tags
 from discord_rss_bot.filter.whitelist import should_be_sent
-from discord_rss_bot.settings import get_reader
 
 if TYPE_CHECKING:
     from reader import Entry
     from reader import Reader
-
-# Our reader
-reader: Reader = get_reader()
 
 
 @lru_cache
@@ -34,11 +30,12 @@ def encode_url(url_to_quote: str) -> str:
     return urllib.parse.quote(string=url_to_quote) if url_to_quote else ""
 
 
-def entry_is_whitelisted(entry_to_check: Entry) -> bool:
+def entry_is_whitelisted(entry_to_check: Entry, reader: Reader) -> bool:
     """Check if the entry is whitelisted.
 
     Args:
         entry_to_check: The feed to check.
+        reader: Custom Reader instance.
 
     Returns:
         bool: True if the feed is whitelisted, False otherwise.
@@ -47,11 +44,12 @@ def entry_is_whitelisted(entry_to_check: Entry) -> bool:
     return bool(has_white_tags(reader, entry_to_check.feed) and should_be_sent(reader, entry_to_check))
 
 
-def entry_is_blacklisted(entry_to_check: Entry) -> bool:
+def entry_is_blacklisted(entry_to_check: Entry, reader: Reader) -> bool:
     """Check if the entry is blacklisted.
 
     Args:
         entry_to_check: The feed to check.
+        reader: Custom Reader instance.
 
     Returns:
         bool: True if the feed is blacklisted, False otherwise.

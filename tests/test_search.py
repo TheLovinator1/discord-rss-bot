@@ -46,7 +46,7 @@ def test_create_search_context() -> None:
         reader.update_search()
 
         # Create the search context.
-        context: dict = create_search_context("test", custom_reader=reader)
+        context: dict = create_search_context("test", reader=reader)
         assert context is not None, f"The context should not be None. Got: {context}"
 
         # Close the reader, so we can delete the directory.

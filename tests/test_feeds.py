@@ -55,7 +55,7 @@ def test_send_to_discord() -> None:
         assert reader.get_tag(feed, "webhook") == webhook_url, f"The webhook URL should be '{webhook_url}'."
 
         # Send the feed to Discord.
-        send_to_discord(custom_reader=reader, feed=feed, do_once=True)
+        send_to_discord(reader=reader, feed=feed, do_once=True)
 
         # Close the reader, so we can delete the directory.
         reader.close()
@@ -200,7 +200,7 @@ def test_send_entry_to_discord_youtube_feed(
     assert webhook_call_kwargs["url"] == "https://discord.com/api/webhooks/123/abc"
 
     # Verify execute_webhook was called
-    mock_execute_webhook.assert_called_once_with(mock_webhook, mock_entry)
+    mock_execute_webhook.assert_called_once_with(mock_webhook, mock_entry, reader=mock_reader)
 
 
 def test_extract_domain_youtube_feed() -> None:

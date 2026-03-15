@@ -102,12 +102,10 @@ def test_format_entry_html_for_discord_does_not_preserve_invalid_timestamp_style
 
 
 @patch("discord_rss_bot.custom_message.get_custom_message")
-@patch("discord_rss_bot.custom_message.get_reader")
 def test_replace_tags_in_text_message_preserves_timestamp_tags(
-    mock_get_reader: MagicMock,
     mock_get_custom_message: MagicMock,
 ) -> None:
-    mock_get_reader.return_value = MagicMock()
+    mock_reader = MagicMock()
     mock_get_custom_message.return_value = "{{entry_summary}}"
     summary_parts: list[str] = [
         f"<p>Format {index}: ({timestamp_tag.replace('<', '&lt;').replace('>', '&gt;')})</p>"
@@ -116,19 +114,17 @@ def test_replace_tags_in_text_message_preserves_timestamp_tags(
     entry_ns: SimpleNamespace = make_entry("".join(summary_parts))
 
     entry: Entry = typing.cast("Entry", entry_ns)
-    rendered: str = replace_tags_in_text_message(entry)
+    rendered: str = replace_tags_in_text_message(entry, reader=mock_reader)
 
     for timestamp_tag in TIMESTAMP_FORMATS:
         assert timestamp_tag in rendered
 
 
 @patch("discord_rss_bot.custom_message.get_embed")
-@patch("discord_rss_bot.custom_message.get_reader")
 def test_replace_tags_in_embed_preserves_timestamp_tags(
-    mock_get_reader: MagicMock,
     mock_get_embed: MagicMock,
 ) -> None:
-    mock_get_reader.return_value = MagicMock()
+    mock_reader = MagicMock()
     mock_get_embed.return_value = CustomEmbed(description="{{entry_summary}}")
     summary_parts: list[str] = [
         f"<p>Format {index}: ({timestamp_tag.replace('<', '&lt;').replace('>', '&gt;')})</p>"
@@ -138,7 +134,7 @@ def test_replace_tags_in_embed_preserves_timestamp_tags(
 
     entry: Entry = typing.cast("Entry", entry_ns)
 
-    embed: CustomEmbed = replace_tags_in_embed(entry_ns.feed, entry)
+    embed: CustomEmbed = replace_tags_in_embed(entry_ns.feed, entry, reader=mock_reader)
 
     for timestamp_tag in TIMESTAMP_FORMATS:
         assert timestamp_tag in embed.description

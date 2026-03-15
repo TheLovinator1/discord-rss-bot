@@ -718,11 +718,24 @@ def test_create_html_marks_entries_from_another_feed(monkeypatch: pytest.MonkeyP
         original_feed_url="https://example.com/feed-b.xml",
     )
 
-    monkeypatch.setattr("discord_rss_bot.main.replace_tags_in_text_message", lambda _entry: "Rendered content")
-    monkeypatch.setattr("discord_rss_bot.main.entry_is_blacklisted", lambda _entry: False)
-    monkeypatch.setattr("discord_rss_bot.main.entry_is_whitelisted", lambda _entry: False)
+    monkeypatch.setattr(
+        "discord_rss_bot.main.replace_tags_in_text_message",
+        lambda _entry, **_kwargs: "Rendered content",
+    )
+    monkeypatch.setattr("discord_rss_bot.main.entry_is_blacklisted", lambda _entry, **_kwargs: False)
+    monkeypatch.setattr("discord_rss_bot.main.entry_is_whitelisted", lambda _entry, **_kwargs: False)
 
-    html = create_html_for_feed(cast("list[Entry]", [same_feed_entry, other_feed_entry]), selected_feed_url)
+    same_feed_entry_typed: Entry = cast("Entry", same_feed_entry)
+    other_feed_entry_typed: Entry = cast("Entry", other_feed_entry)
+
+    html: str = create_html_for_feed(
+        reader=MagicMock(),
+        current_feed_url=selected_feed_url,
+        entries=[
+            same_feed_entry_typed,
+            other_feed_entry_typed,
+        ],
+    )
 
     assert "From another feed: https://example.com/feed-b.xml" in html
     assert "From another feed: https://example.com/feed-a.xml" not in html

@@ -179,8 +179,6 @@ templates: Jinja2Templates = Jinja2Templates(directory="discord_rss_bot/template
 
 # Add the filters to the Jinja2 environment so they can be used in html templates.
 templates.env.filters["encode_url"] = lambda url: urllib.parse.quote(url) if url else ""
-templates.env.filters["entry_is_whitelisted"] = entry_is_whitelisted
-templates.env.filters["entry_is_blacklisted"] = entry_is_blacklisted
 templates.env.filters["discord_markdown"] = markdownify
 templates.env.filters["relative_time"] = relative_time
 templates.env.globals["get_backup_path"] = get_backup_path
@@ -938,7 +936,7 @@ async def get_feed(  # noqa: C901, PLR0912, PLR0914, PLR0915
         except EntryNotFoundError as e:
             current_entries = list(reader.get_entries(feed=clean_feed_url))
             msg: str = f"{e}\n\n{[entry.id for entry in current_entries]}"
-            html: str = create_html_for_feed(current_entries, clean_feed_url)
+            html: str = create_html_for_feed(reader=reader, entries=current_entries, current_feed_url=clean_feed_url)
 
             # Get feed and global intervals for error case too
             feed_interval: int | None = None
@@ -988,7 +986,7 @@ async def get_feed(  # noqa: C901, PLR0912, PLR0914, PLR0915
         last_entry = entries[-1]
 
     # Create the html for the entries.
-    html: str = create_html_for_feed(entries, clean_feed_url)
+    html: str = create_html_for_feed(reader=reader, entries=entries, current_feed_url=clean_feed_url)
 
     should_send_embed: bool = bool(reader.get_tag(feed, "should_send_embed", True))
 
@@ -1024,10 +1022,15 @@ async def get_feed(  # noqa: C901, PLR0912, PLR0914, PLR0915
     return templates.TemplateResponse(request=request, name="feed.html", context=context)
 
 
-def create_html_for_feed(entries: Iterable[Entry], current_feed_url: str = "") -> str:  # noqa: C901, PLR0914
+def create_html_for_feed(  # noqa: C901, PLR0914
+    reader: Reader,
+    entries: Iterable[Entry],
+    current_feed_url: str = "",
+) -> str:
     """Create HTML for the search results.
 
     Args:
+        reader: The Reader instance to use.
         entries: The entries to create HTML for.
         current_feed_url: The feed URL currently being viewed in /feed.
 
@@ -1045,17 +1048,19 @@ def create_html_for_feed(entries: Iterable[Entry], current_feed_url: str = "") -
 
         first_image = get_first_image(summary, content)
 
-        text: str = replace_tags_in_text_message(entry) or "<div class='text-muted'>No content available.</div>"
+        text: str = replace_tags_in_text_message(entry, reader=reader) or (
+            "<div class='text-muted'>No content available.</div>"
+        )
         published = ""
         if entry.published:
             published: str = entry.published.strftime("%Y-%m-%d %H:%M:%S")
 
         blacklisted: str = ""
-        if entry_is_blacklisted(entry):
+        if entry_is_blacklisted(entry, reader=reader):
             blacklisted = "<span class='badge bg-danger'>Blacklisted</span>"
 
         whitelisted: str = ""
-        if entry_is_whitelisted(entry):
+        if entry_is_whitelisted(entry, reader=reader):
             whitelisted = "<span class='badge bg-success'>Whitelisted</span>"
 
         source_feed_url: str = getattr(entry, "original_feed_url", None) or entry.feed.url
@@ -1414,7 +1419,7 @@ async def search(
         HTMLResponse: The search page.
     """
     reader.update_search()
-    context = create_search_context(query)
+    context = create_search_context(query, reader=reader)
     return templates.TemplateResponse(request=request, name="search.html", context={"request": request, **context})
 
 
@@ -1437,7 +1442,7 @@ async def post_entry(
     if entry is None:
         return HTMLResponse(status_code=404, content=f"Entry '{entry_id}' not found.")
 
-    if result := send_entry_to_discord(entry=entry):
+    if result := send_entry_to_discord(entry=entry, reader=reader):
         return result
 
     # Redirect to the feed page.
@@ -1601,7 +1606,7 @@ async def get_webhook_entries(  # noqa: C901, PLR0914
         last_entry = paginated_entries[-1]
 
     # Create the html for the entries
-    html: str = create_html_for_feed(paginated_entries)
+    html: str = create_html_for_feed(reader=reader, entries=paginated_entries)
 
     # Check if there are more entries available
     total_entries: int = len(all_entries)

@@ -37,7 +37,7 @@ def test_has_white_tags() -> None:
     reader.update_feeds()
 
     # Test feed without any whitelist tags
-    assert has_white_tags(custom_reader=get_reader(), feed=feed) is False, "Feed should not have any whitelist tags"
+    assert has_white_tags(reader=get_reader(), feed=feed) is False, "Feed should not have any whitelist tags"
 
     check_if_has_tag(reader, feed, "whitelist_title")
     check_if_has_tag(reader, feed, "whitelist_summary")
@@ -56,9 +56,9 @@ def test_has_white_tags() -> None:
 
 def check_if_has_tag(reader: Reader, feed: Feed, whitelist_name: str) -> None:
     reader.set_tag(feed, whitelist_name, "a")  # pyright: ignore[reportArgumentType]
-    assert has_white_tags(custom_reader=reader, feed=feed) is True, "Feed should have whitelist tags"
+    assert has_white_tags(reader=reader, feed=feed) is True, "Feed should have whitelist tags"
     reader.delete_tag(feed, whitelist_name)
-    assert has_white_tags(custom_reader=reader, feed=feed) is False, "Feed should not have any whitelist tags"
+    assert has_white_tags(reader=reader, feed=feed) is False, "Feed should not have any whitelist tags"
 
 
 def test_should_be_sent() -> None:

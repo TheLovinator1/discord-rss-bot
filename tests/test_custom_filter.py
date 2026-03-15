@@ -45,39 +45,39 @@ def test_entry_is_whitelisted() -> None:
         Path.mkdir(Path(temp_dir), exist_ok=True)
 
         custom_loc: pathlib.Path = pathlib.Path(temp_dir, "custom_loc_db.sqlite")
-        custom_reader: Reader = get_reader(custom_location=str(custom_loc))
+        reader: Reader = get_reader(custom_location=str(custom_loc))
 
         # Add a feed to the database.
-        custom_reader.add_feed("https://lovinator.space/rss_test.xml")
-        custom_reader.update_feed("https://lovinator.space/rss_test.xml")
+        reader.add_feed("https://lovinator.space/rss_test.xml")
+        reader.update_feed("https://lovinator.space/rss_test.xml")
 
         # whitelist_title
-        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "whitelist_title", "fvnnnfnfdnfdnfd")  # pyright: ignore[reportArgumentType]
-        for entry in custom_reader.get_entries():
-            if entry_is_whitelisted(entry) is True:
+        reader.set_tag("https://lovinator.space/rss_test.xml", "whitelist_title", "fvnnnfnfdnfdnfd")  # pyright: ignore[reportArgumentType]
+        for entry in reader.get_entries():
+            if entry_is_whitelisted(entry, reader=reader) is True:
                 assert entry.title == "fvnnnfnfdnfdnfd", f"Expected: fvnnnfnfdnfdnfd, Got: {entry.title}"
                 break
-        custom_reader.delete_tag("https://lovinator.space/rss_test.xml", "whitelist_title")
+        reader.delete_tag("https://lovinator.space/rss_test.xml", "whitelist_title")
 
         # whitelist_summary
-        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "whitelist_summary", "fvnnnfnfdnfdnfd")  # pyright: ignore[reportArgumentType]
-        for entry in custom_reader.get_entries():
-            if entry_is_whitelisted(entry) is True:
+        reader.set_tag("https://lovinator.space/rss_test.xml", "whitelist_summary", "fvnnnfnfdnfdnfd")  # pyright: ignore[reportArgumentType]
+        for entry in reader.get_entries():
+            if entry_is_whitelisted(entry, reader=reader) is True:
                 assert entry.summary == "fvnnnfnfdnfdnfd", f"Expected: fvnnnfnfdnfdnfd, Got: {entry.summary}"
                 break
-        custom_reader.delete_tag("https://lovinator.space/rss_test.xml", "whitelist_summary")
+        reader.delete_tag("https://lovinator.space/rss_test.xml", "whitelist_summary")
 
         # whitelist_content
-        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "whitelist_content", "fvnnnfnfdnfdnfd")  # pyright: ignore[reportArgumentType]
-        for entry in custom_reader.get_entries():
-            if entry_is_whitelisted(entry) is True:
+        reader.set_tag("https://lovinator.space/rss_test.xml", "whitelist_content", "fvnnnfnfdnfdnfd")  # pyright: ignore[reportArgumentType]
+        for entry in reader.get_entries():
+            if entry_is_whitelisted(entry, reader=reader) is True:
                 assert_msg = f"Expected: <p>ffdnfdnfdnfdnfdndfn</p>, Got: {entry.content[0].value}"
                 assert entry.content[0].value == "<p>ffdnfdnfdnfdnfdndfn</p>", assert_msg
                 break
-        custom_reader.delete_tag("https://lovinator.space/rss_test.xml", "whitelist_content")
+        reader.delete_tag("https://lovinator.space/rss_test.xml", "whitelist_content")
 
         # Close the reader, so we can delete the directory.
-        custom_reader.close()
+        reader.close()
 
 
 def test_entry_is_blacklisted() -> None:
@@ -87,36 +87,36 @@ def test_entry_is_blacklisted() -> None:
         Path.mkdir(Path(temp_dir), exist_ok=True)
 
         custom_loc: pathlib.Path = pathlib.Path(temp_dir, "custom_loc_db.sqlite")
-        custom_reader: Reader = get_reader(custom_location=str(custom_loc))
+        reader: Reader = get_reader(custom_location=str(custom_loc))
 
         # Add a feed to the database.
-        custom_reader.add_feed("https://lovinator.space/rss_test.xml")
-        custom_reader.update_feed("https://lovinator.space/rss_test.xml")
+        reader.add_feed("https://lovinator.space/rss_test.xml")
+        reader.update_feed("https://lovinator.space/rss_test.xml")
 
         # blacklist_title
-        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "blacklist_title", "fvnnnfnfdnfdnfd")  # pyright: ignore[reportArgumentType]
-        for entry in custom_reader.get_entries():
-            if entry_is_blacklisted(entry) is True:
+        reader.set_tag("https://lovinator.space/rss_test.xml", "blacklist_title", "fvnnnfnfdnfdnfd")  # pyright: ignore[reportArgumentType]
+        for entry in reader.get_entries():
+            if entry_is_blacklisted(entry, reader=reader) is True:
                 assert entry.title == "fvnnnfnfdnfdnfd", f"Expected: fvnnnfnfdnfdnfd, Got: {entry.title}"
                 break
-        custom_reader.delete_tag("https://lovinator.space/rss_test.xml", "blacklist_title")
+        reader.delete_tag("https://lovinator.space/rss_test.xml", "blacklist_title")
 
         # blacklist_summary
-        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "blacklist_summary", "fvnnnfnfdnfdnfd")  # pyright: ignore[reportArgumentType]
-        for entry in custom_reader.get_entries():
-            if entry_is_blacklisted(entry) is True:
+        reader.set_tag("https://lovinator.space/rss_test.xml", "blacklist_summary", "fvnnnfnfdnfdnfd")  # pyright: ignore[reportArgumentType]
+        for entry in reader.get_entries():
+            if entry_is_blacklisted(entry, reader=reader) is True:
                 assert entry.summary == "fvnnnfnfdnfdnfd", f"Expected: fvnnnfnfdnfdnfd, Got: {entry.summary}"
                 break
-        custom_reader.delete_tag("https://lovinator.space/rss_test.xml", "blacklist_summary")
+        reader.delete_tag("https://lovinator.space/rss_test.xml", "blacklist_summary")
 
         # blacklist_content
-        custom_reader.set_tag("https://lovinator.space/rss_test.xml", "blacklist_content", "fvnnnfnfdnfdnfd")  # pyright: ignore[reportArgumentType]
-        for entry in custom_reader.get_entries():
-            if entry_is_blacklisted(entry) is True:
+        reader.set_tag("https://lovinator.space/rss_test.xml", "blacklist_content", "fvnnnfnfdnfdnfd")  # pyright: ignore[reportArgumentType]
+        for entry in reader.get_entries():
+            if entry_is_blacklisted(entry, reader=reader) is True:
                 assert_msg = f"Expected: <p>ffdnfdnfdnfdnfdndfn</p>, Got: {entry.content[0].value}"
                 assert entry.content[0].value == "<p>ffdnfdnfdnfdnfdndfn</p>", assert_msg
                 break
-        custom_reader.delete_tag("https://lovinator.space/rss_test.xml", "blacklist_content")
+        reader.delete_tag("https://lovinator.space/rss_test.xml", "blacklist_content")
 
         # Close the reader, so we can delete the directory.
-        custom_reader.close()
+        reader.close()

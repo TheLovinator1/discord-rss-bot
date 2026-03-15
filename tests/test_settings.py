@@ -22,12 +22,12 @@ def test_reader() -> None:
         Path.mkdir(Path(temp_dir), exist_ok=True)
 
         custom_loc: pathlib.Path = pathlib.Path(temp_dir, "custom_loc_db.sqlite")
-        custom_reader: Reader = get_reader(custom_location=str(custom_loc))
-        assert_msg = f"The custom reader should be an instance of Reader. But it was '{type(custom_reader)}'."
-        assert isinstance(custom_reader, Reader), assert_msg
+        reader: Reader = get_reader(custom_location=str(custom_loc))
+        assert_msg = f"The custom reader should be an instance of Reader. But it was '{type(reader)}'."
+        assert isinstance(reader, Reader), assert_msg
 
         # Close the reader, so we can delete the directory.
-        custom_reader.close()
+        reader.close()
 
 
 def test_data_dir() -> None:
@@ -49,16 +49,16 @@ def test_get_webhook_for_entry() -> None:
         Path.mkdir(Path(temp_dir), exist_ok=True)
 
         custom_loc: pathlib.Path = pathlib.Path(temp_dir, "custom_loc_db.sqlite")
-        custom_reader: Reader = get_reader(custom_location=str(custom_loc))
+        reader: Reader = get_reader(custom_location=str(custom_loc))
 
         # Add a feed to the database.
-        custom_reader.add_feed("https://www.reddit.com/r/movies.rss")
-        custom_reader.update_feed("https://www.reddit.com/r/movies.rss")
+        reader.add_feed("https://www.reddit.com/r/movies.rss")
+        reader.update_feed("https://www.reddit.com/r/movies.rss")
 
         # Add a webhook to the database.
-        custom_reader.set_tag("https://www.reddit.com/r/movies.rss", "webhook", "https://example.com")  # pyright: ignore[reportArgumentType]
-        our_tag = custom_reader.get_tag("https://www.reddit.com/r/movies.rss", "webhook")  # pyright: ignore[reportArgumentType]
+        reader.set_tag("https://www.reddit.com/r/movies.rss", "webhook", "https://example.com")  # pyright: ignore[reportArgumentType]
+        our_tag = reader.get_tag("https://www.reddit.com/r/movies.rss", "webhook")  # pyright: ignore[reportArgumentType]
         assert our_tag == "https://example.com", f"The tag should be 'https://example.com'. But it was '{our_tag}'."
 
         # Close the reader, so we can delete the directory.
-        custom_reader.close()
+        reader.close()
