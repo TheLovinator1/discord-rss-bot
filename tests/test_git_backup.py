@@ -304,6 +304,7 @@ def test_commit_state_change_no_push_when_remote_unset(monkeypatch: pytest.Monke
     assert not push_calls, "git push should NOT be called when GIT_BACKUP_REMOTE is not set"
 
 
+@pytest.mark.real_git_backup_push
 @SKIP_IF_NO_GIT
 def test_commit_state_change_e2e_push_to_bare_repo(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """End-to-end test: commit_state_change pushes to a real bare git repository."""

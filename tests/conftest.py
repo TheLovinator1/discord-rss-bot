@@ -8,8 +8,28 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
+import pytest
 
-def pytest_configure() -> None:
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+    """Register custom command-line options for optional integration tests."""
+    parser.addoption(
+        "--run-real-git-backup-tests",
+        action="store_true",
+        default=False,
+        help="Run tests that push git backup state to a real repository.",
+    )
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Configure test markers and isolate persistent app state per xdist worker."""
+    config.addinivalue_line(
+        "markers",
+        "real_git_backup_push: marks tests that push git backup state to a real git repo",
+    )
+
+
+def pytest_sessionstart(session: pytest.Session) -> None:
     """Isolate persistent app state per xdist worker to avoid cross-worker test interference."""
     worker_id: str = os.environ.get("PYTEST_XDIST_WORKER", "gw0")
     worker_data_dir: Path = Path(tempfile.gettempdir()) / "discord-rss-bot-tests" / worker_id
@@ -38,3 +58,16 @@ def pytest_configure() -> None:
         get_reader: Any = getattr(settings_module, "get_reader", None)
         if callable(get_reader):
             main_module.reader = get_reader()
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Skip real git-repo push tests unless explicitly requested."""
+    if config.getoption("--run-real-git-backup-tests"):
+        return
+
+    skip_real_push = pytest.mark.skip(
+        reason="requires --run-real-git-backup-tests option to run",
+    )
+    for item in items:
+        if "real_git_backup_push" in item.keywords:
+            item.add_marker(skip_real_push)
