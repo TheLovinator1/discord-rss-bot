@@ -6,9 +6,11 @@ import sys
 import tempfile
 from contextlib import suppress
 from pathlib import Path
+from typing import TYPE_CHECKING
 from typing import Any
 
-import pytest
+if TYPE_CHECKING:
+    import pytest
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -18,14 +20,6 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         action="store_true",
         default=False,
         help="Run tests that push git backup state to a real repository.",
-    )
-
-
-def pytest_configure(config: pytest.Config) -> None:
-    """Configure test markers and isolate persistent app state per xdist worker."""
-    config.addinivalue_line(
-        "markers",
-        "real_git_backup_push: marks tests that push git backup state to a real git repo",
     )
 
 
@@ -64,10 +58,3 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     """Skip real git-repo push tests unless explicitly requested."""
     if config.getoption("--run-real-git-backup-tests"):
         return
-
-    skip_real_push = pytest.mark.skip(
-        reason="requires --run-real-git-backup-tests option to run",
-    )
-    for item in items:
-        if "real_git_backup_push" in item.keywords:
-            item.add_marker(skip_real_push)
