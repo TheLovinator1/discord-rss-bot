@@ -1080,7 +1080,11 @@ def create_html_for_feed(  # noqa: C901, PLR0914
             )
 
         entry_id: str = urllib.parse.quote(entry.id)
-        to_discord_html: str = f"<a class='text-muted' href='/post_entry?entry_id={entry_id}'>Send to Discord</a>"
+        encoded_source_feed_url: str = urllib.parse.quote(source_feed_url)
+        to_discord_html: str = (
+            f"<a class='text-muted' href='/post_entry?entry_id={entry_id}&feed_url={encoded_source_feed_url}'>"
+            "Send to Discord</a>"
+        )
 
         # Check if this is a YouTube feed entry and the entry has a link
         is_youtube_feed = "youtube.com/feeds/videos.xml" in entry.feed.url
@@ -1427,18 +1431,32 @@ async def search(
 async def post_entry(
     entry_id: str,
     reader: Annotated[Reader, Depends(get_reader_dependency)],
+    feed_url: str = "",
 ):
     """Send single entry to Discord.
 
     Args:
         entry_id: The entry to send.
+        feed_url: Optional feed URL used to disambiguate entries with identical IDs.
         reader: The Reader instance.
 
     Returns:
         RedirectResponse: Redirect to the feed page.
     """
     unquoted_entry_id: str = urllib.parse.unquote(entry_id)
-    entry: Entry | None = next((entry for entry in reader.get_entries() if entry.id == unquoted_entry_id), None)
+    clean_feed_url: str = urllib.parse.unquote(feed_url.strip()) if feed_url else ""
+
+    # Prefer feed-scoped lookup when feed_url is provided. This avoids ambiguity when
+    # multiple feeds contain entries with the same ID.
+    entry: Entry | None = None
+    if clean_feed_url:
+        entry = next(
+            (entry for entry in reader.get_entries(feed=clean_feed_url) if entry.id == unquoted_entry_id),
+            None,
+        )
+    else:
+        entry = next((entry for entry in reader.get_entries() if entry.id == unquoted_entry_id), None)
+
     if entry is None:
         return HTMLResponse(status_code=404, content=f"Entry '{entry_id}' not found.")
 
@@ -1446,8 +1464,8 @@ async def post_entry(
         return result
 
     # Redirect to the feed page.
-    clean_feed_url: str = entry.feed.url.strip()
-    return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
+    redirect_feed_url: str = entry.feed.url.strip()
+    return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(redirect_feed_url)}", status_code=303)
 
 
 @app.post("/modify_webhook", response_class=HTMLResponse)

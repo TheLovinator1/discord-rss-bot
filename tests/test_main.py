@@ -480,6 +480,110 @@ def test_update_feed_not_found() -> None:
     assert "Feed not found" in response.text
 
 
+def test_post_entry_send_to_discord() -> None:
+    """Test that /post_entry sends an entry to Discord and redirects to the feed page.
+
+    Regression test for the bug where the injected reader was not passed to
+    send_entry_to_discord, meaning the dependency-injected reader was silently ignored.
+    """
+    # Ensure webhook and feed exist.
+    client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    response: Response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": webhook_name, "webhook_url": webhook_url},
+    )
+    assert response.status_code == 200, f"Failed to add webhook: {response.text}"
+
+    client.post(url="/remove", data={"feed_url": feed_url})
+    response = client.post(url="/add", data={"feed_url": feed_url, "webhook_dropdown": webhook_name})
+    assert response.status_code == 200, f"Failed to add feed: {response.text}"
+
+    # Retrieve an entry from the feed to get a valid entry ID.
+    reader: main_module.Reader = main_module.get_reader_dependency()
+    entries: list[Entry] = list(reader.get_entries(feed=feed_url, limit=1))
+    assert entries, "Feed should have at least one entry to send"
+    entry_to_send: main_module.Entry = entries[0]
+    encoded_id: str = urllib.parse.quote(entry_to_send.id)
+
+    no_redirect_client = TestClient(app, follow_redirects=False)
+
+    # Patch execute_webhook so no real HTTP requests are made to Discord.
+    with patch("discord_rss_bot.feeds.execute_webhook") as mock_execute:
+        response = no_redirect_client.get(
+            url="/post_entry",
+            params={"entry_id": encoded_id, "feed_url": urllib.parse.quote(feed_url)},
+        )
+
+    assert response.status_code == 303, f"Expected redirect after sending, got {response.status_code}: {response.text}"
+    location: str = response.headers.get("location", "")
+    assert "feed?feed_url=" in location, f"Should redirect to feed page, got: {location}"
+    assert mock_execute.called, "execute_webhook should have been called to deliver the entry to Discord"
+
+    # Cleanup.
+    client.post(url="/remove", data={"feed_url": feed_url})
+
+
+def test_post_entry_unknown_id_returns_404() -> None:
+    """Test that /post_entry returns 404 when the entry ID does not exist."""
+    response: Response = client.get(
+        url="/post_entry",
+        params={"entry_id": "https://nonexistent.example.com/entry-that-does-not-exist"},
+    )
+    assert response.status_code == 404, f"Expected 404 for unknown entry, got {response.status_code}"
+
+
+def test_post_entry_uses_feed_url_to_disambiguate_duplicate_ids() -> None:
+    """When IDs collide across feeds, /post_entry should pick the entry from provided feed_url."""
+
+    @dataclass(slots=True)
+    class DummyFeed:
+        url: str
+
+    @dataclass(slots=True)
+    class DummyEntry:
+        id: str
+        feed: DummyFeed
+        feed_url: str
+
+    feed_a = "https://example.com/feed-a.xml"
+    feed_b = "https://example.com/feed-b.xml"
+    shared_id = "https://example.com/shared-entry-id"
+
+    entry_a: Entry = cast("Entry", DummyEntry(id=shared_id, feed=DummyFeed(feed_a), feed_url=feed_a))
+    entry_b: Entry = cast("Entry", DummyEntry(id=shared_id, feed=DummyFeed(feed_b), feed_url=feed_b))
+
+    class StubReader:
+        def get_entries(self, feed: str | None = None) -> list[Entry]:
+            if feed == feed_a:
+                return [entry_a]
+            if feed == feed_b:
+                return [entry_b]
+            return [entry_a, entry_b]
+
+    selected_feed_urls: list[str] = []
+
+    def fake_send_entry_to_discord(entry: Entry, reader: object | None = None) -> None:
+        selected_feed_urls.append(entry.feed.url)
+
+    app.dependency_overrides[get_reader_dependency] = StubReader
+    no_redirect_client = TestClient(app, follow_redirects=False)
+
+    try:
+        with patch("discord_rss_bot.main.send_entry_to_discord", side_effect=fake_send_entry_to_discord):
+            response: Response = no_redirect_client.get(
+                url="/post_entry",
+                params={"entry_id": urllib.parse.quote(shared_id), "feed_url": urllib.parse.quote(feed_b)},
+            )
+
+        assert response.status_code == 303, f"Expected redirect after sending, got {response.status_code}"
+        assert selected_feed_urls == [feed_b], f"Expected feed-b entry, got: {selected_feed_urls}"
+
+        location = response.headers.get("location", "")
+        assert urllib.parse.quote(feed_b) in location, f"Expected redirect to feed-b page, got: {location}"
+    finally:
+        app.dependency_overrides = {}
+
+
 def test_navbar_backup_link_hidden_when_not_configured(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that the backup link is not shown in the navbar when GIT_BACKUP_PATH is not set."""
     # Ensure GIT_BACKUP_PATH is not set
