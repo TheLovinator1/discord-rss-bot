@@ -5,17 +5,19 @@ import json
 import logging
 import re
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from bs4 import BeautifulSoup
 from bs4 import Tag
 from markdownify import markdownify
-from reader import Entry
-from reader import Feed
-from reader import Reader
-from reader import TagNotFoundError
 
 from discord_rss_bot.is_url_valid import is_url_valid
 from discord_rss_bot.settings import get_reader
+
+if TYPE_CHECKING:
+    from reader import Entry
+    from reader import Feed
+    from reader import Reader
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -342,9 +344,7 @@ def get_custom_message(custom_reader: Reader, feed: Feed) -> str:
         Returns the contents from the custom_message tag.
     """
     try:
-        custom_message: str = str(custom_reader.get_tag(feed, "custom_message"))
-    except TagNotFoundError:
-        custom_message = ""
+        custom_message: str = str(custom_reader.get_tag(feed, "custom_message", ""))
     except ValueError:
         custom_message = ""
 

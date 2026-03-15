@@ -23,7 +23,6 @@ from reader import FeedNotFoundError
 from reader import Reader
 from reader import ReaderError
 from reader import StorageError
-from reader import TagNotFoundError
 
 from discord_rss_bot.custom_message import CustomEmbed
 from discord_rss_bot.custom_message import get_custom_message
@@ -37,7 +36,6 @@ from discord_rss_bot.hoyolab_api import extract_post_id_from_hoyolab_url
 from discord_rss_bot.hoyolab_api import fetch_hoyolab_post
 from discord_rss_bot.hoyolab_api import is_c3kay_feed
 from discord_rss_bot.is_url_valid import is_url_valid
-from discord_rss_bot.missing_tags import add_missing_tags
 from discord_rss_bot.settings import default_custom_message
 from discord_rss_bot.settings import get_reader
 
@@ -98,7 +96,7 @@ def extract_domain(url: str) -> str:  # noqa: PLR0911
         return "Other"
 
 
-def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None) -> str | None:  # noqa: C901, PLR0912
+def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None) -> str | None:  # noqa: C901
     """Send a single entry to Discord.
 
     Args:
@@ -149,10 +147,7 @@ def send_entry_to_discord(entry: Entry, custom_reader: Reader | None = None) -> 
 
     # Create the webhook.
     try:
-        should_send_embed = bool(reader.get_tag(entry.feed, "should_send_embed"))
-    except TagNotFoundError:
-        logger.exception("No should_send_embed tag found for feed: %s", entry.feed.url)
-        should_send_embed = True
+        should_send_embed = bool(reader.get_tag(entry.feed, "should_send_embed", True))
     except StorageError:
         logger.exception("Error getting should_send_embed tag for feed: %s", entry.feed.url)
         should_send_embed = True
@@ -316,12 +311,13 @@ def get_webhook_url(reader: Reader, entry: Entry) -> str:
         str: The webhook URL.
     """
     try:
-        webhook_url: str = str(reader.get_tag(entry.feed_url, "webhook"))
-    except TagNotFoundError:
-        logger.exception("No webhook URL found for feed: %s", entry.feed.url)
-        return ""
+        webhook_url: str = str(reader.get_tag(entry.feed_url, "webhook", ""))
     except StorageError:
         logger.exception("Storage error getting webhook URL for feed: %s", entry.feed.url)
+        return ""
+
+    if not webhook_url:
+        logger.error("No webhook URL found for feed: %s", entry.feed.url)
         return ""
     return webhook_url
 
@@ -493,10 +489,7 @@ def should_send_embed_check(reader: Reader, entry: Entry) -> bool:
         return False
 
     try:
-        should_send_embed = bool(reader.get_tag(entry.feed, "should_send_embed"))
-    except TagNotFoundError:
-        logger.exception("No should_send_embed tag found for feed: %s", entry.feed.url)
-        should_send_embed = True
+        should_send_embed = bool(reader.get_tag(entry.feed, "should_send_embed", True))
     except ReaderError:
         logger.exception("Error getting should_send_embed tag for feed: %s", entry.feed.url)
         should_send_embed = True
@@ -551,9 +544,7 @@ def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:  
         reader.add_feed(clean_feed_url)
     except FeedExistsError:
         # Add the webhook to an already added feed if it doesn't have a webhook instead of trying to create a new.
-        try:
-            reader.get_tag(clean_feed_url, "webhook")
-        except TagNotFoundError:
+        if not reader.get_tag(clean_feed_url, "webhook", ""):
             reader.set_tag(clean_feed_url, "webhook", webhook_url)  # pyright: ignore[reportArgumentType]
     except ReaderError as e:
         raise HTTPException(status_code=404, detail=f"Error adding feed: {e}") from e
@@ -580,5 +571,3 @@ def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:  
 
     # Update the full-text search index so our new feed is searchable.
     reader.update_search()
-
-    add_missing_tags(reader)

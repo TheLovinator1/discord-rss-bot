@@ -54,7 +54,6 @@ from discord_rss_bot.feeds import send_entry_to_discord
 from discord_rss_bot.feeds import send_to_discord
 from discord_rss_bot.git_backup import commit_state_change
 from discord_rss_bot.git_backup import get_backup_path
-from discord_rss_bot.missing_tags import add_missing_tags
 from discord_rss_bot.search import create_search_context
 from discord_rss_bot.settings import get_reader
 
@@ -157,7 +156,6 @@ def relative_time(dt: datetime | None) -> str:
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     """Lifespan function for the FastAPI app."""
     reader: Reader = get_reader()
-    add_missing_tags(reader)
     scheduler: AsyncIOScheduler = AsyncIOScheduler(timezone=UTC)
     scheduler.add_job(
         func=send_to_discord,
@@ -944,24 +942,18 @@ async def get_feed(  # noqa: C901, PLR0912, PLR0914, PLR0915
 
             # Get feed and global intervals for error case too
             feed_interval: int | None = None
-            try:
-                feed_update_config = reader.get_tag(feed, ".reader.update")
-                if isinstance(feed_update_config, dict) and "interval" in feed_update_config:
-                    interval_value = feed_update_config["interval"]
-                    if isinstance(interval_value, int):
-                        feed_interval = interval_value
-            except TagNotFoundError:
-                pass
+            feed_update_config = reader.get_tag(feed, ".reader.update", None)
+            if isinstance(feed_update_config, dict) and "interval" in feed_update_config:
+                interval_value = feed_update_config["interval"]
+                if isinstance(interval_value, int):
+                    feed_interval = interval_value
 
             global_interval: int = 60
-            try:
-                global_update_config = reader.get_tag((), ".reader.update")
-                if isinstance(global_update_config, dict) and "interval" in global_update_config:
-                    interval_value = global_update_config["interval"]
-                    if isinstance(interval_value, int):
-                        global_interval = interval_value
-            except TagNotFoundError:
-                pass
+            global_update_config = reader.get_tag((), ".reader.update", None)
+            if isinstance(global_update_config, dict) and "interval" in global_update_config:
+                interval_value = global_update_config["interval"]
+                if isinstance(interval_value, int):
+                    global_interval = interval_value
 
             context = {
                 "request": request,
@@ -998,34 +990,23 @@ async def get_feed(  # noqa: C901, PLR0912, PLR0914, PLR0915
     # Create the html for the entries.
     html: str = create_html_for_feed(entries, clean_feed_url)
 
-    try:
-        should_send_embed: bool = bool(reader.get_tag(feed, "should_send_embed"))
-    except TagNotFoundError:
-        add_missing_tags(reader)
-        should_send_embed: bool = bool(reader.get_tag(feed, "should_send_embed"))
+    should_send_embed: bool = bool(reader.get_tag(feed, "should_send_embed", True))
 
     # Get the update interval for this feed
     feed_interval: int | None = None
-    try:
-        feed_update_config = reader.get_tag(feed, ".reader.update")
-        if isinstance(feed_update_config, dict) and "interval" in feed_update_config:
-            interval_value = feed_update_config["interval"]
-            if isinstance(interval_value, int):
-                feed_interval = interval_value
-    except TagNotFoundError:
-        # No custom interval set for this feed, will use global default
-        pass
+    feed_update_config = reader.get_tag(feed, ".reader.update", None)
+    if isinstance(feed_update_config, dict) and "interval" in feed_update_config:
+        interval_value = feed_update_config["interval"]
+        if isinstance(interval_value, int):
+            feed_interval = interval_value
 
     # Get the global default update interval
     global_interval: int = 60  # Default to 60 minutes if not set
-    try:
-        global_update_config = reader.get_tag((), ".reader.update")
-        if isinstance(global_update_config, dict) and "interval" in global_update_config:
-            interval_value = global_update_config["interval"]
-            if isinstance(interval_value, int):
-                global_interval = interval_value
-    except TagNotFoundError:
-        pass
+    global_update_config = reader.get_tag((), ".reader.update", None)
+    if isinstance(global_update_config, dict) and "interval" in global_update_config:
+        interval_value = global_update_config["interval"]
+        if isinstance(interval_value, int):
+            global_interval = interval_value
 
     context = {
         "request": request,
@@ -1202,28 +1183,22 @@ async def get_settings(
     """
     # Get the global default update interval
     global_interval: int = 60  # Default to 60 minutes if not set
-    try:
-        global_update_config = reader.get_tag((), ".reader.update")
-        if isinstance(global_update_config, dict) and "interval" in global_update_config:
-            interval_value = global_update_config["interval"]
-            if isinstance(interval_value, int):
-                global_interval = interval_value
-    except TagNotFoundError:
-        pass
+    global_update_config = reader.get_tag((), ".reader.update", None)
+    if isinstance(global_update_config, dict) and "interval" in global_update_config:
+        interval_value = global_update_config["interval"]
+        if isinstance(interval_value, int):
+            global_interval = interval_value
 
     # Get all feeds with their intervals
     feeds: Iterable[Feed] = reader.get_feeds()
     feed_intervals = []
     for feed in feeds:
         feed_interval: int | None = None
-        try:
-            feed_update_config = reader.get_tag(feed, ".reader.update")
-            if isinstance(feed_update_config, dict) and "interval" in feed_update_config:
-                interval_value = feed_update_config["interval"]
-                if isinstance(interval_value, int):
-                    feed_interval = interval_value
-        except TagNotFoundError:
-            pass
+        feed_update_config = reader.get_tag(feed, ".reader.update", None)
+        if isinstance(feed_update_config, dict) and "interval" in feed_update_config:
+            interval_value = feed_update_config["interval"]
+            if isinstance(interval_value, int):
+                feed_interval = interval_value
 
         feed_intervals.append({
             "feed": feed,
@@ -1313,12 +1288,12 @@ def make_context_index(request: Request, message: str = "", reader: Reader | Non
     # Get all feeds and organize them
     feeds: Iterable[Feed] = effective_reader.get_feeds()
     for feed in feeds:
-        try:
-            webhook: JSONType = effective_reader.get_tag(feed.url, "webhook")
-            feed_list.append({"feed": feed, "webhook": webhook, "domain": extract_domain(feed.url)})
-        except TagNotFoundError:
+        webhook: str = str(effective_reader.get_tag(feed.url, "webhook", ""))
+        if not webhook:
             broken_feeds.append(feed)
             continue
+
+        feed_list.append({"feed": feed, "webhook": webhook, "domain": extract_domain(feed.url)})
 
         webhook_list: list[str] = [hook["url"] for hook in hooks]
         if webhook not in webhook_list:
@@ -1512,10 +1487,7 @@ def modify_webhook(
             # matches the old one.
             feeds: Iterable[Feed] = reader.get_feeds()
             for feed in feeds:
-                try:
-                    webhook = reader.get_tag(feed, "webhook")
-                except TagNotFoundError:
-                    continue
+                webhook: str = str(reader.get_tag(feed, "webhook", ""))
 
                 if webhook == old_hook.strip():
                     reader.set_tag(feed.url, "webhook", new_hook.strip())  # pyright: ignore[reportArgumentType]
@@ -1548,7 +1520,7 @@ def extract_youtube_video_id(url: str) -> str | None:
 
 
 @app.get("/webhook_entries", response_class=HTMLResponse)
-async def get_webhook_entries(  # noqa: C901, PLR0912, PLR0914
+async def get_webhook_entries(  # noqa: C901, PLR0914
     webhook_url: str,
     request: Request,
     reader: Annotated[Reader, Depends(get_reader_dependency)],
@@ -1587,12 +1559,9 @@ async def get_webhook_entries(  # noqa: C901, PLR0912, PLR0914
     webhook_feeds: list[Feed] = []
 
     for feed in all_feeds:
-        try:
-            feed_webhook: str = str(reader.get_tag(feed.url, "webhook", ""))
-            if feed_webhook == clean_webhook_url:
-                webhook_feeds.append(feed)
-        except TagNotFoundError:
-            continue
+        feed_webhook: str = str(reader.get_tag(feed.url, "webhook", ""))
+        if feed_webhook == clean_webhook_url:
+            webhook_feeds.append(feed)
 
     # Get all entries from all feeds for this webhook, sorted by published date
     all_entries: list[Entry] = [entry for feed in webhook_feeds for entry in reader.get_entries(feed=feed)]
