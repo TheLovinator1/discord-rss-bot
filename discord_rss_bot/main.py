@@ -734,6 +734,19 @@ async def post_change_feed_url(
     except ReaderError as e:
         raise HTTPException(status_code=400, detail=f"Failed to change feed URL: {e}") from e
 
+    # Update the feed with the new URL so we can discover what entries it returns.
+    # Then mark all unread entries as read so the scheduler doesn't resend them.
+    try:
+        reader.update_feed(clean_new_feed_url)
+    except Exception:
+        logger.exception("Failed to update feed after URL change: %s", clean_new_feed_url)
+
+    for entry in reader.get_entries(feed=clean_new_feed_url, read=False):
+        try:
+            reader.set_entry_read(entry, True)
+        except Exception:
+            logger.exception("Failed to mark entry as read after URL change: %s", entry.id)
+
     commit_state_change(reader, f"Change feed URL from {clean_old_feed_url} to {clean_new_feed_url}")
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_new_feed_url)}", status_code=303)
 

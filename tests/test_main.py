@@ -6,9 +6,12 @@ from dataclasses import dataclass
 from dataclasses import field
 from typing import TYPE_CHECKING
 from typing import cast
+from unittest.mock import MagicMock
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
+import discord_rss_bot.main as main_module
 from discord_rss_bot.main import app
 from discord_rss_bot.main import create_html_for_feed
 
@@ -297,6 +300,147 @@ def test_change_feed_url() -> None:
 
     # Cleanup.
     client.post(url="/remove", data={"feed_url": new_feed_url})
+
+
+def test_change_feed_url_marks_entries_as_read() -> None:
+    """After changing a feed URL all entries on the new feed should be marked read to prevent resending."""
+    new_feed_url = "https://lovinator.space/rss_test_small.xml"
+
+    # Ensure feeds do not already exist.
+    client.post(url="/remove", data={"feed_url": feed_url})
+    client.post(url="/remove", data={"feed_url": new_feed_url})
+
+    # Ensure webhook exists.
+    client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    client.post(url="/add_webhook", data={"webhook_name": webhook_name, "webhook_url": webhook_url})
+
+    # Add the original feed.
+    response: Response = client.post(url="/add", data={"feed_url": feed_url, "webhook_dropdown": webhook_name})
+    assert response.status_code == 200, f"Failed to add feed: {response.text}"
+
+    # Patch reader on the main module so we can observe calls.
+    mock_entry_a = MagicMock()
+    mock_entry_a.id = "entry-a"
+    mock_entry_b = MagicMock()
+    mock_entry_b.id = "entry-b"
+
+    real_reader = main_module.reader
+
+    # Use a no-redirect client so the POST response is inspected directly; the
+    # redirect target (/feed?feed_url=…) would 404 because change_feed_url is mocked.
+    no_redirect_client = TestClient(app, follow_redirects=False)
+
+    with (
+        patch.object(real_reader, "get_entries", return_value=[mock_entry_a, mock_entry_b]) as mock_get_entries,
+        patch.object(real_reader, "set_entry_read") as mock_set_read,
+        patch.object(real_reader, "update_feed") as mock_update_feed,
+        patch.object(real_reader, "change_feed_url"),
+    ):
+        response = no_redirect_client.post(
+            url="/change_feed_url",
+            data={"old_feed_url": feed_url, "new_feed_url": new_feed_url},
+        )
+        assert response.status_code == 303, f"Expected 303 redirect, got {response.status_code}: {response.text}"
+
+        # update_feed should have been called with the new URL.
+        mock_update_feed.assert_called_once_with(new_feed_url)
+
+        # get_entries should have been called to fetch unread entries on the new URL.
+        mock_get_entries.assert_called_once_with(feed=new_feed_url, read=False)
+
+        # Every returned entry should have been marked as read.
+        assert mock_set_read.call_count == 2, f"Expected 2 set_entry_read calls, got {mock_set_read.call_count}"
+        mock_set_read.assert_any_call(mock_entry_a, True)
+        mock_set_read.assert_any_call(mock_entry_b, True)
+
+    # Cleanup.
+    client.post(url="/remove", data={"feed_url": feed_url})
+    client.post(url="/remove", data={"feed_url": new_feed_url})
+
+
+def test_change_feed_url_empty_old_url_returns_400() -> None:
+    """Submitting an empty old_feed_url should return HTTP 400."""
+    response: Response = client.post(
+        url="/change_feed_url",
+        data={"old_feed_url": "   ", "new_feed_url": "https://example.com/feed.xml"},
+    )
+    assert response.status_code == 400, f"Expected 400 for empty old URL, got {response.status_code}"
+
+
+def test_change_feed_url_empty_new_url_returns_400() -> None:
+    """Submitting a blank new_feed_url should return HTTP 400."""
+    response: Response = client.post(
+        url="/change_feed_url",
+        data={"old_feed_url": feed_url, "new_feed_url": "   "},
+    )
+    assert response.status_code == 400, f"Expected 400 for blank new URL, got {response.status_code}"
+
+
+def test_change_feed_url_nonexistent_old_url_returns_404() -> None:
+    """Trying to rename a feed that does not exist should return HTTP 404."""
+    non_existent = "https://does-not-exist.example.com/rss.xml"
+    # Make sure it really is absent.
+    client.post(url="/remove", data={"feed_url": non_existent})
+
+    response: Response = client.post(
+        url="/change_feed_url",
+        data={"old_feed_url": non_existent, "new_feed_url": "https://example.com/new.xml"},
+    )
+    assert response.status_code == 404, f"Expected 404 for non-existent feed, got {response.status_code}"
+
+
+def test_change_feed_url_new_url_already_exists_returns_409() -> None:
+    """Changing to a URL that is already tracked should return HTTP 409."""
+    second_feed_url = "https://lovinator.space/rss_test_small.xml"
+
+    # Ensure both feeds are absent.
+    client.post(url="/remove", data={"feed_url": feed_url})
+    client.post(url="/remove", data={"feed_url": second_feed_url})
+
+    # Ensure webhook exists.
+    client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    client.post(url="/add_webhook", data={"webhook_name": webhook_name, "webhook_url": webhook_url})
+
+    # Add both feeds.
+    client.post(url="/add", data={"feed_url": feed_url, "webhook_dropdown": webhook_name})
+    client.post(url="/add", data={"feed_url": second_feed_url, "webhook_dropdown": webhook_name})
+
+    # Try to rename one to the other.
+    response: Response = client.post(
+        url="/change_feed_url",
+        data={"old_feed_url": feed_url, "new_feed_url": second_feed_url},
+    )
+    assert response.status_code == 409, f"Expected 409 when new URL already exists, got {response.status_code}"
+
+    # Cleanup.
+    client.post(url="/remove", data={"feed_url": feed_url})
+    client.post(url="/remove", data={"feed_url": second_feed_url})
+
+
+def test_change_feed_url_same_url_redirects_without_error() -> None:
+    """Changing a feed's URL to itself should redirect cleanly without any error."""
+    # Ensure webhook exists.
+    client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    client.post(url="/add_webhook", data={"webhook_name": webhook_name, "webhook_url": webhook_url})
+
+    # Add the feed.
+    client.post(url="/remove", data={"feed_url": feed_url})
+    response: Response = client.post(url="/add", data={"feed_url": feed_url, "webhook_dropdown": webhook_name})
+    assert response.status_code == 200, f"Failed to add feed: {response.text}"
+
+    # Submit the same URL as both old and new.
+    response = client.post(
+        url="/change_feed_url",
+        data={"old_feed_url": feed_url, "new_feed_url": feed_url},
+    )
+    assert response.status_code == 200, f"Expected 200 redirect for same URL, got {response.status_code}"
+
+    # Feed should still be accessible.
+    response = client.get(url="/feed", params={"feed_url": feed_url})
+    assert response.status_code == 200, f"Feed should still exist after no-op URL change: {response.text}"
+
+    # Cleanup.
+    client.post(url="/remove", data={"feed_url": feed_url})
 
 
 def test_delete_webhook() -> None:
