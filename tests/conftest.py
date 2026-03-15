@@ -57,7 +57,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
                 current_reader.close()
         get_reader: Any = getattr(settings_module, "get_reader", None)
         if callable(get_reader):
-            main_module.reader = get_reader()
+            get_reader()
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:

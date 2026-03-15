@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 import discord_rss_bot.main as main_module
 from discord_rss_bot.main import app
 from discord_rss_bot.main import create_html_for_feed
+from discord_rss_bot.main import get_reader_dependency
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -324,7 +325,7 @@ def test_change_feed_url_marks_entries_as_read() -> None:
     mock_entry_b = MagicMock()
     mock_entry_b.id = "entry-b"
 
-    real_reader = main_module.reader
+    real_reader = main_module.get_reader_dependency()
 
     # Use a no-redirect client so the POST response is inspected directly; the
     # redirect target (/feed?feed_url=…) would 404 because change_feed_url is mocked.
@@ -927,3 +928,28 @@ def test_webhook_entries_url_encoding() -> None:
 
     # Clean up
     client.post(url="/remove", data={"feed_url": feed_url})
+
+
+def test_reader_dependency_override_is_used() -> None:
+    """Reader should be injectable and overridable via FastAPI dependency overrides."""
+
+    class StubReader:
+        def get_tag(self, _resource: str, _key: str, default: str | None = None) -> str | None:
+            """Stub get_tag that always returns the default value.
+
+            Args:
+                _resource: Ignored.
+                _key: Ignored.
+                default: The value to return.
+
+            Returns:
+                The default value, simulating a missing tag.
+            """
+            return default
+
+    app.dependency_overrides[get_reader_dependency] = StubReader
+    try:
+        response: Response = client.get(url="/add")
+        assert response.status_code == 200, f"Expected /add to render with overridden reader: {response.text}"
+    finally:
+        app.dependency_overrides = {}
