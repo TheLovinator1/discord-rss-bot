@@ -96,26 +96,23 @@ def extract_domain(url: str) -> str:  # noqa: PLR0911
         return "Other"
 
 
-def send_entry_to_discord(entry: Entry, reader: Reader | None = None) -> str | None:  # noqa: C901
+def send_entry_to_discord(entry: Entry, reader: Reader) -> str | None:  # noqa: C901
     """Send a single entry to Discord.
 
     Args:
         entry: The entry to send to Discord.
-        reader: The reader to use. If None, the default reader will be used.
+        reader: The reader to use.
 
     Returns:
         str | None: The error message if there was an error, otherwise None.
     """
-    # Get the default reader if we didn't get a custom one.
-    effective_reader: Reader = get_reader() if reader is None else reader
-
     # Get the webhook URL for the entry.
-    webhook_url: str = str(effective_reader.get_tag(entry.feed_url, "webhook", ""))
+    webhook_url: str = str(reader.get_tag(entry.feed_url, "webhook", ""))
     if not webhook_url:
         return "No webhook URL found."
 
     # If https://discord.com/quests/<quest_id> is in the URL, send a separate message with the URL.
-    send_discord_quest_notification(entry, webhook_url, reader=effective_reader)
+    send_discord_quest_notification(entry, webhook_url, reader=reader)
 
     # Check if this is a c3kay feed
     if is_c3kay_feed(entry.feed.url):
@@ -126,7 +123,7 @@ def send_entry_to_discord(entry: Entry, reader: Reader | None = None) -> str | N
                 post_data: dict[str, Any] | None = fetch_hoyolab_post(post_id)
                 if post_data:
                     webhook = create_hoyolab_webhook(webhook_url, entry, post_data)
-                    execute_webhook(webhook, entry, reader=effective_reader)
+                    execute_webhook(webhook, entry, reader=reader)
                     return None
                 logger.warning(
                     "Failed to create Hoyolab webhook for feed %s, falling back to regular processing",
@@ -139,15 +136,15 @@ def send_entry_to_discord(entry: Entry, reader: Reader | None = None) -> str | N
 
     # Try to get the custom message for the feed. If the user has none, we will use the default message.
     # This has to be a string for some reason so don't change it to "not custom_message.get_custom_message()"
-    if get_custom_message(effective_reader, entry.feed) != "":  # noqa: PLC1901
-        webhook_message: str = replace_tags_in_text_message(entry=entry, reader=effective_reader)
+    if get_custom_message(reader, entry.feed) != "":  # noqa: PLC1901
+        webhook_message: str = replace_tags_in_text_message(entry=entry, reader=reader)
 
     if not webhook_message:
         webhook_message = "No message found."
 
     # Create the webhook.
     try:
-        should_send_embed = bool(effective_reader.get_tag(entry.feed, "should_send_embed", True))
+        should_send_embed = bool(reader.get_tag(entry.feed, "should_send_embed", True))
     except StorageError:
         logger.exception("Error getting should_send_embed tag for feed: %s", entry.feed.url)
         should_send_embed = True
@@ -157,11 +154,11 @@ def send_entry_to_discord(entry: Entry, reader: Reader | None = None) -> str | N
         should_send_embed = False
 
     if should_send_embed:
-        webhook = create_embed_webhook(webhook_url, entry, reader=effective_reader)
+        webhook = create_embed_webhook(webhook_url, entry, reader=reader)
     else:
         webhook: DiscordWebhook = DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)
 
-    execute_webhook(webhook, entry, reader=effective_reader)
+    execute_webhook(webhook, entry, reader=reader)
     return None
 
 

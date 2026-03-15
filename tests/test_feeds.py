@@ -188,7 +188,7 @@ def test_send_entry_to_discord_youtube_feed(
     mock_discord_webhook.return_value = mock_webhook
 
     # Call the function
-    send_entry_to_discord(mock_entry)
+    send_entry_to_discord(mock_entry, mock_reader)
 
     # Assertions
     mock_create_embed.assert_not_called()

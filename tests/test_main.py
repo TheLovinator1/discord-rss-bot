@@ -562,7 +562,7 @@ def test_post_entry_uses_feed_url_to_disambiguate_duplicate_ids() -> None:
 
     selected_feed_urls: list[str] = []
 
-    def fake_send_entry_to_discord(entry: Entry, reader: object | None = None) -> None:
+    def fake_send_entry_to_discord(entry: Entry, reader: object) -> None:
         selected_feed_urls.append(entry.feed.url)
 
     app.dependency_overrides[get_reader_dependency] = StubReader
