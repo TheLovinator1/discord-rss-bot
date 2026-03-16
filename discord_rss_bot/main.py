@@ -163,7 +163,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         trigger="interval",
         minutes=1,
         id="send_to_discord",
-        max_instances=3,
+        max_instances=1,
         next_run_time=datetime.now(tz=UTC),
     )
     scheduler.start()
