@@ -1,20 +1,96 @@
 {% extends "base.html" %}
 {% block title %}
-    | {{ webhook_name }} - Latest Entries
+    | {{ webhook_name }}
 {% endblock title %}
 {% block content %}
     <div class="card mb-3 border border-dark p-3 text-light">
-        <!-- Webhook Title -->
-        <h2>{{ webhook_name }} - Latest Entries ({{ total_entries }} total from {{ feeds_count }} feeds)</h2>
-        <!-- Webhook Info -->
-        <div class="mt-3">
-            <p class="text-muted">
-                <code>{{ webhook_url }}</code>
-            </p>
+        <div class="d-flex flex-column flex-md-row justify-content-between gap-3">
+            <div>
+                <h2 class="mb-2">{{ webhook_name }}</h2>
+                <p class="text-muted mb-1">
+                    {{ total_entries }} total from {{ feeds_count }} feed{{ 's' if feeds_count != 1 else '' }}
+                </p>
+                <p class="text-muted mb-0">
+                    <code>{{ webhook_url }}</code>
+                </p>
+            </div>
+            <div class="d-flex gap-2 align-items-start">
+                <a class="btn btn-outline-light btn-sm" href="/">Back to dashboard</a>
+                <a class="btn btn-outline-info btn-sm" href="/webhooks">All webhooks</a>
+            </div>
+        </div>
+    </div>
+    <div class="row g-3 mb-3">
+        <div class="col-lg-5">
+            <div class="card border border-dark p-3 text-light h-100">
+                <h3 class="h5">Settings</h3>
+                <ul class="list-unstyled text-muted mb-3">
+                    <li>
+                        <strong>Custom name:</strong> {{ hook_info.custom_name }}
+                    </li>
+                    <li>
+                        <strong>Discord name:</strong> {{ hook_info.name or 'Unavailable' }}
+                    </li>
+                    <li>
+                        <strong>Webhook:</strong>
+                        <a class="text-muted" href="{{ hook_info.url }}">{{ hook_info.url | replace('https://discord.com/api/webhooks', '') }}</a>
+                    </li>
+                </ul>
+                <form action="/modify_webhook" method="post" class="row g-3 mb-3">
+                    <input type="hidden" name="old_hook" value="{{ webhook_url }}" />
+                    <input type="hidden"
+                           name="redirect_to"
+                           value="/webhook_entries?webhook_url={{ webhook_url|encode_url }}" />
+                    <div class="col-12">
+                        <label for="new_hook" class="form-label">Modify Webhook</label>
+                        <input type="text"
+                               name="new_hook"
+                               id="new_hook"
+                               class="form-control border text-muted bg-dark"
+                               placeholder="Enter new webhook URL" />
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-primary w-100">Save Webhook URL</button>
+                    </div>
+                </form>
+                <form action="/delete_webhook" method="post">
+                    <input type="hidden" name="webhook_url" value="{{ webhook_url }}" />
+                    <button type="submit"
+                            class="btn btn-danger w-100"
+                            onclick="return confirm('Are you sure you want to delete this webhook?');">
+                        Delete Webhook
+                    </button>
+                </form>
+            </div>
+        </div>
+        <div class="col-lg-7">
+            <div class="card border border-dark p-3 text-light h-100">
+                <h3 class="h5">Attached feeds</h3>
+                {% if webhook_feeds %}
+                    <ul class="list-group list-unstyled mb-0">
+                        {% for feed in webhook_feeds %}
+                            <li class="mb-2">
+                                <a class="text-muted" href="/feed?feed_url={{ feed.url|encode_url }}">
+                                    {% if feed.title %}
+                                        {{ feed.title }}
+                                    {% else %}
+                                        {{ feed.url }}
+                                    {% endif %}
+                                </a>
+                                {% if not feed.updates_enabled %}<span class="text-warning">Disabled</span>{% endif %}
+                                {% if feed.last_exception %}<span class="text-danger">({{ feed.last_exception.value_str }})</span>{% endif %}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-muted mb-0">No feeds are attached to this webhook yet.</p>
+                {% endif %}
+            </div>
         </div>
     </div>
     {# Rendered HTML content #}
     {% if entries %}
+        <h3 class="h5 text-light">Latest entries</h3>
         <pre>{{ html|safe }}</pre>
         {% if is_show_more_entries_button_visible and last_entry %}
             <a class="btn btn-dark mt-3"

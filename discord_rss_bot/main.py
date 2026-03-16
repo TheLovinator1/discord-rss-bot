@@ -1473,12 +1473,14 @@ def modify_webhook(
     old_hook: Annotated[str, Form()],
     new_hook: Annotated[str, Form()],
     reader: Annotated[Reader, Depends(get_reader_dependency)],
+    redirect_to: Annotated[str, Form()] = "",
 ):
     """Modify a webhook.
 
     Args:
         old_hook: The webhook to modify.
         new_hook: The new webhook.
+        redirect_to: Optional redirect URL after the update.
         reader: The Reader instance.
 
     Returns:
@@ -1515,8 +1517,13 @@ def modify_webhook(
                 if webhook == old_hook.strip():
                     reader.set_tag(feed.url, "webhook", new_hook.strip())  # pyright: ignore[reportArgumentType]
 
-    # Redirect to the webhook page.
-    return RedirectResponse(url="/webhooks", status_code=303)
+    redirect_url: str = redirect_to.strip() or "/webhooks"
+    if redirect_to:
+        redirect_url = redirect_url.replace(urllib.parse.quote(old_hook.strip()), urllib.parse.quote(new_hook.strip()))
+        redirect_url = redirect_url.replace(old_hook.strip(), new_hook.strip())
+
+    # Redirect to the requested page.
+    return RedirectResponse(url=redirect_url, status_code=303)
 
 
 def extract_youtube_video_id(url: str) -> str | None:
@@ -1577,6 +1584,8 @@ async def get_webhook_entries(  # noqa: C901, PLR0914
     if not webhook_name:
         raise HTTPException(status_code=404, detail=f"Webhook not found: {clean_webhook_url}")
 
+    hook_info: WebhookInfo = get_data_from_hook_url(hook_name=webhook_name, hook_url=clean_webhook_url)
+
     # Get all feeds associated with this webhook
     all_feeds: list[Feed] = list(reader.get_feeds())
     webhook_feeds: list[Feed] = []
@@ -1632,8 +1641,10 @@ async def get_webhook_entries(  # noqa: C901, PLR0914
 
     context = {
         "request": request,
+        "hook_info": hook_info,
         "webhook_name": webhook_name,
         "webhook_url": clean_webhook_url,
+        "webhook_feeds": webhook_feeds,
         "entries": paginated_entries,
         "html": html,
         "last_entry": last_entry,

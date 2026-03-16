@@ -33,7 +33,8 @@
                 <div class="p-2 mb-3 border border-dark">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h2 class="h5 mb-0">
-                            <a class="text-muted" href="/webhooks">{{ hook_from_context.name }}</a>
+                            <a class="text-muted"
+                               href="/webhook_entries?webhook_url={{ hook_from_context.url|encode_url }}">{{ hook_from_context.name }}</a>
                         </h2>
                         <a class="text-muted"
                            href="/webhook_entries?webhook_url={{ hook_from_context.url|encode_url }}">View Latest Entries</a>

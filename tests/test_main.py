@@ -158,6 +158,9 @@ def test_get() -> None:
     response: Response = client.get(url="/webhooks")
     assert response.status_code == 200, f"/webhooks failed: {response.text}"
 
+    response = client.get(url="/webhook_entries", params={"webhook_url": webhook_url})
+    assert response.status_code == 200, f"/webhook_entries failed: {response.text}"
+
     response: Response = client.get(url="/whitelist", params={"feed_url": encoded_feed_url(feed_url)})
     assert response.status_code == 200, f"/whitelist failed: {response.text}"
 
@@ -882,6 +885,32 @@ def test_webhook_entries_no_feeds() -> None:
     assert "No feeds found" in response.text or "Add feeds" in response.text, "Expected message about no feeds"
 
 
+def test_webhook_entries_no_feeds_still_shows_webhook_settings() -> None:
+    """The webhook detail view should show settings/actions even with no attached feeds."""
+    client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    response: Response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": webhook_name, "webhook_url": webhook_url},
+    )
+    assert response.status_code == 200, f"Failed to add webhook: {response.text}"
+
+    response = client.get(
+        url="/webhook_entries",
+        params={"webhook_url": webhook_url},
+    )
+
+    assert response.status_code == 200, f"Failed to get /webhook_entries: {response.text}"
+    assert "Settings" in response.text, "Expected settings card on webhook detail view"
+    assert "Modify Webhook" in response.text, "Expected modify form on webhook detail view"
+    assert "Delete Webhook" in response.text, "Expected delete action on webhook detail view"
+    assert "Back to dashboard" in response.text, "Expected dashboard navigation link"
+    assert "All webhooks" in response.text, "Expected all webhooks navigation link"
+    assert f'name="old_hook" value="{webhook_url}"' in response.text, "Expected old_hook hidden input"
+    assert f'value="/webhook_entries?webhook_url={urllib.parse.quote(webhook_url)}"' in response.text, (
+        "Expected modify form to redirect back to the current webhook detail view"
+    )
+
+
 def test_webhook_entries_with_feeds_no_entries() -> None:
     """Test webhook_entries endpoint when webhook has feeds but no entries yet."""
     # Clean up and create fresh webhook
@@ -943,6 +972,38 @@ def test_webhook_entries_with_entries() -> None:
     assert webhook_name in response.text, "Webhook name not found in response"
     # Should show entries (the feed has entries)
     assert "total from" in response.text, "Expected to see entry count"
+    assert "Modify Webhook" in response.text, "Expected webhook settings to be visible"
+    assert "Attached feeds" in response.text, "Expected attached feeds section to be visible"
+
+
+def test_webhook_entries_shows_attached_feed_link() -> None:
+    """The webhook detail view should list attached feeds linking to their feed pages."""
+    client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    response: Response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": webhook_name, "webhook_url": webhook_url},
+    )
+    assert response.status_code == 200, f"Failed to add webhook: {response.text}"
+
+    client.post(url="/remove", data={"feed_url": feed_url})
+    response = client.post(
+        url="/add",
+        data={"feed_url": feed_url, "webhook_dropdown": webhook_name},
+    )
+    assert response.status_code == 200, f"Failed to add feed: {response.text}"
+
+    response = client.get(
+        url="/webhook_entries",
+        params={"webhook_url": webhook_url},
+    )
+
+    assert response.status_code == 200, f"Failed to get /webhook_entries: {response.text}"
+    assert f"/feed?feed_url={urllib.parse.quote(feed_url)}" in response.text, (
+        "Expected attached feed to link to its feed detail page"
+    )
+    assert "Latest entries" in response.text, "Expected latest entries heading on webhook detail view"
+
+    client.post(url="/remove", data={"feed_url": feed_url})
 
 
 def test_webhook_entries_multiple_feeds() -> None:
@@ -1045,6 +1106,60 @@ def test_webhook_entries_url_encoding() -> None:
 
     # Clean up
     client.post(url="/remove", data={"feed_url": feed_url})
+
+
+def test_dashboard_webhook_name_links_to_webhook_detail() -> None:
+    """Webhook names on the dashboard should open the webhook detail view."""
+    client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    response: Response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": webhook_name, "webhook_url": webhook_url},
+    )
+    assert response.status_code == 200, f"Failed to add webhook: {response.text}"
+
+    client.post(url="/remove", data={"feed_url": feed_url})
+    response = client.post(url="/add", data={"feed_url": feed_url, "webhook_dropdown": webhook_name})
+    assert response.status_code == 200, f"Failed to add feed: {response.text}"
+
+    response = client.get(url="/")
+    assert response.status_code == 200, f"Failed to get /: {response.text}"
+
+    expected_link = f"/webhook_entries?webhook_url={urllib.parse.quote(webhook_url)}"
+    assert expected_link in response.text, "Expected dashboard webhook link to point to the webhook detail view"
+
+    client.post(url="/remove", data={"feed_url": feed_url})
+
+
+def test_modify_webhook_redirects_back_to_webhook_detail() -> None:
+    """Webhook updates from the detail view should redirect back to that view with the new URL."""
+    original_webhook_url = "https://discord.com/api/webhooks/1234567890/abcdefghijklmnopqrstuvwxyz"
+    new_webhook_url = "https://discord.com/api/webhooks/1234567890/updated-token"
+
+    client.post(url="/delete_webhook", data={"webhook_url": original_webhook_url})
+    client.post(url="/delete_webhook", data={"webhook_url": new_webhook_url})
+
+    response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": webhook_name, "webhook_url": original_webhook_url},
+    )
+    assert response.status_code == 200, f"Failed to add webhook: {response.text}"
+
+    no_redirect_client = TestClient(app, follow_redirects=False)
+    response = no_redirect_client.post(
+        url="/modify_webhook",
+        data={
+            "old_hook": original_webhook_url,
+            "new_hook": new_webhook_url,
+            "redirect_to": f"/webhook_entries?webhook_url={urllib.parse.quote(original_webhook_url)}",
+        },
+    )
+
+    assert response.status_code == 303, f"Expected 303 redirect, got {response.status_code}: {response.text}"
+    assert response.headers["location"] == (f"/webhook_entries?webhook_url={urllib.parse.quote(new_webhook_url)}"), (
+        f"Unexpected redirect location: {response.headers['location']}"
+    )
+
+    client.post(url="/delete_webhook", data={"webhook_url": new_webhook_url})
 
 
 def test_reader_dependency_override_is_used() -> None:
