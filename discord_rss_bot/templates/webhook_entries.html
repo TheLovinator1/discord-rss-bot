@@ -3,6 +3,7 @@
     | {{ webhook_name }}
 {% endblock title %}
 {% block content %}
+    {% if message %}<div class="alert alert-info" role="alert">{{ message }}</div>{% endif %}
     <div class="card mb-3 border border-dark p-3 text-light">
         <div class="d-flex flex-column flex-md-row justify-content-between gap-3">
             <div>
@@ -61,6 +62,57 @@
                         Delete Webhook
                     </button>
                 </form>
+                <hr class="border-secondary my-3" />
+                <h3 class="h6">Mass update feed URLs</h3>
+                <p class="text-muted small mb-2">Replace part of feed URLs for all feeds attached to this webhook.</p>
+                <form action="/webhook_entries"
+                      method="get"
+                      class="row g-2 mb-2"
+                      hx-get="/webhook_entries_mass_update_preview"
+                      hx-target="#mass-update-preview"
+                      hx-swap="innerHTML">
+                    <input type="hidden" name="webhook_url" value="{{ webhook_url|encode_url }}" />
+                    <div class="col-12">
+                        <label for="replace_from" class="form-label small">Replace this</label>
+                        <input type="text"
+                               name="replace_from"
+                               id="replace_from"
+                               class="form-control border text-muted bg-dark"
+                               value="{{ replace_from }}"
+                               placeholder="https://old-domain.example" />
+                    </div>
+                    <div class="col-12">
+                        <label for="replace_to" class="form-label small">With this</label>
+                        <input type="text"
+                               name="replace_to"
+                               id="replace_to"
+                               class="form-control border text-muted bg-dark"
+                               value="{{ replace_to }}"
+                               placeholder="https://new-domain.example" />
+                    </div>
+                    <div class="col-12 form-check ms-1">
+                        <input class="form-check-input"
+                               type="checkbox"
+                               value="true"
+                               id="resolve_urls"
+                               name="resolve_urls"
+                               {% if resolve_urls %}checked{% endif %} />
+                        <label class="form-check-label small" for="resolve_urls">Resolve final URL with redirects (uses httpx)</label>
+                    </div>
+                    <div class="col-12 form-check ms-1">
+                        <input class="form-check-input"
+                               type="checkbox"
+                               value="true"
+                               id="force_update"
+                               name="force_update"
+                               {% if force_update %}checked{% endif %} />
+                        <label class="form-check-label small" for="force_update">Force update (overwrite conflicting target feed URLs)</label>
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-outline-warning w-100">Preview changes</button>
+                    </div>
+                </form>
+                <div id="mass-update-preview">{% include "_webhook_mass_update_preview.html" %}</div>
             </div>
         </div>
         <div class="col-lg-7">
@@ -77,6 +129,7 @@
                                         {{ feed.url }}
                                     {% endif %}
                                 </a>
+                                {% if feed.title %}<span class="text-muted">- {{ feed.url }}</span>{% endif %}
                                 {% if not feed.updates_enabled %}<span class="text-warning">Disabled</span>{% endif %}
                                 {% if feed.last_exception %}<span class="text-danger">({{ feed.last_exception.value_str }})</span>{% endif %}
                             </li>

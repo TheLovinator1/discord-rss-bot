@@ -4,6 +4,8 @@ import re
 import urllib.parse
 from dataclasses import dataclass
 from dataclasses import field
+from datetime import UTC
+from datetime import datetime
 from typing import TYPE_CHECKING
 from typing import cast
 from unittest.mock import MagicMock
@@ -1039,6 +1041,75 @@ def test_webhook_entries_multiple_feeds() -> None:
     client.post(url="/remove", data={"feed_url": feed_url})
 
 
+def test_webhook_entries_sort_newest_and_non_null_published_first() -> None:
+    """Webhook entries should be sorted newest-first with published=None entries placed last."""
+
+    @dataclass(slots=True)
+    class DummyFeed:
+        url: str
+        title: str | None = None
+        updates_enabled: bool = True
+        last_exception: None = None
+
+    @dataclass(slots=True)
+    class DummyEntry:
+        id: str
+        feed: DummyFeed
+        published: datetime | None
+
+    dummy_feed = DummyFeed(url="https://example.com/feed.xml", title="Example Feed")
+
+    # Intentionally unsorted input with two dated entries and two undated entries.
+    unsorted_entries: list[Entry] = [
+        cast("Entry", DummyEntry(id="old", feed=dummy_feed, published=datetime(2024, 1, 1, tzinfo=UTC))),
+        cast("Entry", DummyEntry(id="none-1", feed=dummy_feed, published=None)),
+        cast("Entry", DummyEntry(id="new", feed=dummy_feed, published=datetime(2024, 2, 1, tzinfo=UTC))),
+        cast("Entry", DummyEntry(id="none-2", feed=dummy_feed, published=None)),
+    ]
+
+    class StubReader:
+        def get_tag(self, resource: object, key: str, default: object = None) -> object:
+            if resource == () and key == "webhooks":
+                return [{"name": webhook_name, "url": webhook_url}]
+            if key == "webhook" and isinstance(resource, str):
+                return webhook_url
+            return default
+
+        def get_feeds(self) -> list[DummyFeed]:
+            return [dummy_feed]
+
+        def get_entries(self, **_kwargs: object) -> list[Entry]:
+            return unsorted_entries
+
+    observed_order: list[str] = []
+
+    def capture_entries(*, reader: object, entries: list[Entry], current_feed_url: str = "") -> str:
+        del reader, current_feed_url
+        observed_order.extend(entry.id for entry in entries)
+        return ""
+
+    app.dependency_overrides[get_reader_dependency] = StubReader
+    try:
+        with (
+            patch(
+                "discord_rss_bot.main.get_data_from_hook_url",
+                return_value=main_module.WebhookInfo(custom_name=webhook_name, url=webhook_url),
+            ),
+            patch("discord_rss_bot.main.create_html_for_feed", side_effect=capture_entries),
+        ):
+            response: Response = client.get(
+                url="/webhook_entries",
+                params={"webhook_url": webhook_url},
+            )
+
+        assert response.status_code == 200, f"Failed to get /webhook_entries: {response.text}"
+        assert observed_order == ["new", "old", "none-1", "none-2"], (
+            "Expected newest published entries first and published=None entries last"
+        )
+    finally:
+        app.dependency_overrides = {}
+
+
 def test_webhook_entries_pagination() -> None:
     """Test webhook_entries endpoint pagination functionality."""
     # Clean up and create webhook
@@ -1138,6 +1209,37 @@ def test_modify_webhook_redirects_back_to_webhook_detail() -> None:
     client.post(url="/delete_webhook", data={"webhook_url": original_webhook_url})
     client.post(url="/delete_webhook", data={"webhook_url": new_webhook_url})
 
+
+def test_modify_webhook_triggers_git_backup_commit() -> None:
+    """Modifying a webhook URL should record a state change for git backup."""
+    original_webhook_url = "https://discord.com/api/webhooks/1234567890/abcdefghijklmnopqrstuvwxyz"
+    new_webhook_url = "https://discord.com/api/webhooks/1234567890/updated-token"
+
+    client.post(url="/delete_webhook", data={"webhook_url": original_webhook_url})
+    client.post(url="/delete_webhook", data={"webhook_url": new_webhook_url})
+
+    response: Response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": webhook_name, "webhook_url": original_webhook_url},
+    )
+    assert response.status_code == 200, f"Failed to add webhook: {response.text}"
+
+    no_redirect_client = TestClient(app, follow_redirects=False)
+    with patch("discord_rss_bot.main.commit_state_change") as mock_commit_state_change:
+        response = no_redirect_client.post(
+            url="/modify_webhook",
+            data={
+                "old_hook": original_webhook_url,
+                "new_hook": new_webhook_url,
+                "redirect_to": f"/webhook_entries?webhook_url={urllib.parse.quote(original_webhook_url)}",
+            },
+        )
+
+    assert response.status_code == 303, f"Expected 303 redirect, got {response.status_code}: {response.text}"
+    assert mock_commit_state_change.call_count == 1, "Expected webhook modification to trigger git backup commit"
+
+    client.post(url="/delete_webhook", data={"webhook_url": new_webhook_url})
+
     response = client.post(
         url="/add_webhook",
         data={"webhook_name": webhook_name, "webhook_url": original_webhook_url},
@@ -1160,6 +1262,338 @@ def test_modify_webhook_redirects_back_to_webhook_detail() -> None:
     )
 
     client.post(url="/delete_webhook", data={"webhook_url": new_webhook_url})
+
+
+def test_webhook_entries_mass_update_preview_shows_old_and_new_urls() -> None:
+    """Preview should list old->new feed URLs for webhook bulk replacement."""
+
+    @dataclass(slots=True)
+    class DummyFeed:
+        url: str
+        title: str | None = None
+        updates_enabled: bool = True
+        last_exception: None = None
+
+    class StubReader:
+        def __init__(self) -> None:
+            self._feeds: list[DummyFeed] = [
+                DummyFeed(url="https://old.example.com/rss/a.xml", title="A"),
+                DummyFeed(url="https://old.example.com/rss/b.xml", title="B"),
+                DummyFeed(url="https://unchanged.example.com/rss/c.xml", title="C"),
+            ]
+
+        def get_tag(self, resource: object, key: str, default: object = None) -> object:
+            if resource == () and key == "webhooks":
+                return [{"name": webhook_name, "url": webhook_url}]
+            if key == "webhook" and isinstance(resource, str):
+                if resource.startswith("https://old.example.com"):
+                    return webhook_url
+                if resource.startswith("https://unchanged.example.com"):
+                    return webhook_url
+            return default
+
+        def get_feeds(self) -> list[DummyFeed]:
+            return self._feeds
+
+        def get_entries(self, **_kwargs: object) -> list[Entry]:
+            return []
+
+    app.dependency_overrides[get_reader_dependency] = StubReader
+    try:
+        with (
+            patch(
+                "discord_rss_bot.main.get_data_from_hook_url",
+                return_value=main_module.WebhookInfo(custom_name=webhook_name, url=webhook_url),
+            ),
+            patch(
+                "discord_rss_bot.main.resolve_final_feed_url",
+                side_effect=lambda url: (url.replace("old.example.com", "new.example.com"), None),
+            ),
+        ):
+            response: Response = client.get(
+                url="/webhook_entries",
+                params={
+                    "webhook_url": webhook_url,
+                    "replace_from": "old.example.com",
+                    "replace_to": "new.example.com",
+                    "resolve_urls": "true",
+                },
+            )
+
+        assert response.status_code == 200, f"Failed to get preview: {response.text}"
+        assert "Mass update feed URLs" in response.text
+        assert "old.example.com/rss/a.xml" in response.text
+        assert "new.example.com/rss/a.xml" in response.text
+        assert "Will update" in response.text
+        assert "Matched: 2" in response.text
+        assert "Will update: 2" in response.text
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_bulk_change_feed_urls_updates_matching_feeds() -> None:
+    """Mass updater should change all matching feed URLs for a webhook."""
+
+    @dataclass(slots=True)
+    class DummyFeed:
+        url: str
+
+    class StubReader:
+        def __init__(self) -> None:
+            self._feeds = [
+                DummyFeed(url="https://old.example.com/rss/a.xml"),
+                DummyFeed(url="https://old.example.com/rss/b.xml"),
+                DummyFeed(url="https://unchanged.example.com/rss/c.xml"),
+            ]
+            self.change_calls: list[tuple[str, str]] = []
+            self.updated_feeds: list[str] = []
+
+        def get_tag(self, resource: object, key: str, default: object = None) -> object:
+            if resource == () and key == "webhooks":
+                return [{"name": webhook_name, "url": webhook_url}]
+            if key == "webhook" and isinstance(resource, str):
+                return webhook_url
+            return default
+
+        def get_feeds(self) -> list[DummyFeed]:
+            return self._feeds
+
+        def change_feed_url(self, old_url: str, new_url: str) -> None:
+            self.change_calls.append((old_url, new_url))
+
+        def update_feed(self, feed_url: str) -> None:
+            self.updated_feeds.append(feed_url)
+
+        def get_entries(self, **_kwargs: object) -> list[Entry]:
+            return []
+
+        def set_entry_read(self, _entry: Entry, _value: bool) -> None:  # noqa: FBT001
+            return
+
+    stub_reader = StubReader()
+    app.dependency_overrides[get_reader_dependency] = lambda: stub_reader
+    no_redirect_client = TestClient(app, follow_redirects=False)
+
+    try:
+        with patch(
+            "discord_rss_bot.main.resolve_final_feed_url",
+            side_effect=lambda url: (url.replace("old.example.com", "new.example.com"), None),
+        ):
+            response: Response = no_redirect_client.post(
+                url="/bulk_change_feed_urls",
+                data={
+                    "webhook_url": webhook_url,
+                    "replace_from": "old.example.com",
+                    "replace_to": "new.example.com",
+                    "resolve_urls": "true",
+                },
+            )
+
+        assert response.status_code == 303, f"Expected redirect, got {response.status_code}: {response.text}"
+        assert "Updated%202%20feed%20URL%28s%29" in response.headers.get("location", "")
+        assert sorted(stub_reader.change_calls) == sorted([
+            ("https://old.example.com/rss/a.xml", "https://new.example.com/rss/a.xml"),
+            ("https://old.example.com/rss/b.xml", "https://new.example.com/rss/b.xml"),
+        ])
+        assert sorted(stub_reader.updated_feeds) == sorted([
+            "https://new.example.com/rss/a.xml",
+            "https://new.example.com/rss/b.xml",
+        ])
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_webhook_entries_mass_update_preview_fragment_endpoint() -> None:
+    """HTMX preview endpoint should render only the mass-update preview fragment."""
+
+    @dataclass(slots=True)
+    class DummyFeed:
+        url: str
+        title: str | None = None
+        updates_enabled: bool = True
+        last_exception: None = None
+
+    class StubReader:
+        def __init__(self) -> None:
+            self._feeds: list[DummyFeed] = [
+                DummyFeed(url="https://old.example.com/rss/a.xml", title="A"),
+                DummyFeed(url="https://old.example.com/rss/b.xml", title="B"),
+            ]
+
+        def get_tag(self, resource: object, key: str, default: object = None) -> object:
+            if key == "webhook" and isinstance(resource, str):
+                return webhook_url
+            return default
+
+        def get_feeds(self) -> list[DummyFeed]:
+            return self._feeds
+
+    app.dependency_overrides[get_reader_dependency] = StubReader
+    try:
+        with patch(
+            "discord_rss_bot.main.resolve_final_feed_url",
+            side_effect=lambda url: (url.replace("old.example.com", "new.example.com"), None),
+        ):
+            response: Response = client.get(
+                url="/webhook_entries_mass_update_preview",
+                params={
+                    "webhook_url": webhook_url,
+                    "replace_from": "old.example.com",
+                    "replace_to": "new.example.com",
+                    "resolve_urls": "true",
+                },
+            )
+
+        assert response.status_code == 200, f"Failed to get HTMX preview fragment: {response.text}"
+        assert "Will update: 2" in response.text
+        assert "<table" in response.text
+        assert "Mass update feed URLs" not in response.text, "Fragment should not include full page wrapper text"
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_bulk_change_feed_urls_force_update_overwrites_conflict() -> None:  # noqa: C901
+    """Force update should overwrite conflicting target URLs instead of skipping them."""
+
+    @dataclass(slots=True)
+    class DummyFeed:
+        url: str
+
+    class StubReader:
+        def __init__(self) -> None:
+            self._feeds = [
+                DummyFeed(url="https://old.example.com/rss/a.xml"),
+                DummyFeed(url="https://new.example.com/rss/a.xml"),
+            ]
+            self.delete_calls: list[str] = []
+            self.change_calls: list[tuple[str, str]] = []
+
+        def get_tag(self, resource: object, key: str, default: object = None) -> object:
+            if resource == () and key == "webhooks":
+                return [{"name": webhook_name, "url": webhook_url}]
+            if key == "webhook" and isinstance(resource, str):
+                return webhook_url
+            return default
+
+        def get_feeds(self) -> list[DummyFeed]:
+            return self._feeds
+
+        def delete_feed(self, feed_url: str) -> None:
+            self.delete_calls.append(feed_url)
+
+        def change_feed_url(self, old_url: str, new_url: str) -> None:
+            self.change_calls.append((old_url, new_url))
+
+        def update_feed(self, _feed_url: str) -> None:
+            return
+
+        def get_entries(self, **_kwargs: object) -> list[Entry]:
+            return []
+
+        def set_entry_read(self, _entry: Entry, _value: bool) -> None:  # noqa: FBT001
+            return
+
+    stub_reader = StubReader()
+    app.dependency_overrides[get_reader_dependency] = lambda: stub_reader
+    no_redirect_client = TestClient(app, follow_redirects=False)
+
+    try:
+        with patch(
+            "discord_rss_bot.main.resolve_final_feed_url",
+            side_effect=lambda url: (url.replace("old.example.com", "new.example.com"), None),
+        ):
+            response: Response = no_redirect_client.post(
+                url="/bulk_change_feed_urls",
+                data={
+                    "webhook_url": webhook_url,
+                    "replace_from": "old.example.com",
+                    "replace_to": "new.example.com",
+                    "resolve_urls": "true",
+                    "force_update": "true",
+                },
+            )
+
+        assert response.status_code == 303, f"Expected redirect, got {response.status_code}: {response.text}"
+        assert stub_reader.delete_calls == ["https://new.example.com/rss/a.xml"]
+        assert stub_reader.change_calls == [
+            (
+                "https://old.example.com/rss/a.xml",
+                "https://new.example.com/rss/a.xml",
+            ),
+        ]
+        assert "Force%20overwrote%201" in response.headers.get("location", "")
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_bulk_change_feed_urls_force_update_ignores_resolution_error() -> None:
+    """Force update should proceed even when URL resolution returns an error (e.g. HTTP 404)."""
+
+    @dataclass(slots=True)
+    class DummyFeed:
+        url: str
+
+    class StubReader:
+        def __init__(self) -> None:
+            self._feeds = [
+                DummyFeed(url="https://old.example.com/rss/a.xml"),
+            ]
+            self.change_calls: list[tuple[str, str]] = []
+
+        def get_tag(self, resource: object, key: str, default: object = None) -> object:
+            if resource == () and key == "webhooks":
+                return [{"name": webhook_name, "url": webhook_url}]
+            if key == "webhook" and isinstance(resource, str):
+                return webhook_url
+            return default
+
+        def get_feeds(self) -> list[DummyFeed]:
+            return self._feeds
+
+        def change_feed_url(self, old_url: str, new_url: str) -> None:
+            self.change_calls.append((old_url, new_url))
+
+        def update_feed(self, _feed_url: str) -> None:
+            return
+
+        def get_entries(self, **_kwargs: object) -> list[Entry]:
+            return []
+
+        def set_entry_read(self, _entry: Entry, _value: bool) -> None:  # noqa: FBT001
+            return
+
+    stub_reader = StubReader()
+    app.dependency_overrides[get_reader_dependency] = lambda: stub_reader
+    no_redirect_client = TestClient(app, follow_redirects=False)
+
+    try:
+        with patch(
+            "discord_rss_bot.main.resolve_final_feed_url",
+            return_value=("https://new.example.com/rss/a.xml", "HTTP 404"),
+        ):
+            response: Response = no_redirect_client.post(
+                url="/bulk_change_feed_urls",
+                data={
+                    "webhook_url": webhook_url,
+                    "replace_from": "old.example.com",
+                    "replace_to": "new.example.com",
+                    "resolve_urls": "true",
+                    "force_update": "true",
+                },
+            )
+
+        assert response.status_code == 303, f"Expected redirect, got {response.status_code}: {response.text}"
+        assert stub_reader.change_calls == [
+            (
+                "https://old.example.com/rss/a.xml",
+                "https://new.example.com/rss/a.xml",
+            ),
+        ]
+        location = response.headers.get("location", "")
+        assert "Updated%201%20feed%20URL%28s%29" in location
+        assert "Failed%200" in location
+    finally:
+        app.dependency_overrides = {}
 
 
 def test_reader_dependency_override_is_used() -> None:

@@ -1,0 +1,73 @@
+{% if preview_rows %}
+    <p class="small text-muted mb-1">
+        {{ preview_change_count }} feed URL{{ 's' if preview_change_count != 1 else '' }} ready to update.
+    </p>
+    <div class="small text-muted mb-2 d-flex flex-wrap gap-2">
+        <span class="badge bg-secondary">Total: {{ preview_summary.total }}</span>
+        <span class="badge bg-info text-dark">Matched: {{ preview_summary.matched }}</span>
+        <span class="badge bg-success">Will update: {{ preview_summary.will_update }}</span>
+        <span class="badge bg-warning text-dark">Conflicts: {{ preview_summary.conflicts }}</span>
+        <span class="badge bg-warning">Force overwrite: {{ preview_summary.force_overwrite }}</span>
+        <span class="badge bg-warning text-dark">Force ignore errors: {{ preview_summary.force_ignore_errors }}</span>
+        <span class="badge bg-danger">Resolve errors: {{ preview_summary.resolve_errors }}</span>
+        <span class="badge bg-secondary">No change: {{ preview_summary.no_change }}</span>
+        <span class="badge bg-secondary">No match: {{ preview_summary.no_match }}</span>
+    </div>
+    <form action="/bulk_change_feed_urls" method="post" class="mb-2">
+        <input type="hidden" name="webhook_url" value="{{ webhook_url }}" />
+        <input type="hidden" name="replace_from" value="{{ replace_from }}" />
+        <input type="hidden" name="replace_to" value="{{ replace_to }}" />
+        <input type="hidden"
+               name="resolve_urls"
+               value="{{ 'true' if resolve_urls else 'false' }}" />
+        <input type="hidden"
+               name="force_update"
+               value="{{ 'true' if force_update else 'false' }}" />
+        <button type="submit"
+                class="btn btn-warning w-100"
+                {% if preview_change_count == 0 %}disabled{% endif %}
+                onclick="return confirm('Apply these feed URL updates?');">Apply mass update</button>
+    </form>
+    <div class="table-responsive mt-2">
+        <table class="table table-sm table-dark table-striped align-middle mb-0">
+            <thead>
+                <tr>
+                    <th scope="col">Old URL</th>
+                    <th scope="col">New URL</th>
+                    <th scope="col">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in preview_rows %}
+                    <tr>
+                        <td>
+                            <code>{{ row.old_url }}</code>
+                        </td>
+                        <td>
+                            <code>{{ row.resolved_url if resolve_urls else row.candidate_url }}</code>
+                        </td>
+                        <td>
+                            {% if not row.has_match %}
+                                <span class="badge bg-secondary">No match</span>
+                            {% elif row.will_force_ignore_errors %}
+                                <span class="badge bg-warning text-dark">Will force update (ignore resolve error)</span>
+                            {% elif row.resolution_error %}
+                                <span class="badge bg-danger">{{ row.resolution_error }}</span>
+                            {% elif row.will_force_overwrite %}
+                                <span class="badge bg-warning">Will force overwrite</span>
+                            {% elif row.target_exists %}
+                                <span class="badge bg-warning text-dark">Conflict: target URL exists</span>
+                            {% elif row.will_change %}
+                                <span class="badge bg-success">Will update</span>
+                            {% else %}
+                                <span class="badge bg-secondary">No change</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% elif replace_from %}
+    <p class="small text-muted mb-0">No preview rows found for that replacement pattern.</p>
+{% endif %}
