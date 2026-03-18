@@ -620,7 +620,7 @@ async def get_embed_page(
 
 
 @app.post("/embed", response_class=HTMLResponse)
-async def post_embed(
+async def post_embed(  # noqa: C901
     feed_url: Annotated[str, Form()],
     reader: Annotated[Reader, Depends(get_reader_dependency)],
     title: Annotated[str, Form()] = "",
@@ -1060,9 +1060,7 @@ def create_html_for_feed(  # noqa: C901, PLR0914
             for content_item in entry.content:
                 content: str = content_item.value
 
-        first_image, _ = get_first_image(summary, content)
-
-        logging.getLogger("discord_rss_bot.main").info(f"main.py: entry_id={entry.id}, first_image={first_image}")
+        first_image = get_first_image(summary, content)
 
         text: str = replace_tags_in_text_message(entry, reader=reader) or (
             "<div class='text-muted'>No content available.</div>"
