@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import json
 import logging
 import os
 import pprint
@@ -36,6 +37,7 @@ from discord_rss_bot.hoyolab_api import extract_post_id_from_hoyolab_url
 from discord_rss_bot.hoyolab_api import fetch_hoyolab_post
 from discord_rss_bot.hoyolab_api import is_c3kay_feed
 from discord_rss_bot.is_url_valid import is_url_valid
+from discord_rss_bot.settings import default_custom_embed
 from discord_rss_bot.settings import default_custom_message
 from discord_rss_bot.settings import get_reader
 
@@ -569,6 +571,9 @@ def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:  
 
     # This is the default message that will be sent to Discord.
     reader.set_tag(clean_feed_url, "custom_message", default_custom_message)  # pyright: ignore[reportArgumentType]
+
+    # Set the default embed tag when creating the feed
+    reader.set_tag(clean_feed_url, "embed", json.dumps(default_custom_embed))
 
     # Update the full-text search index so our new feed is searchable.
     reader.update_search()

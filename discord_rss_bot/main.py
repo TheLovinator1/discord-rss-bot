@@ -657,16 +657,29 @@ async def post_embed(
     feed: Feed = reader.get_feed(urllib.parse.unquote(clean_feed_url))
 
     custom_embed: CustomEmbed = get_embed(reader, feed)
-    custom_embed.title = title
-    custom_embed.description = description
-    custom_embed.color = color
-    custom_embed.image_url = image_url
-    custom_embed.thumbnail_url = thumbnail_url
-    custom_embed.author_name = author_name
-    custom_embed.author_url = author_url
-    custom_embed.author_icon_url = author_icon_url
-    custom_embed.footer_text = footer_text
-    custom_embed.footer_icon_url = footer_icon_url
+    # Only overwrite fields that the user provided. This prevents accidental
+    # clearing of previously saved embed data when the form submits empty
+    # values for fields the user did not change.
+    if title:
+        custom_embed.title = title
+    if description:
+        custom_embed.description = description
+    if color:
+        custom_embed.color = color
+    if image_url:
+        custom_embed.image_url = image_url
+    if thumbnail_url:
+        custom_embed.thumbnail_url = thumbnail_url
+    if author_name:
+        custom_embed.author_name = author_name
+    if author_url:
+        custom_embed.author_url = author_url
+    if author_icon_url:
+        custom_embed.author_icon_url = author_icon_url
+    if footer_text:
+        custom_embed.footer_text = footer_text
+    if footer_icon_url:
+        custom_embed.footer_icon_url = footer_icon_url
 
     # Save the data.
     save_embed(reader, feed, custom_embed)
@@ -1047,7 +1060,9 @@ def create_html_for_feed(  # noqa: C901, PLR0914
             for content_item in entry.content:
                 content: str = content_item.value
 
-        first_image = get_first_image(summary, content)
+        first_image, _ = get_first_image(summary, content)
+
+        logging.getLogger("discord_rss_bot.main").info(f"main.py: entry_id={entry.id}, first_image={first_image}")
 
         text: str = replace_tags_in_text_message(entry, reader=reader) or (
             "<div class='text-muted'>No content available.</div>"

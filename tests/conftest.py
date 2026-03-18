@@ -4,10 +4,13 @@ import os
 import shutil
 import sys
 import tempfile
+import warnings
 from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import Any
+
+from bs4 import MarkupResemblesLocatorWarning
 
 if TYPE_CHECKING:
     import pytest
@@ -33,6 +36,11 @@ def pytest_sessionstart(session: pytest.Session) -> None:
     worker_data_dir.mkdir(parents=True, exist_ok=True)
 
     os.environ["DISCORD_RSS_BOT_DATA_DIR"] = str(worker_data_dir)
+
+    # Tests call markdownify which may invoke BeautifulSoup on strings that look
+    # like URLs; that triggers MarkupResemblesLocatorWarning from bs4. Silence
+    # that warning during tests to avoid noisy output.
+    warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 
     # If modules were imported before this hook (unlikely), force them to use
     # the worker-specific location.
