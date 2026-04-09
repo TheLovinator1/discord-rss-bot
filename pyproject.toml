@@ -22,7 +22,7 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["djlint", "pytest", "pytest-randomly", "pytest-xdist"]
+dev = ["djlint", "pytest", "pytest-cov", "pytest-randomly", "pytest-xdist"]
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
