@@ -16,6 +16,7 @@ def healthcheck() -> None:
         r: requests.Response = requests.get(url="http://localhost:5000", timeout=5)
         if r.ok:
             sys.exit(0)
+        sys.exit(1)
     except requests.exceptions.RequestException as e:
         print(f"Healthcheck failed: {e}", file=sys.stderr)  # noqa: T201
         sys.exit(1)
