@@ -8,20 +8,33 @@ from unittest.mock import MagicMock
 from unittest.mock import patch
 
 import pytest
+from reader import EntryNotFoundError
 from reader import Feed
+from reader import FeedNotFoundError
 from reader import Reader
+from reader import StorageError
 from reader import make_reader
 
+from discord_rss_bot import feeds
+from discord_rss_bot.feeds import execute_webhook
 from discord_rss_bot.feeds import extract_domain
+from discord_rss_bot.feeds import get_webhook_url
 from discord_rss_bot.feeds import is_youtube_feed
+from discord_rss_bot.feeds import send_discord_quest_notification
 from discord_rss_bot.feeds import send_entry_to_discord
 from discord_rss_bot.feeds import send_to_discord
+from discord_rss_bot.feeds import set_entry_as_read
 from discord_rss_bot.feeds import should_send_embed_check
 from discord_rss_bot.feeds import truncate_webhook_message
 
 
 def test_send_to_discord() -> None:
     """Test sending to Discord."""
+    # Skip early if no webhook URL is configured to avoid a real network request.
+    webhook_url: str | None = os.environ.get("TEST_WEBHOOK_URL")
+    if not webhook_url:
+        pytest.skip("No webhook URL provided.")
+
     with tempfile.TemporaryDirectory() as temp_dir:
         # Create the temp directory.
         Path.mkdir(Path(temp_dir), exist_ok=True)
@@ -40,13 +53,6 @@ def test_send_to_discord() -> None:
         # Get the feed.
         feed: Feed = reader.get_feed("https://www.reddit.com/r/Python/.rss")
         assert feed is not None, f"The feed should not be None. Got: {feed}"
-
-        # Get the webhook.
-        webhook_url: str | None = os.environ.get("TEST_WEBHOOK_URL")
-
-        if not webhook_url:
-            reader.close()
-            pytest.skip("No webhook URL provided.")
 
         assert webhook_url is not None, f"The webhook URL should not be None. Got: {webhook_url}"
 
@@ -274,3 +280,154 @@ def test_extract_domain_special_characters() -> None:
 )
 def test_extract_domain(url: str, expected: str) -> None:
     assert extract_domain(url) == expected
+
+
+@patch("discord_rss_bot.feeds.execute_webhook")
+def test_send_discord_quest_notification_text_match(mock_execute_webhook: MagicMock) -> None:
+    """Send a quest link as a separate notification when plain text content contains one."""
+    entry = MagicMock()
+    entry.id = "entry-1"
+    entry.content = [MagicMock(type="text", value="Check this https://discord.com/quests/12345 now")]
+    reader = MagicMock()
+
+    send_discord_quest_notification(entry, "https://discord.com/api/webhooks/123/abc", reader)
+
+    mock_execute_webhook.assert_called_once()
+    webhook_sent = mock_execute_webhook.call_args[0][0]
+    assert webhook_sent.content == "https://discord.com/quests/12345"
+
+
+@patch("discord_rss_bot.feeds.execute_webhook")
+def test_send_discord_quest_notification_html_match(mock_execute_webhook: MagicMock) -> None:
+    """Send a quest link when it is found inside HTML content."""
+    entry = MagicMock()
+    entry.id = "entry-2"
+    entry.content = [
+        MagicMock(
+            type="text/html",
+            value='<p>Click <a href="https://discord.com/quests/777">here</a></p>',
+        ),
+    ]
+    reader = MagicMock()
+
+    send_discord_quest_notification(entry, "https://discord.com/api/webhooks/123/abc", reader)
+
+    mock_execute_webhook.assert_called_once()
+    webhook_sent = mock_execute_webhook.call_args[0][0]
+    assert webhook_sent.content == "https://discord.com/quests/777"
+
+
+@patch("discord_rss_bot.feeds.execute_webhook")
+def test_send_discord_quest_notification_no_match(mock_execute_webhook: MagicMock) -> None:
+    """Do nothing when no quest URL exists in entry content."""
+    entry = MagicMock()
+    entry.id = "entry-3"
+    entry.content = [MagicMock(type="text", value="No quest link here")]
+    reader = MagicMock()
+
+    send_discord_quest_notification(entry, "https://discord.com/api/webhooks/123/abc", reader)
+
+    mock_execute_webhook.assert_not_called()
+
+
+def test_get_webhook_url_returns_value() -> None:
+    reader = MagicMock()
+    entry = MagicMock()
+    entry.feed_url = "https://example.com/feed.xml"
+    entry.feed.url = "https://example.com/feed.xml"
+    reader.get_tag.return_value = "https://discord.com/api/webhooks/123/abc"
+
+    result = get_webhook_url(reader, entry)
+
+    assert result == "https://discord.com/api/webhooks/123/abc"
+
+
+def test_get_webhook_url_returns_empty_on_storage_error() -> None:
+    reader = MagicMock()
+    entry = MagicMock()
+    entry.feed_url = "https://example.com/feed.xml"
+    entry.feed.url = "https://example.com/feed.xml"
+    reader.get_tag.side_effect = StorageError("db error")
+
+    result = get_webhook_url(reader, entry)
+
+    assert not result
+
+
+def test_set_entry_as_read_handles_entry_not_found_error() -> None:
+    reader = MagicMock()
+    entry = MagicMock(id="entry-4")
+    reader.set_entry_read.side_effect = EntryNotFoundError("https://example.com/feed.xml", "entry-4")
+
+    set_entry_as_read(reader, entry)
+
+    reader.set_entry_read.assert_called_once_with(entry, True)
+
+
+def test_set_entry_as_read_handles_storage_error() -> None:
+    reader = MagicMock()
+    entry = MagicMock(id="entry-5")
+    reader.set_entry_read.side_effect = StorageError("db error")
+
+    set_entry_as_read(reader, entry)
+
+    reader.set_entry_read.assert_called_once_with(entry, True)
+
+
+def test_execute_webhook_skips_when_feed_paused() -> None:
+    webhook = MagicMock()
+    reader = MagicMock()
+    entry = MagicMock()
+    entry.id = "entry-6"
+    entry.feed.url = "https://example.com/feed.xml"
+    entry.feed.updates_enabled = False
+
+    execute_webhook(webhook, entry, reader)
+
+    reader.get_feed.assert_not_called()
+    webhook.execute.assert_not_called()
+
+
+def test_execute_webhook_skips_when_feed_missing() -> None:
+    webhook = MagicMock()
+    reader = MagicMock()
+    reader.get_feed.side_effect = FeedNotFoundError("missing")
+    entry = MagicMock()
+    entry.id = "entry-7"
+    entry.feed.url = "https://example.com/feed.xml"
+    entry.feed.updates_enabled = True
+
+    execute_webhook(webhook, entry, reader)
+
+    webhook.execute.assert_not_called()
+
+
+@patch.object(feeds, "logger")
+def test_execute_webhook_logs_error_on_bad_status(mock_logger: MagicMock) -> None:
+    webhook = MagicMock()
+    webhook.json = {"content": "test"}
+    webhook.execute.return_value = MagicMock(status_code=500, text="fail")
+    reader = MagicMock()
+    entry = MagicMock()
+    entry.id = "entry-8"
+    entry.feed.url = "https://example.com/feed.xml"
+    entry.feed.updates_enabled = True
+
+    execute_webhook(webhook, entry, reader)
+
+    mock_logger.error.assert_called_once()
+
+
+@patch.object(feeds, "logger")
+def test_execute_webhook_logs_info_on_success(mock_logger: MagicMock) -> None:
+    webhook = MagicMock()
+    webhook.execute.return_value = MagicMock(status_code=204, text="")
+    reader = MagicMock()
+    entry = MagicMock()
+    entry.id = "entry-9"
+    entry.feed.url = "https://example.com/feed.xml"
+    entry.feed.updates_enabled = True
+
+    execute_webhook(webhook, entry, reader)
+
+    mock_logger.info.assert_called_once_with("Sent entry to Discord: %s", "entry-9")

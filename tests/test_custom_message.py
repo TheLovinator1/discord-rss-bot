@@ -9,11 +9,18 @@ import pytest
 
 from discord_rss_bot.custom_message import CustomEmbed
 from discord_rss_bot.custom_message import format_entry_html_for_discord
+from discord_rss_bot.custom_message import get_custom_message
+from discord_rss_bot.custom_message import get_embed
+from discord_rss_bot.custom_message import get_embed_data
+from discord_rss_bot.custom_message import get_first_image
 from discord_rss_bot.custom_message import replace_tags_in_embed
 from discord_rss_bot.custom_message import replace_tags_in_text_message
+from discord_rss_bot.custom_message import save_embed
+from discord_rss_bot.custom_message import try_to_replace
 
 if typing.TYPE_CHECKING:
     from reader import Entry
+    from reader.types import Feed
 
 # https://docs.discord.com/developers/reference#message-formatting
 TIMESTAMP_FORMATS: tuple[str, ...] = (
@@ -138,3 +145,217 @@ def test_replace_tags_in_embed_preserves_timestamp_tags(
 
     for timestamp_tag in TIMESTAMP_FORMATS:
         assert timestamp_tag in embed.description
+
+
+def test_try_to_replace_returns_original_message_when_replace_fails() -> None:
+    rendered = try_to_replace(typing.cast("str", None), "{{tag}}", "value")
+    assert rendered is None
+
+
+@patch("discord_rss_bot.custom_message.get_custom_message")
+def test_replace_tags_in_text_message_uses_last_content_item_and_unescapes_newline(
+    mock_get_custom_message: MagicMock,
+) -> None:
+    mock_reader = MagicMock()
+    mock_get_custom_message.return_value = "{{entry_content}}\\n{{entry_content_raw}}"
+    entry_ns: SimpleNamespace = make_entry("<p>Summary</p>")
+    entry_ns.content = [SimpleNamespace(value="<p>First content</p>"), SimpleNamespace(value="<p>Last content</p>")]
+
+    entry: Entry = typing.cast("Entry", entry_ns)
+    rendered: str = replace_tags_in_text_message(entry, reader=mock_reader)
+
+    assert "Last content" in rendered
+    assert "<p>First content</p>" in rendered
+    assert "\\n" not in rendered
+    assert "\n" in rendered
+
+
+@patch("discord_rss_bot.custom_message.get_custom_message")
+def test_replace_tags_in_text_message_skips_non_string_replacement_values(
+    mock_get_custom_message: MagicMock,
+) -> None:
+    mock_reader = MagicMock()
+    mock_get_custom_message.return_value = "{{entry_id}}"
+    entry_ns: SimpleNamespace = make_entry("<p>Summary</p>")
+    entry_ns.id = 123
+
+    entry: Entry = typing.cast("Entry", entry_ns)
+    rendered: str = replace_tags_in_text_message(entry, reader=mock_reader)
+
+    assert rendered == "{{entry_id}}"
+
+
+def test_get_first_image_prefers_content_image_over_summary_image() -> None:
+    summary = '<p><img src="https://example.com/from-summary.jpg" /></p>'
+    content = '<p><img src="https://example.com/from-content.jpg" /></p>'
+
+    image = get_first_image(summary, content)
+
+    assert image == "https://example.com/from-content.jpg"
+
+
+def test_get_first_image_uses_summary_when_content_image_is_invalid() -> None:
+    summary = '<p><img src="https://example.com/from-summary.jpg" /></p>'
+    content = '<p><img src="javascript:alert(1)" /></p>'
+
+    image = get_first_image(summary, content)
+
+    assert image == "https://example.com/from-summary.jpg"
+
+
+def test_get_first_image_returns_empty_when_images_have_no_src() -> None:
+    summary = "<p></p>"
+    content = '<p><img alt="missing source" /></p>'
+
+    image = get_first_image(summary, content)
+
+    assert not image
+
+
+def test_get_first_image_returns_empty_when_summary_image_url_is_invalid() -> None:
+    summary = '<p><img src="javascript:alert(1)" /></p>'
+
+    image = get_first_image(summary, content=None)
+
+    assert not image
+
+
+def test_get_first_image_returns_empty_when_summary_image_has_no_src() -> None:
+    summary = '<p><img alt="missing source" /></p>'
+
+    image = get_first_image(summary, content=None)
+
+    assert not image
+
+
+@patch("discord_rss_bot.custom_message.get_embed")
+def test_replace_tags_in_embed_moves_title_to_author_name_when_required(
+    mock_get_embed: MagicMock,
+) -> None:
+    mock_reader = MagicMock()
+    mock_get_embed.return_value = CustomEmbed(
+        title="{{entry_title}}",
+        author_name="",
+        author_url="https://example.com/author",
+    )
+    entry_ns: SimpleNamespace = make_entry("<p>Summary</p>")
+
+    entry: Entry = typing.cast("Entry", entry_ns)
+    embed: CustomEmbed = replace_tags_in_embed(entry_ns.feed, entry, reader=mock_reader)
+
+    assert not embed.title
+    assert embed.author_name == "Entry Title"
+
+
+@patch("discord_rss_bot.custom_message.get_embed")
+def test_replace_tags_in_embed_uses_last_content_item(
+    mock_get_embed: MagicMock,
+) -> None:
+    mock_reader = MagicMock()
+    mock_get_embed.return_value = CustomEmbed(description="{{entry_content}}")
+    entry_ns: SimpleNamespace = make_entry("<p>Summary</p>")
+    entry_ns.content = [SimpleNamespace(value="<p>Old content</p>"), SimpleNamespace(value="<p>New content</p>")]
+
+    entry: Entry = typing.cast("Entry", entry_ns)
+    embed: CustomEmbed = replace_tags_in_embed(entry_ns.feed, entry, reader=mock_reader)
+
+    assert "New content" in embed.description
+
+
+def test_get_custom_message_returns_empty_string_on_value_error() -> None:
+    reader = MagicMock()
+    feed = make_feed()
+    reader.get_tag.side_effect = ValueError
+
+    feed = typing.cast("Feed", feed)
+
+    custom_message = get_custom_message(reader=reader, feed=feed)
+
+    assert not custom_message
+
+
+def test_save_embed_serializes_embed_and_writes_feed_tag() -> None:
+    reader = MagicMock()
+    feed = make_feed()
+    feed = typing.cast("Feed", feed)
+    embed = CustomEmbed(
+        title="Title",
+        description="Description",
+        color="#123456",
+        author_name="Author",
+        author_url="https://example.com/author",
+        author_icon_url="https://example.com/author.png",
+        image_url="https://example.com/image.png",
+        thumbnail_url="https://example.com/thumb.png",
+        footer_text="Footer",
+        footer_icon_url="https://example.com/footer.png",
+    )
+
+    save_embed(reader=reader, feed=feed, embed=embed)
+
+    reader.set_tag.assert_called_once()
+    call_args = reader.set_tag.call_args.args
+    assert call_args[1] == "embed"
+    parsed = typing.cast("dict[str, str]", __import__("json").loads(call_args[2]))
+    assert parsed["title"] == "Title"
+    assert parsed["footer_icon_url"] == "https://example.com/footer.png"
+
+
+def test_get_embed_returns_default_embed_when_tag_is_empty() -> None:
+    reader = MagicMock()
+    feed = make_feed()
+    feed = typing.cast("Feed", feed)
+    reader.get_tag.return_value = ""
+
+    embed = get_embed(reader=reader, feed=feed)
+
+    assert embed.color == "#469ad9"
+
+
+def test_get_embed_reads_embed_from_dict_tag() -> None:
+    reader = MagicMock()
+    feed = make_feed()
+    feed = typing.cast("Feed", feed)
+    reader.get_tag.return_value = {
+        "title": "Dict title",
+        "description": "Dict description",
+        "color": 123,
+    }
+
+    embed = get_embed(reader=reader, feed=feed)
+
+    assert embed.title == "Dict title"
+    assert embed.description == "Dict description"
+    assert embed.color == "123"
+
+
+def test_get_embed_reads_embed_from_json_string() -> None:
+    reader = MagicMock()
+    feed = make_feed()
+    feed = typing.cast("Feed", feed)
+    reader.get_tag.return_value = '{"title": "Json title", "footer_text": "Json footer"}'
+
+    embed = get_embed(reader=reader, feed=feed)
+
+    assert embed.title == "Json title"
+    assert embed.footer_text == "Json footer"
+
+
+def test_get_embed_data_coerces_values_to_strings() -> None:
+    embed = get_embed_data(
+        {
+            "title": 1,
+            "description": 2,
+            "color": 3,
+            "author_name": 4,
+            "author_url": 5,
+            "author_icon_url": 6,
+            "image_url": 7,
+            "thumbnail_url": 8,
+            "footer_text": 9,
+            "footer_icon_url": 10,
+        },
+    )
+
+    assert embed.title == "1"
+    assert embed.footer_icon_url == "10"

@@ -61,7 +61,7 @@ jobs:
         run: uv sync --all-extras --all-groups
 
       - name: Run tests
-        run: uv run pytest
+        run: uv run pytest -o addopts='-n 5 --dist loadfile -m ""'
 
       - id: tags
         name: Compute image tags

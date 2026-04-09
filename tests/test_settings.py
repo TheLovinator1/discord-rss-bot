@@ -53,7 +53,6 @@ def test_get_webhook_for_entry() -> None:
 
         # Add a feed to the database.
         reader.add_feed("https://www.reddit.com/r/movies.rss")
-        reader.update_feed("https://www.reddit.com/r/movies.rss")
 
         # Add a webhook to the database.
         reader.set_tag("https://www.reddit.com/r/movies.rss", "webhook", "https://example.com")  # pyright: ignore[reportArgumentType]

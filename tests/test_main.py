@@ -45,6 +45,7 @@ def test_search() -> None:
 
     # Delete the webhook if it already exists before we run the test.
     response: Response = client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    assert response.status_code == 200, f"Failed to delete webhook: {response.text}"
 
     # Add the webhook.
     response: Response = client.post(
@@ -71,6 +72,7 @@ def test_add_webhook() -> None:
     """Test the /add_webhook page."""
     # Delete the webhook if it already exists before we run the test.
     response: Response = client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    assert response.status_code == 200, f"Failed to delete webhook: {response.text}"
 
     # Add the webhook.
     response: Response = client.post(
@@ -461,15 +463,16 @@ def test_delete_webhook() -> None:
         url="/add_webhook",
         data={"webhook_name": webhook_name, "webhook_url": webhook_url},
     )
+    assert response.status_code == 200, f"Failed to add webhook: {response.text}"
 
     # Delete the webhook.
-    response: Response = client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
-    assert response.status_code == 200, f"Failed to delete webhook: {response.text}"
+    response2: Response = client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    assert response2.status_code == 200, f"Failed to delete webhook: {response2.text}"
 
     # Check that the webhook was added.
-    response = client.get(url="/webhooks")
-    assert response.status_code == 200, f"Failed to get /webhooks: {response.text}"
-    assert webhook_name not in response.text, f"Webhook found in /webhooks: {response.text}"
+    response3 = client.get(url="/webhooks")
+    assert response3.status_code == 200, f"Failed to get /webhooks: {response3.text}"
+    assert webhook_name not in response3.text, f"Webhook found in /webhooks: {response3.text}"
 
 
 def test_update_feed_not_found() -> None:

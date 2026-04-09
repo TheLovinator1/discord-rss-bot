@@ -22,14 +22,20 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["djlint", "pytest", "pytest-cov", "pytest-randomly", "pytest-xdist"]
+dev = [
+    "djlint",
+    "identify",
+    "pytest",
+    "pytest-cov",
+    "pytest-randomly",
+    "pytest-xdist",
+]
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.ruff]
-
 preview = true
 unsafe-fixes = true
 fix = true
@@ -87,7 +93,11 @@ lint.ignore = [
 "tests/*" = ["S101", "D103", "PLR2004"]
 
 [tool.pytest.ini_options]
-addopts = "-n 5 --dist loadfile"
+addopts = "-n 5 --dist loadfile -m \"not integration and not slow\""
+markers = [
+    "integration: tests that exercise external integrations or end-to-end flows",
+    "slow: tests that are intentionally slower than the default fast test suite",
+]
 filterwarnings = [
     "ignore::bs4.GuessedAtParserWarning",
     "ignore:functools\\.partial will be a method descriptor in future Python versions; wrap it in staticmethod\\(\\) if you want to preserve the old behavior:FutureWarning",

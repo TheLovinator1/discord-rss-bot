@@ -21,6 +21,7 @@ from discord_rss_bot.git_backup import setup_backup_repo
 from discord_rss_bot.main import app
 
 if TYPE_CHECKING:
+    from collections.abc import Generator
     from pathlib import Path
 
 
@@ -66,17 +67,46 @@ def test_get_backup_remote_set(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_setup_backup_repo_creates_git_repo(tmp_path: Path) -> None:
     """setup_backup_repo initialises a git repo in a fresh directory."""
     backup_path: Path = tmp_path / "backup"
-    result: bool = setup_backup_repo(backup_path)
+
+    with patch("discord_rss_bot.git_backup.subprocess.run") as mock_run:
+        mock_run.side_effect = [
+            MagicMock(returncode=0),  # git init
+            MagicMock(returncode=1),  # config user.email read
+            MagicMock(returncode=0),  # config user.email write
+            MagicMock(returncode=1),  # config user.name read
+            MagicMock(returncode=0),  # config user.name write
+        ]
+
+        result: bool = setup_backup_repo(backup_path)
+
     assert result is True
-    assert (backup_path / ".git").exists()
+    assert backup_path.exists()
+    called_commands: list[list[str]] = [call.args[0] for call in mock_run.call_args_list]
+    assert any(cmd[:2] == [shutil.which("git") or "git", "init"] for cmd in called_commands)
 
 
 @SKIP_IF_NO_GIT
 def test_setup_backup_repo_idempotent(tmp_path: Path) -> None:
-    """setup_backup_repo does not fail when called on an existing repo."""
+    """setup_backup_repo does not re-run init when called on an existing repo."""
     backup_path: Path = tmp_path / "backup"
-    assert setup_backup_repo(backup_path) is True
-    assert setup_backup_repo(backup_path) is True
+    (backup_path / ".git").mkdir(parents=True)
+
+    with patch("discord_rss_bot.git_backup.subprocess.run") as mock_run:
+        mock_run.side_effect = [
+            MagicMock(returncode=1),  # first call: config user.email read
+            MagicMock(returncode=0),  # first call: config user.email write
+            MagicMock(returncode=1),  # first call: config user.name read
+            MagicMock(returncode=0),  # first call: config user.name write
+            MagicMock(returncode=0),  # second call: config user.email read
+            MagicMock(returncode=0),  # second call: config user.name read
+        ]
+
+        assert setup_backup_repo(backup_path) is True
+        assert setup_backup_repo(backup_path) is True
+
+    called_commands: list[list[str]] = [call.args[0] for call in mock_run.call_args_list]
+    init_calls: list[list[str]] = [cmd for cmd in called_commands if "init" in cmd]
+    assert not init_calls
 
 
 def test_setup_backup_repo_adds_origin_remote(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -210,7 +240,7 @@ def test_commit_state_change_noop_when_not_configured(monkeypatch: pytest.Monkey
 
 @SKIP_IF_NO_GIT
 def test_commit_state_change_commits(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """commit_state_change creates a commit in the backup repo."""
+    """commit_state_change stages and commits exported state when it changes."""
     backup_path: Path = tmp_path / "backup"
     monkeypatch.setenv("GIT_BACKUP_PATH", str(backup_path))
     monkeypatch.delenv("GIT_BACKUP_REMOTE", raising=False)
@@ -219,20 +249,25 @@ def test_commit_state_change_commits(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     mock_reader.get_feeds.return_value = []
     mock_reader.get_tag.return_value = []
 
-    commit_state_change(mock_reader, "Add feed https://example.com/rss")
+    with (
+        patch("discord_rss_bot.git_backup.setup_backup_repo", return_value=True) as mock_setup,
+        patch("discord_rss_bot.git_backup.export_state") as mock_export,
+        patch("discord_rss_bot.git_backup.subprocess.run") as mock_run,
+    ):
+        mock_run.side_effect = [
+            MagicMock(returncode=0),  # git add -A
+            MagicMock(returncode=1),  # diff --cached --exit-code => staged changes present
+            MagicMock(returncode=0),  # git commit -m <message>
+        ]
 
-    # Verify a commit was created in the backup repo
-    git_executable: str | None = shutil.which("git")
+        commit_state_change(mock_reader, "Add feed https://example.com/rss")
 
-    assert git_executable is not None, "git executable not found"
-    result: subprocess.CompletedProcess[str] = subprocess.run(  # noqa: S603
-        [git_executable, "-C", str(backup_path), "log", "--oneline"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == 0
-    assert "Add feed https://example.com/rss" in result.stdout
+    mock_setup.assert_called_once_with(backup_path)
+    mock_export.assert_called_once_with(mock_reader, backup_path)
+    called_commands: list[list[str]] = [call.args[0] for call in mock_run.call_args_list]
+    assert any(cmd[-2:] == ["add", "-A"] for cmd in called_commands)
+    assert any(cmd[-3:] == ["diff", "--cached", "--exit-code"] for cmd in called_commands)
+    assert any(cmd[-3:] == ["commit", "-m", "Add feed https://example.com/rss"] for cmd in called_commands)
 
 
 @SKIP_IF_NO_GIT
@@ -246,20 +281,26 @@ def test_commit_state_change_no_double_commit(monkeypatch: pytest.MonkeyPatch, t
     mock_reader.get_feeds.return_value = []
     mock_reader.get_tag.return_value = []
 
-    commit_state_change(mock_reader, "First commit")
-    commit_state_change(mock_reader, "Should not appear")
+    with (
+        patch("discord_rss_bot.git_backup.setup_backup_repo", return_value=True),
+        patch("discord_rss_bot.git_backup.export_state"),
+        patch("discord_rss_bot.git_backup.subprocess.run") as mock_run,
+    ):
+        mock_run.side_effect = [
+            MagicMock(returncode=0),  # first: git add -A
+            MagicMock(returncode=1),  # first: diff => changed
+            MagicMock(returncode=0),  # first: commit
+            MagicMock(returncode=0),  # second: git add -A
+            MagicMock(returncode=0),  # second: diff => no changes
+        ]
 
-    git_executable: str | None = shutil.which("git")
-    assert git_executable is not None, "git executable not found"
-    result: subprocess.CompletedProcess[str] = subprocess.run(  # noqa: S603
-        [git_executable, "-C", str(backup_path), "log", "--oneline"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == 0
-    assert "First commit" in result.stdout
-    assert "Should not appear" not in result.stdout
+        commit_state_change(mock_reader, "First commit")
+        commit_state_change(mock_reader, "Should not appear")
+
+    called_commands: list[list[str]] = [call.args[0] for call in mock_run.call_args_list]
+    commit_calls: list[list[str]] = [cmd for cmd in called_commands if "commit" in cmd]
+    assert len(commit_calls) == 1
+    assert commit_calls[0][-3:] == ["commit", "-m", "First commit"]
 
 
 def test_commit_state_change_push_when_remote_set(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -310,21 +351,23 @@ test_webhook_url: str = "https://discord.com/api/webhooks/999999999/testbackupwe
 test_feed_url: str = "https://lovinator.space/rss_test.xml"
 
 
-def setup_test_feed() -> None:
-    """Set up a test webhook and feed for endpoint tests."""
-    # Clean up existing test data
+@pytest.fixture(scope="module", autouse=True)
+def feed_module_setup() -> Generator[None]:
+    """Set up the test webhook and feed once for all backup endpoint tests."""
     with contextlib.suppress(Exception):
         client.post(url="/remove", data={"feed_url": test_feed_url})
-
     with contextlib.suppress(Exception):
         client.post(url="/delete_webhook", data={"webhook_url": test_webhook_url})
-
-    # Create webhook and feed
     client.post(
         url="/add_webhook",
         data={"webhook_name": test_webhook_name, "webhook_url": test_webhook_url},
     )
     client.post(url="/add", data={"feed_url": test_feed_url, "webhook_dropdown": test_webhook_name})
+    yield
+    with contextlib.suppress(Exception):
+        client.post(url="/remove", data={"feed_url": test_feed_url})
+    with contextlib.suppress(Exception):
+        client.post(url="/delete_webhook", data={"webhook_url": test_webhook_url})
 
 
 def test_post_embed_triggers_backup(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -333,8 +376,6 @@ def test_post_embed_triggers_backup(monkeypatch: pytest.MonkeyPatch, tmp_path: P
     backup_path: Path = tmp_path / "backup"
     monkeypatch.setenv("GIT_BACKUP_PATH", str(backup_path))
     monkeypatch.delenv("GIT_BACKUP_REMOTE", raising=False)
-
-    setup_test_feed()
 
     with patch("discord_rss_bot.main.commit_state_change") as mock_commit:
         response = client.post(
@@ -363,8 +404,6 @@ def test_post_use_embed_triggers_backup(monkeypatch: pytest.MonkeyPatch, tmp_pat
     monkeypatch.setenv("GIT_BACKUP_PATH", str(backup_path))
     monkeypatch.delenv("GIT_BACKUP_REMOTE", raising=False)
 
-    setup_test_feed()
-
     with patch("discord_rss_bot.main.commit_state_change") as mock_commit:
         response = client.post(url="/use_embed", data={"feed_url": test_feed_url})
         assert response.status_code == 200, f"Failed to enable embed: {response.text}"
@@ -383,8 +422,6 @@ def test_post_use_text_triggers_backup(monkeypatch: pytest.MonkeyPatch, tmp_path
     backup_path: Path = tmp_path / "backup"
     monkeypatch.setenv("GIT_BACKUP_PATH", str(backup_path))
     monkeypatch.delenv("GIT_BACKUP_REMOTE", raising=False)
-
-    setup_test_feed()
 
     with patch("discord_rss_bot.main.commit_state_change") as mock_commit:
         response = client.post(url="/use_text", data={"feed_url": test_feed_url})
@@ -405,8 +442,6 @@ def test_post_custom_message_triggers_backup(monkeypatch: pytest.MonkeyPatch, tm
     monkeypatch.setenv("GIT_BACKUP_PATH", str(backup_path))
     monkeypatch.delenv("GIT_BACKUP_REMOTE", raising=False)
 
-    setup_test_feed()
-
     with patch("discord_rss_bot.main.commit_state_change") as mock_commit:
         response = client.post(
             url="/custom",
@@ -426,6 +461,8 @@ def test_post_custom_message_triggers_backup(monkeypatch: pytest.MonkeyPatch, tm
         assert test_feed_url in commit_message
 
 
+@pytest.mark.integration
+@pytest.mark.slow
 @SKIP_IF_NO_GIT
 def test_embed_backup_end_to_end(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """End-to-end test: customizing embed creates a real commit in the backup repo."""
@@ -435,8 +472,6 @@ def test_embed_backup_end_to_end(monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     backup_path: Path = tmp_path / "backup"
     monkeypatch.setenv("GIT_BACKUP_PATH", str(backup_path))
     monkeypatch.delenv("GIT_BACKUP_REMOTE", raising=False)
-
-    setup_test_feed()
 
     # Post embed customization
     response = client.post(
