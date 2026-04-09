@@ -47,6 +47,8 @@ type TAG_VALUE = (
 _FEED_TAGS: tuple[str, ...] = (
     "webhook",
     "custom_message",
+    "delivery_mode",
+    "screenshot_layout",
     "should_send_embed",
     "embed",
     "blacklist_title",
@@ -184,9 +186,18 @@ def export_state(reader: Reader, backup_path: Path) -> None:
     if isinstance(global_update_config, dict):
         global_update_interval = global_update_config
 
+    global_screenshot_layout: str | None = None
+    screenshot_layout = reader.get_tag((), "screenshot_layout", None)
+    if isinstance(screenshot_layout, str):
+        clean_layout = screenshot_layout.strip().lower()
+        if clean_layout in {"desktop", "mobile"}:
+            global_screenshot_layout = clean_layout
+
     state: dict = {"feeds": feeds_state, "webhooks": webhooks}
     if global_update_interval is not None:
         state["global_update_interval"] = global_update_interval
+    if global_screenshot_layout is not None:
+        state["global_screenshot_layout"] = global_screenshot_layout
     state_file: Path = backup_path / "state.json"
     state_file.write_text(json.dumps(state, indent=2, default=str), encoding="utf-8")
 

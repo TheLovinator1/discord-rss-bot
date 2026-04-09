@@ -436,6 +436,77 @@ def test_post_use_text_triggers_backup(monkeypatch: pytest.MonkeyPatch, tmp_path
         assert test_feed_url in commit_message
 
 
+def test_post_use_screenshot_triggers_backup(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Posting to /use_screenshot should trigger a git backup."""
+    backup_path: Path = tmp_path / "backup"
+    monkeypatch.setenv("GIT_BACKUP_PATH", str(backup_path))
+    monkeypatch.delenv("GIT_BACKUP_REMOTE", raising=False)
+
+    with patch("discord_rss_bot.main.commit_state_change") as mock_commit:
+        response = client.post(url="/use_screenshot", data={"feed_url": test_feed_url})
+        assert response.status_code == 200, f"Failed to enable screenshot mode: {response.text}"
+        mock_commit.assert_called_once()
+
+        call_args = mock_commit.call_args
+        assert call_args is not None
+        commit_message: str = call_args[0][1]
+        assert "Enable screenshot mode" in commit_message
+        assert test_feed_url in commit_message
+
+
+def test_post_use_screenshot_mobile_triggers_backup(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Posting to /use_screenshot_mobile should trigger a git backup."""
+    backup_path: Path = tmp_path / "backup"
+    monkeypatch.setenv("GIT_BACKUP_PATH", str(backup_path))
+    monkeypatch.delenv("GIT_BACKUP_REMOTE", raising=False)
+
+    with patch("discord_rss_bot.main.commit_state_change") as mock_commit:
+        response = client.post(url="/use_screenshot_mobile", data={"feed_url": test_feed_url})
+        assert response.status_code == 200, f"Failed to enable screenshot mobile layout: {response.text}"
+        mock_commit.assert_called_once()
+
+        call_args = mock_commit.call_args
+        assert call_args is not None
+        commit_message: str = call_args[0][1]
+        assert "Enable screenshot mobile layout" in commit_message
+        assert test_feed_url in commit_message
+
+
+def test_post_use_screenshot_desktop_triggers_backup(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Posting to /use_screenshot_desktop should trigger a git backup."""
+    backup_path: Path = tmp_path / "backup"
+    monkeypatch.setenv("GIT_BACKUP_PATH", str(backup_path))
+    monkeypatch.delenv("GIT_BACKUP_REMOTE", raising=False)
+
+    with patch("discord_rss_bot.main.commit_state_change") as mock_commit:
+        response = client.post(url="/use_screenshot_desktop", data={"feed_url": test_feed_url})
+        assert response.status_code == 200, f"Failed to enable screenshot desktop layout: {response.text}"
+        mock_commit.assert_called_once()
+
+        call_args = mock_commit.call_args
+        assert call_args is not None
+        commit_message: str = call_args[0][1]
+        assert "Enable screenshot desktop layout" in commit_message
+        assert test_feed_url in commit_message
+
+
+def test_post_set_global_screenshot_layout_triggers_backup(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Posting to /set_global_screenshot_layout should trigger a git backup."""
+    backup_path: Path = tmp_path / "backup"
+    monkeypatch.setenv("GIT_BACKUP_PATH", str(backup_path))
+    monkeypatch.delenv("GIT_BACKUP_REMOTE", raising=False)
+
+    with patch("discord_rss_bot.main.commit_state_change") as mock_commit:
+        response = client.post(url="/set_global_screenshot_layout", data={"screenshot_layout": "mobile"})
+        assert response.status_code == 200, f"Failed to set global screenshot layout: {response.text}"
+        mock_commit.assert_called_once()
+
+        call_args = mock_commit.call_args
+        assert call_args is not None
+        commit_message: str = call_args[0][1]
+        assert "Set global screenshot layout to mobile" in commit_message
+
+
 def test_post_custom_message_triggers_backup(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Posting to /custom should trigger a git backup."""
     backup_path: Path = tmp_path / "backup"

@@ -34,6 +34,47 @@
                 </div>
             </div>
         </form>
+        <form action="/set_global_delivery_mode" method="post" class="mt-4">
+            <div class="settings-form-row mb-2">
+                <label for="delivery_mode" class="form-label mb-1">Default delivery mode for new feeds</label>
+                <div class="input-group input-group-lg">
+                    <select id="delivery_mode"
+                            class="form-select settings-input"
+                            name="delivery_mode">
+                        <option value="embed"
+                                {% if global_delivery_mode == "embed" %}selected{% endif %}>Embed</option>
+                        <option value="text"
+                                {% if global_delivery_mode == "text" %}selected{% endif %}>Text</option>
+                    </select>
+                    <button class="btn btn-primary px-4" type="submit">Save</button>
+                </div>
+                <div class="form-text text-muted mt-2">
+                    New feeds inherit this value. Existing feeds keep their current delivery mode.
+                </div>
+            </div>
+        </form>
+        <form action="/set_global_screenshot_layout" method="post" class="mt-4">
+            <div class="settings-form-row mb-2">
+                <label for="screenshot_layout" class="form-label mb-1">Default screenshot layout for new feeds</label>
+                <div class="input-group input-group-lg">
+                    <select id="screenshot_layout"
+                            class="form-select settings-input"
+                            name="screenshot_layout">
+                        <option value="desktop"
+                                {% if global_screenshot_layout == "desktop" %}selected{% endif %}>Desktop</option>
+                        <option value="mobile"
+                                {% if global_screenshot_layout == "mobile" %}selected{% endif %}>Mobile</option>
+                    </select>
+                    <button class="btn btn-primary px-4" type="submit">Save</button>
+                </div>
+                <div class="form-text text-muted mt-2">
+                    New feeds inherit this value. Existing feeds keep their current screenshot layout.
+                </div>
+                <div class="form-text screenshot-requirement mt-1">
+                    Screenshot mode requires Chromium to be installed for Playwright. Run <code>uv run playwright install chromium</code> once on this machine.
+                </div>
+            </div>
+        </form>
     </section>
     <section class="mt-5">
         <div class="text-light">

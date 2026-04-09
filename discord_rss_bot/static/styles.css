@@ -17,3 +17,50 @@ body {
 .interval-input {
     max-width: 120px;
 }
+
+.screenshot-requirement {
+    color: #9c9c9c;
+    font-size: 0.9rem;
+}
+
+.screenshot-requirement code {
+    color: #cfcfcf;
+    background: #1b1b1b;
+    border: 1px solid #2a2a2a;
+    border-radius: 4px;
+    padding: 0 0.35rem;
+}
+
+.status-chip {
+    display: inline-flex !important;
+    align-items: center;
+    width: auto !important;
+    max-width: 100%;
+    white-space: normal;
+}
+
+.feed-page,
+.feed-page .card,
+.feed-page .card-body,
+.feed-page .input-group,
+.feed-page .input-group>* {
+    min-width: 0;
+}
+
+.feed-page__content {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.feed-page__wrap {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.feed-page__pre {
+    max-width: 100%;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}

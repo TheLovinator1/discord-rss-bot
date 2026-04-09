@@ -51,4 +51,12 @@ def get_reader(custom_location: Path | None = None) -> Reader:
         # Set default
         reader.set_tag((), ".reader.update", {"interval": 15})
 
+    # Set the default screenshot layout to desktop if not already configured.
+    if reader.get_tag((), "screenshot_layout", None) is None:
+        reader.set_tag((), "screenshot_layout", "desktop")  # pyright: ignore[reportArgumentType]
+
+    # Set the default delivery mode for new feeds to embed if not already configured.
+    if reader.get_tag((), "delivery_mode", None) is None:
+        reader.set_tag((), "delivery_mode", "embed")  # pyright: ignore[reportArgumentType]
+
     return reader

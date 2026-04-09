@@ -13,6 +13,7 @@ dependencies = [
     "lxml",
     "markdownify",
     "platformdirs",
+    "playwright",
     "python-dotenv",
     "python-multipart",
     "reader",

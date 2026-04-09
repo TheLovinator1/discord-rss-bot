@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import tempfile
 from pathlib import Path
@@ -16,10 +17,16 @@ from reader import StorageError
 from reader import make_reader
 
 from discord_rss_bot import feeds
+from discord_rss_bot.feeds import capture_full_page_screenshot
+from discord_rss_bot.feeds import create_feed
+from discord_rss_bot.feeds import create_screenshot_webhook
 from discord_rss_bot.feeds import execute_webhook
 from discord_rss_bot.feeds import extract_domain
+from discord_rss_bot.feeds import get_entry_delivery_mode
+from discord_rss_bot.feeds import get_screenshot_layout
 from discord_rss_bot.feeds import get_webhook_url
 from discord_rss_bot.feeds import is_youtube_feed
+from discord_rss_bot.feeds import screenshot_filename_for_entry
 from discord_rss_bot.feeds import send_discord_quest_notification
 from discord_rss_bot.feeds import send_entry_to_discord
 from discord_rss_bot.feeds import send_to_discord
@@ -151,6 +158,450 @@ def test_should_send_embed_check_normal_feeds(mock_logger: MagicMock) -> None:
     mock_reader.get_tag.return_value = False
     result = should_send_embed_check(mock_reader, mock_entry)
     assert result is False, "Normal feeds should not use embeds when disabled"
+
+
+def test_get_entry_delivery_mode_prefers_delivery_mode_tag() -> None:
+    reader = MagicMock()
+    entry = MagicMock()
+    entry.feed.url = "https://example.com/feed.xml"
+
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+        "delivery_mode": "screenshot",
+        "should_send_embed": True,
+    }.get(key, default)
+
+    result = get_entry_delivery_mode(reader, entry)
+
+    assert result == "screenshot"
+
+
+def test_get_entry_delivery_mode_falls_back_to_legacy_embed_flag() -> None:
+    reader = MagicMock()
+    entry = MagicMock()
+    entry.feed.url = "https://example.com/feed.xml"
+
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+        "delivery_mode": "",
+        "should_send_embed": False,
+    }.get(key, default)
+
+    result = get_entry_delivery_mode(reader, entry)
+
+    assert result == "text"
+
+
+@patch("discord_rss_bot.feeds.execute_webhook")
+@patch("discord_rss_bot.feeds.create_text_webhook")
+@patch("discord_rss_bot.feeds.create_hoyolab_webhook")
+@patch("discord_rss_bot.feeds.fetch_hoyolab_post")
+def test_send_entry_to_discord_hoyolab_text_mode_uses_text_webhook(
+    mock_fetch_hoyolab_post: MagicMock,
+    mock_create_hoyolab_webhook: MagicMock,
+    mock_create_text_webhook: MagicMock,
+    mock_execute_webhook: MagicMock,
+) -> None:
+    entry = MagicMock()
+    entry.id = "entry-1"
+    entry.feed.url = "https://feeds.c3kay.de/hoyolab.xml"
+    entry.feed_url = "https://feeds.c3kay.de/hoyolab.xml"
+    entry.link = "https://www.hoyolab.com/article/38588239"
+
+    reader = MagicMock()
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+        "webhook": "https://discord.test/webhook",
+        "delivery_mode": "text",
+    }.get(key, default)
+
+    text_webhook = MagicMock()
+    mock_create_text_webhook.return_value = text_webhook
+
+    result = send_entry_to_discord(entry, reader)
+
+    assert result is None
+    mock_fetch_hoyolab_post.assert_not_called()
+    mock_create_hoyolab_webhook.assert_not_called()
+    mock_create_text_webhook.assert_called_once_with(
+        "https://discord.test/webhook",
+        entry,
+        reader=reader,
+        use_default_message_on_empty=False,
+    )
+    mock_execute_webhook.assert_called_once_with(text_webhook, entry, reader=reader)
+
+
+@patch("discord_rss_bot.feeds.execute_webhook")
+@patch("discord_rss_bot.feeds.create_screenshot_webhook")
+@patch("discord_rss_bot.feeds.create_hoyolab_webhook")
+@patch("discord_rss_bot.feeds.fetch_hoyolab_post")
+def test_send_entry_to_discord_hoyolab_screenshot_mode_uses_screenshot_webhook(
+    mock_fetch_hoyolab_post: MagicMock,
+    mock_create_hoyolab_webhook: MagicMock,
+    mock_create_screenshot_webhook: MagicMock,
+    mock_execute_webhook: MagicMock,
+) -> None:
+    entry = MagicMock()
+    entry.id = "entry-2"
+    entry.feed.url = "https://feeds.c3kay.de/hoyolab.xml"
+    entry.feed_url = "https://feeds.c3kay.de/hoyolab.xml"
+    entry.link = "https://www.hoyolab.com/article/38588239"
+
+    reader = MagicMock()
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+        "webhook": "https://discord.test/webhook",
+        "delivery_mode": "screenshot",
+    }.get(key, default)
+
+    screenshot_webhook = MagicMock()
+    mock_create_screenshot_webhook.return_value = screenshot_webhook
+
+    result = send_entry_to_discord(entry, reader)
+
+    assert result is None
+    mock_fetch_hoyolab_post.assert_not_called()
+    mock_create_hoyolab_webhook.assert_not_called()
+    mock_create_screenshot_webhook.assert_called_once_with(
+        "https://discord.test/webhook",
+        entry,
+        reader=reader,
+    )
+    mock_execute_webhook.assert_called_once_with(screenshot_webhook, entry, reader=reader)
+
+
+@patch("discord_rss_bot.feeds.execute_webhook")
+@patch("discord_rss_bot.feeds.create_embed_webhook")
+@patch("discord_rss_bot.feeds.create_hoyolab_webhook")
+@patch("discord_rss_bot.feeds.fetch_hoyolab_post")
+def test_send_entry_to_discord_hoyolab_embed_mode_uses_hoyolab_webhook(
+    mock_fetch_hoyolab_post: MagicMock,
+    mock_create_hoyolab_webhook: MagicMock,
+    mock_create_embed_webhook: MagicMock,
+    mock_execute_webhook: MagicMock,
+) -> None:
+    entry = MagicMock()
+    entry.id = "entry-3"
+    entry.feed.url = "https://feeds.c3kay.de/hoyolab.xml"
+    entry.feed_url = "https://feeds.c3kay.de/hoyolab.xml"
+    entry.link = "https://www.hoyolab.com/article/38588239"
+
+    reader = MagicMock()
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+        "webhook": "https://discord.test/webhook",
+        "delivery_mode": "embed",
+    }.get(key, default)
+
+    mock_fetch_hoyolab_post.return_value = {"post": {"subject": "News"}}
+    hoyolab_webhook = MagicMock()
+    mock_create_hoyolab_webhook.return_value = hoyolab_webhook
+
+    result = send_entry_to_discord(entry, reader)
+
+    assert result is None
+    mock_fetch_hoyolab_post.assert_called_once_with("38588239")
+    mock_create_hoyolab_webhook.assert_called_once_with(
+        "https://discord.test/webhook",
+        entry,
+        {"post": {"subject": "News"}},
+    )
+    mock_create_embed_webhook.assert_not_called()
+    mock_execute_webhook.assert_called_once_with(hoyolab_webhook, entry, reader=reader)
+
+
+def test_get_screenshot_layout_prefers_mobile_tag() -> None:
+    reader = MagicMock()
+    feed = MagicMock()
+    feed.url = "https://example.com/feed.xml"
+    reader.get_tag.return_value = "mobile"
+
+    result = get_screenshot_layout(reader, feed)
+
+    assert result == "mobile"
+
+
+def test_get_screenshot_layout_defaults_to_desktop() -> None:
+    reader = MagicMock()
+    feed = MagicMock()
+    feed.url = "https://example.com/feed.xml"
+    reader.get_tag.return_value = "unknown"
+
+    result = get_screenshot_layout(reader, feed)
+
+    assert result == "desktop"
+
+
+def test_create_feed_inherits_global_screenshot_layout() -> None:
+    reader = MagicMock()
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+        "webhooks": [{"name": "Main", "url": "https://discord.com/api/webhooks/123/abc"}],
+        "screenshot_layout": "mobile",
+    }.get(key, default)
+
+    create_feed(reader, "https://example.com/feed.xml", "Main")
+
+    reader.set_tag.assert_any_call("https://example.com/feed.xml", "screenshot_layout", "mobile")
+
+
+def test_create_feed_inherits_global_text_delivery_mode() -> None:
+    reader = MagicMock()
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+        "webhooks": [{"name": "Main", "url": "https://discord.com/api/webhooks/123/abc"}],
+        "screenshot_layout": "desktop",
+        "delivery_mode": "text",
+    }.get(key, default)
+
+    create_feed(reader, "https://example.com/feed.xml", "Main")
+
+    reader.set_tag.assert_any_call("https://example.com/feed.xml", "delivery_mode", "text")
+    reader.set_tag.assert_any_call("https://example.com/feed.xml", "should_send_embed", False)
+
+
+def test_create_feed_falls_back_to_embed_when_global_delivery_mode_is_invalid() -> None:
+    reader = MagicMock()
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+        "webhooks": [{"name": "Main", "url": "https://discord.com/api/webhooks/123/abc"}],
+        "screenshot_layout": "desktop",
+        "delivery_mode": "invalid",
+    }.get(key, default)
+
+    create_feed(reader, "https://example.com/feed.xml", "Main")
+
+    reader.set_tag.assert_any_call("https://example.com/feed.xml", "delivery_mode", "embed")
+    reader.set_tag.assert_any_call("https://example.com/feed.xml", "should_send_embed", True)
+
+
+@patch("discord_rss_bot.feeds.capture_full_page_screenshot")
+@patch("discord_rss_bot.feeds.DiscordWebhook")
+def test_create_screenshot_webhook_adds_image_file(
+    mock_discord_webhook: MagicMock,
+    mock_capture: MagicMock,
+) -> None:
+    mock_capture.return_value = b"png-bytes"
+    webhook = MagicMock()
+    mock_discord_webhook.return_value = webhook
+
+    entry = MagicMock()
+    entry.id = "entry-abc"
+    entry.link = "https://example.com/article"
+    reader = MagicMock()
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+        "screenshot_layout": "mobile",
+    }.get(key, default)
+
+    result = create_screenshot_webhook("https://discord.com/api/webhooks/123/abc", entry, reader)
+
+    assert result == webhook
+    mock_discord_webhook.assert_called_once_with(
+        url="https://discord.com/api/webhooks/123/abc",
+        content="<https://example.com/article>",
+        rate_limit_retry=True,
+    )
+    mock_capture.assert_called_once_with(
+        "https://example.com/article",
+        screenshot_layout="mobile",
+        screenshot_type="png",
+    )
+    webhook.add_file.assert_called_once()
+
+
+@patch("discord_rss_bot.feeds.capture_full_page_screenshot")
+@patch("discord_rss_bot.feeds.DiscordWebhook")
+def test_create_screenshot_webhook_retries_jpeg_when_png_too_large(
+    mock_discord_webhook: MagicMock,
+    mock_capture: MagicMock,
+) -> None:
+    oversized_png = b"x" * (8 * 1024 * 1024 + 1024)
+    compressed_jpeg = b"y" * (7 * 1024 * 1024)
+    mock_capture.side_effect = [oversized_png, compressed_jpeg]
+
+    webhook = MagicMock()
+    mock_discord_webhook.return_value = webhook
+
+    entry = MagicMock()
+    entry.id = "entry-large"
+    entry.link = "https://example.com/large-article"
+    reader = MagicMock()
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+        "screenshot_layout": "desktop",
+    }.get(key, default)
+
+    result = create_screenshot_webhook("https://discord.com/api/webhooks/123/abc", entry, reader)
+
+    assert result == webhook
+    assert mock_capture.call_count == 2
+    assert mock_capture.call_args_list[0].kwargs == {
+        "screenshot_layout": "desktop",
+        "screenshot_type": "png",
+    }
+    assert mock_capture.call_args_list[1].kwargs == {
+        "screenshot_layout": "desktop",
+        "screenshot_type": "jpeg",
+        "jpeg_quality": 85,
+    }
+    webhook.add_file.assert_called_once()
+
+
+@patch("discord_rss_bot.feeds.create_text_webhook")
+@patch("discord_rss_bot.feeds.capture_full_page_screenshot")
+def test_create_screenshot_webhook_falls_back_when_all_formats_too_large(
+    mock_capture: MagicMock,
+    mock_create_text_webhook: MagicMock,
+) -> None:
+    oversized_bytes = b"z" * (9 * 1024 * 1024)
+    # 1 PNG attempt + 4 JPEG quality attempts
+    mock_capture.side_effect = [oversized_bytes, oversized_bytes, oversized_bytes, oversized_bytes, oversized_bytes]
+    fallback_webhook = MagicMock()
+    mock_create_text_webhook.return_value = fallback_webhook
+
+    entry = MagicMock()
+    entry.id = "entry-too-large"
+    entry.link = "https://example.com/very-large"
+    reader = MagicMock()
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+        "screenshot_layout": "desktop",
+    }.get(key, default)
+
+    result = create_screenshot_webhook("https://discord.com/api/webhooks/123/abc", entry, reader)
+
+    assert result == fallback_webhook
+    assert mock_capture.call_count == 5
+    mock_create_text_webhook.assert_called_once_with(
+        "https://discord.com/api/webhooks/123/abc",
+        entry,
+        reader=reader,
+        use_default_message_on_empty=True,
+    )
+
+
+@patch("discord_rss_bot.feeds.capture_full_page_screenshot")
+@patch("discord_rss_bot.feeds.create_text_webhook")
+def test_create_screenshot_webhook_falls_back_when_entry_has_no_link(
+    mock_create_text_webhook: MagicMock,
+    mock_capture: MagicMock,
+) -> None:
+    entry = MagicMock()
+    entry.id = "entry-no-link"
+    entry.link = None
+    reader = MagicMock()
+    fallback_webhook = MagicMock()
+    mock_create_text_webhook.return_value = fallback_webhook
+
+    result = create_screenshot_webhook("https://discord.com/api/webhooks/123/abc", entry, reader)
+
+    assert result == fallback_webhook
+    mock_capture.assert_not_called()
+    mock_create_text_webhook.assert_called_once_with(
+        "https://discord.com/api/webhooks/123/abc",
+        entry,
+        reader=reader,
+        use_default_message_on_empty=True,
+    )
+
+
+def test_screenshot_filename_for_entry_custom_extension() -> None:
+    entry = MagicMock()
+    entry.id = "hello/world?id=123"
+
+    filename = screenshot_filename_for_entry(entry, extension="JPG")
+
+    assert filename.endswith(".jpg")
+    assert "/" not in filename
+    assert "?" not in filename
+
+
+@patch("discord_rss_bot.feeds._capture_full_page_screenshot_sync", return_value=b"jpeg-bytes")
+def test_capture_full_page_screenshot_forwards_jpeg_options(mock_capture_sync: MagicMock) -> None:
+    result = capture_full_page_screenshot(
+        "https://example.com/article",
+        screenshot_layout="mobile",
+        screenshot_type="jpeg",
+        jpeg_quality=55,
+    )
+
+    assert result == b"jpeg-bytes"
+    mock_capture_sync.assert_called_once_with(
+        "https://example.com/article",
+        screenshot_layout="mobile",
+        screenshot_type="jpeg",
+        jpeg_quality=55,
+    )
+
+
+@patch("discord_rss_bot.feeds.create_text_webhook")
+@patch("discord_rss_bot.feeds.capture_full_page_screenshot")
+def test_create_screenshot_webhook_falls_back_to_text_on_failure(
+    mock_capture: MagicMock,
+    mock_create_text_webhook: MagicMock,
+) -> None:
+    mock_capture.return_value = None
+    fallback_webhook = MagicMock()
+    mock_create_text_webhook.return_value = fallback_webhook
+
+    entry = MagicMock()
+    entry.id = "entry-def"
+    entry.link = "https://example.com/article"
+    reader = MagicMock()
+
+    result = create_screenshot_webhook("https://discord.com/api/webhooks/123/abc", entry, reader)
+
+    assert result == fallback_webhook
+    mock_create_text_webhook.assert_called_once_with(
+        "https://discord.com/api/webhooks/123/abc",
+        entry,
+        reader=reader,
+        use_default_message_on_empty=True,
+    )
+
+
+def test_capture_full_page_screenshot_uses_thread_when_loop_running() -> None:
+    """Capture should offload sync Playwright work when called from an active event loop."""
+    with patch("discord_rss_bot.feeds._capture_full_page_screenshot_sync", return_value=b"png") as mock_capture_sync:
+
+        async def run_capture() -> bytes | None:
+            return feeds.capture_full_page_screenshot(
+                "https://example.com/article",
+                screenshot_layout="desktop",
+                screenshot_type="png",
+            )
+
+        result = asyncio.run(run_capture())
+
+    assert result == b"png"
+    mock_capture_sync.assert_called_once_with(
+        "https://example.com/article",
+        screenshot_layout="desktop",
+        screenshot_type="png",
+        jpeg_quality=85,
+    )
+
+
+@patch("discord_rss_bot.feeds.get_entry_delivery_mode")
+@patch("discord_rss_bot.feeds.create_screenshot_webhook")
+@patch("discord_rss_bot.feeds.execute_webhook")
+def test_send_entry_to_discord_uses_screenshot_mode(
+    mock_execute_webhook: MagicMock,
+    mock_create_screenshot_webhook: MagicMock,
+    mock_get_entry_delivery_mode: MagicMock,
+) -> None:
+    reader = MagicMock()
+    entry = MagicMock()
+    entry.feed.url = "https://example.com/feed.xml"
+    entry.feed_url = "https://example.com/feed.xml"
+
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+        "webhook": "https://discord.com/api/webhooks/123/abc",
+    }.get(key, default)
+
+    mock_get_entry_delivery_mode.return_value = "screenshot"
+    screenshot_webhook = MagicMock()
+    mock_create_screenshot_webhook.return_value = screenshot_webhook
+
+    send_entry_to_discord(entry, reader)
+
+    mock_create_screenshot_webhook.assert_called_once_with(
+        "https://discord.com/api/webhooks/123/abc",
+        entry,
+        reader=reader,
+    )
+    mock_execute_webhook.assert_called_once_with(screenshot_webhook, entry, reader=reader)
 
 
 @patch("discord_rss_bot.feeds.get_reader")

@@ -3,170 +3,264 @@
     | {{ feed.title }}
 {% endblock title %}
 {% block content %}
-    <div class="card mb-3 border border-dark p-3 text-light">
-        <!-- Feed Title -->
-        <h2>
-            <a class="text-muted" href="{{ feed.url }}">{{ feed.title }}</a> ({{ total_entries }} entries)
-        </h2>
-        {% if not feed.updates_enabled %}<span class="badge bg-danger">Disabled</span>{% endif %}
-        {% if feed.last_exception %}
-            <div class="mt-3">
-                <h5 class="text-danger">{{ feed.last_exception.type_name }}:</h5>
-                <code class="d-block">{{ feed.last_exception.value_str }}</code>
-                <button class="btn btn-secondary btn-sm mt-2"
-                        type="button"
-                        data-bs-toggle="collapse"
-                        data-bs-target="#exceptionDetails"
-                        aria-expanded="false"
-                        aria-controls="exceptionDetails">Show Traceback</button>
-                <div class="collapse" id="exceptionDetails">
-                    <pre><code>{{ feed.last_exception.traceback_str }}</code></pre>
+    <div class="row g-3 feed-page">
+        <div class="col-12">
+            <article class="card border border-dark shadow-sm text-light">
+                <div class="card-body p-3 p-md-4 text-light">
+                    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+                        <div class="feed-page__content">
+                            <h2 class="h3 mb-1">
+                                <a class="text-muted text-decoration-none feed-page__wrap"
+                                   href="{{ feed.url }}">{{ feed.title }}</a>
+                            </h2>
+                            <p class="text-muted mb-0">{{ total_entries }} entries</p>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2">
+                            {% if not feed.updates_enabled %}<span class="badge bg-danger status-chip">Disabled</span>{% endif %}
+                            <span class="badge status-chip {% if delivery_mode == "embed" %} bg-primary {% else %} bg-secondary {% endif %}">
+                                Current mode:
+                                {% if delivery_mode == "embed" %}
+                                    Embed
+                                {% elif delivery_mode == "screenshot" %}
+                                    Screenshot
+                                {% else %}
+                                    Text
+                                {% endif %}
+                            </span>
+                            {% if delivery_mode == "screenshot" %}
+                                <span class="badge status-chip bg-secondary">
+                                    Screenshot layout:
+                                    {% if screenshot_layout == "mobile" %}
+                                        Mobile
+                                    {% else %}
+                                        Desktop
+                                    {% endif %}
+                                </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if feed.last_exception %}
+                        <div class="alert alert-danger mt-4 mb-0" role="alert">
+                            <h5 class="alert-heading mb-2">{{ feed.last_exception.type_name }}</h5>
+                            <code class="d-block mb-2 feed-page__wrap">{{ feed.last_exception.value_str }}</code>
+                            <button class="btn btn-outline-light btn-sm"
+                                    type="button"
+                                    data-bs-toggle="collapse"
+                                    data-bs-target="#exceptionDetails"
+                                    aria-expanded="false"
+                                    aria-controls="exceptionDetails">Show Traceback</button>
+                            <div class="collapse mt-2" id="exceptionDetails">
+                                <pre class="mb-0 feed-page__pre"><code>{{ feed.last_exception.traceback_str }}</code></pre>
+                            </div>
+                        </div>
+                    {% endif %}
+                    <section class="mt-4 pt-3 border-top border-secondary-subtle">
+                        <h3 class="h6 text-uppercase text-muted mb-3">Actions</h3>
+                        <div class="d-flex flex-wrap gap-2">
+                            <a href="/update?feed_url={{ feed.url|encode_url }}"
+                               class="btn btn-primary btn-sm">Update</a>
+                            <form action="/remove" method="post" class="d-inline">
+                                <button class="btn btn-danger btn-sm"
+                                        name="feed_url"
+                                        value="{{ feed.url }}"
+                                        onclick="return confirm('Are you sure you want to delete this feed?')">
+                                    Remove
+                                </button>
+                            </form>
+                            {% if not feed.updates_enabled %}
+                                <form action="/unpause" method="post" class="d-inline">
+                                    <button class="btn btn-secondary btn-sm"
+                                            name="feed_url"
+                                            value="{{ feed.url }}">Unpause</button>
+                                </form>
+                            {% else %}
+                                <form action="/pause" method="post" class="d-inline">
+                                    <button class="btn btn-danger btn-sm" name="feed_url" value="{{ feed.url }}">Pause</button>
+                                </form>
+                            {% endif %}
+                            {% if not "youtube.com/feeds/videos.xml" in feed.url %}
+                                {% if delivery_mode == "embed" %}
+                                    <form action="/use_text" method="post" class="d-inline">
+                                        <button class="btn btn-outline-light btn-sm"
+                                                name="feed_url"
+                                                value="{{ feed.url }}">Send text message instead of embed</button>
+                                    </form>
+                                    <form action="/use_screenshot" method="post" class="d-inline">
+                                        <button class="btn btn-outline-light btn-sm"
+                                                name="feed_url"
+                                                value="{{ feed.url }}">
+                                            Send full-page screenshot instead of embed
+                                        </button>
+                                    </form>
+                                {% elif delivery_mode == "screenshot" %}
+                                    <form action="/use_embed" method="post" class="d-inline">
+                                        <button class="btn btn-outline-light btn-sm"
+                                                name="feed_url"
+                                                value="{{ feed.url }}">Send embed instead of screenshot</button>
+                                    </form>
+                                    <form action="/use_text" method="post" class="d-inline">
+                                        <button class="btn btn-outline-light btn-sm"
+                                                name="feed_url"
+                                                value="{{ feed.url }}">Send text message instead of screenshot</button>
+                                    </form>
+                                    {% if screenshot_layout == "mobile" %}
+                                        <form action="/use_screenshot_desktop" method="post" class="d-inline">
+                                            <button class="btn btn-outline-secondary btn-sm"
+                                                    name="feed_url"
+                                                    value="{{ feed.url }}">Use desktop screenshot layout</button>
+                                        </form>
+                                    {% else %}
+                                        <form action="/use_screenshot_mobile" method="post" class="d-inline">
+                                            <button class="btn btn-outline-secondary btn-sm"
+                                                    name="feed_url"
+                                                    value="{{ feed.url }}">Use mobile screenshot layout</button>
+                                        </form>
+                                    {% endif %}
+                                {% else %}
+                                    <form action="/use_embed" method="post" class="d-inline">
+                                        <button class="btn btn-outline-light btn-sm"
+                                                name="feed_url"
+                                                value="{{ feed.url }}">Send embed instead of text message</button>
+                                    </form>
+                                    <form action="/use_screenshot" method="post" class="d-inline">
+                                        <button class="btn btn-outline-light btn-sm"
+                                                name="feed_url"
+                                                value="{{ feed.url }}">
+                                            Send full-page screenshot instead of text message
+                                        </button>
+                                    </form>
+                                {% endif %}
+                                <div class="w-100 mt-1 screenshot-requirement">
+                                    Screenshot mode requires Chromium to be installed for Playwright. Run <code>uv run playwright install chromium</code> once on this machine.
+                                </div>
+                            {% endif %}
+                        </div>
+                    </section>
+                    <section class="mt-4 pt-3 border-top border-secondary-subtle">
+                        <h3 class="h6 text-uppercase text-muted mb-3">Customization</h3>
+                        <div class="d-flex flex-column align-items-start gap-2">
+                            <a class="text-muted text-decoration-none"
+                               href="/whitelist?feed_url={{ feed.url|encode_url }}">Whitelist</a>
+                            <a class="text-muted text-decoration-none"
+                               href="/blacklist?feed_url={{ feed.url|encode_url }}">Blacklist</a>
+                            <a class="text-muted text-decoration-none"
+                               href="/custom?feed_url={{ feed.url|encode_url }}">
+                                Customize message
+                                {% if delivery_mode == "text" %}(Currently active){% endif %}
+                            </a>
+                            {% if not "youtube.com/feeds/videos.xml" in feed.url %}
+                                <a class="text-muted text-decoration-none"
+                                   href="/embed?feed_url={{ feed.url|encode_url }}">
+                                    Customize embed
+                                    {% if delivery_mode == "embed" %}(Currently active){% endif %}
+                                </a>
+                            {% endif %}
+                        </div>
+                    </section>
+                    <section class="mt-4 pt-3 border-top border-secondary-subtle">
+                        <h3 class="h6 text-uppercase text-muted mb-3">Feed URL</h3>
+                        <form action="/change_feed_url" method="post" class="mb-0">
+                            <input type="hidden" name="old_feed_url" value="{{ feed.url }}" />
+                            <div class="input-group input-group-sm feed-page__content">
+                                <input type="url"
+                                       class="form-control feed-page__wrap"
+                                       name="new_feed_url"
+                                       value="{{ feed.url }}"
+                                       required />
+                                <button class="btn btn-warning" type="submit">Update URL</button>
+                            </div>
+                        </form>
+                    </section>
+                    <section class="mt-4 pt-3 border-top border-secondary-subtle">
+                        <h3 class="h6 text-uppercase text-muted mb-3">Feed Information</h3>
+                        <div class="row g-2 text-muted small">
+                            <div class="col-12 col-md-6">
+                                <div class="p-2 border border-secondary rounded">Added: {{ feed.added | relative_time }}</div>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <div class="p-2 border border-secondary rounded">Last Updated: {{ feed.last_updated | relative_time }}</div>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <div class="p-2 border border-secondary rounded">Last Retrieved: {{ feed.last_retrieved | relative_time }}</div>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <div class="p-2 border border-secondary rounded">Next Update: {{ feed.update_after | relative_time }}</div>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <div class="p-2 border border-secondary rounded">
+                                    Updates:
+                                    <span class="badge {{ 'bg-success' if feed.updates_enabled else 'bg-danger' }}">
+                                        {{ 'Enabled' if feed.updates_enabled else 'Disabled' }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                    <section class="mt-4 pt-3 border-top border-secondary-subtle">
+                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                            <h3 class="h6 text-uppercase text-muted mb-0">Update Interval</h3>
+                            <span class="badge {% if feed_interval %} bg-info {% else %} bg-secondary {% endif %}">
+                                {% if feed_interval %}
+                                    Custom
+                                {% else %}
+                                    Using global default
+                                {% endif %}
+                            </span>
+                        </div>
+                        <p class="text-muted mb-3">
+                            Current:
+                            <strong>
+                                {% if feed_interval %}
+                                    {{ feed_interval }}
+                                    {% if feed_interval >= 60 %}({{ (feed_interval / 60) | round(1) }} hours){% endif %}
+                                {% else %}
+                                    {{ global_interval }}
+                                    {% if global_interval >= 60 %}({{ (global_interval / 60) | round(1) }} hours){% endif %}
+                                {% endif %}
+                                minutes
+                            </strong>
+                        </p>
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <form action="/set_update_interval"
+                                  method="post"
+                                  class="d-inline-flex gap-2 align-items-center">
+                                <input type="hidden" name="feed_url" value="{{ feed.url }}" />
+                                <input type="number"
+                                       class="form-control form-control-sm interval-input"
+                                       style="width: 100px"
+                                       name="interval_minutes"
+                                       placeholder="Minutes"
+                                       min="1"
+                                       value="{{ feed_interval if feed_interval else global_interval }}"
+                                       required />
+                                <button class="btn btn-primary btn-sm" type="submit">Set Interval</button>
+                            </form>
+                            {% if feed_interval %}
+                                <form action="/reset_update_interval" method="post" class="d-inline">
+                                    <input type="hidden" name="feed_url" value="{{ feed.url }}" />
+                                    <button class="btn btn-secondary btn-sm" type="submit">Reset to Global Default</button>
+                                </form>
+                            {% endif %}
+                        </div>
+                    </section>
                 </div>
+            </article>
+        </div>
+        <div class="col-12">
+            <section class="card border border-dark shadow-sm text-light">
+                <div class="card-header bg-transparent text-muted border-secondary">Rendered HTML content</div>
+                <div class="card-body p-0">
+                    <pre class="m-0 p-3 feed-page__pre">{{ html|safe }}</pre>
+                </div>
+            </section>
+        </div>
+        {% if is_show_more_entries_button_visible %}
+            <div class="col-12">
+                <a class="btn btn-dark"
+                   href="/feed?feed_url={{ feed.url|encode_url }}&starting_after={{ last_entry.id|encode_url }}">
+                    Show more entries
+                </a>
             </div>
         {% endif %}
-        <!-- Feed Actions -->
-        <div class="mt-3 d-flex flex-wrap gap-2">
-            <a href="/update?feed_url={{ feed.url|encode_url }}"
-               class="btn btn-primary btn-sm">Update</a>
-            <form action="/remove" method="post" class="d-inline">
-                <button class="btn btn-danger btn-sm"
-                        name="feed_url"
-                        value="{{ feed.url }}"
-                        onclick="return confirm('Are you sure you want to delete this feed?')">Remove</button>
-            </form>
-            {% if not feed.updates_enabled %}
-                <form action="/unpause" method="post" class="d-inline">
-                    <button class="btn btn-secondary btn-sm"
-                            name="feed_url"
-                            value="{{ feed.url }}">Unpause</button>
-                </form>
-            {% else %}
-                <form action="/pause" method="post" class="d-inline">
-                    <button class="btn btn-danger btn-sm" name="feed_url" value="{{ feed.url }}">Pause</button>
-                </form>
-            {% endif %}
-            {% if not "youtube.com/feeds/videos.xml" in feed.url %}
-                {% if should_send_embed %}
-                    <form action="/use_text" method="post" class="d-inline">
-                        <button class="btn btn-dark btn-sm" name="feed_url" value="{{ feed.url }}">Send text message instead of embed</button>
-                    </form>
-                {% else %}
-                    <form action="/use_embed" method="post" class="d-inline">
-                        <button class="btn btn-dark btn-sm" name="feed_url" value="{{ feed.url }}">Send embed instead of text message</button>
-                    </form>
-                {% endif %}
-            {% endif %}
-        </div>
-        <!-- Additional Links -->
-        <div class="mt-3">
-            <a class="text-muted d-block"
-               href="/whitelist?feed_url={{ feed.url|encode_url }}">Whitelist</a>
-            <a class="text-muted d-block"
-               href="/blacklist?feed_url={{ feed.url|encode_url }}">Blacklist</a>
-            <a class="text-muted d-block"
-               href="/custom?feed_url={{ feed.url|encode_url }}">
-                Customize message
-                {% if not should_send_embed %}(Currently active){% endif %}
-            </a>
-            {% if not "youtube.com/feeds/videos.xml" in feed.url %}
-                <a class="text-muted d-block"
-                   href="/embed?feed_url={{ feed.url|encode_url }}">
-                    Customize embed
-                    {% if should_send_embed %}(Currently active){% endif %}
-                </a>
-            {% endif %}
-        </div>
-        <!-- Feed URL Configuration -->
-        <div class="mt-4 border-top border-secondary pt-3">
-            <h5 class="mb-3">Feed URL</h5>
-            <form action="/change_feed_url" method="post" class="mb-2">
-                <input type="hidden" name="old_feed_url" value="{{ feed.url }}" />
-                <div class="input-group input-group-sm mb-2">
-                    <input type="url"
-                           class="form-control form-control-sm"
-                           name="new_feed_url"
-                           value="{{ feed.url }}"
-                           required />
-                    <button class="btn btn-warning" type="submit">Update URL</button>
-                </div>
-            </form>
-        </div>
-        <!-- Feed Metadata -->
-        <div class="mt-4 border-top border-secondary pt-3">
-            <h5 class="mb-3">Feed Information</h5>
-            <div class="row text-muted">
-                <div class="col-md-6 mb-2">
-                    <small><strong>Added:</strong> {{ feed.added | relative_time }}</small>
-                </div>
-                <div class="col-md-6 mb-2">
-                    <small><strong>Last Updated:</strong> {{ feed.last_updated | relative_time }}</small>
-                </div>
-                <div class="col-md-6 mb-2">
-                    <small><strong>Last Retrieved:</strong> {{ feed.last_retrieved | relative_time }}</small>
-                </div>
-                <div class="col-md-6 mb-2">
-                    <small><strong>Next Update:</strong> {{ feed.update_after | relative_time }}</small>
-                </div>
-                <div class="col-md-6 mb-2">
-                    <small><strong>Updates:</strong> <span class="badge {{ 'bg-success' if feed.updates_enabled else 'bg-danger' }}">{{ 'Enabled' if feed.updates_enabled else 'Disabled' }}</span></small>
-                </div>
-            </div>
-        </div>
-        <!-- Update Interval Configuration -->
-        <div class="mt-4 border-top border-secondary pt-3">
-            <h5 class="mb-3">
-                Update Interval <span class="badge
-              {% if feed_interval %}
-                  bg-info
-              {% else %}
-                  bg-secondary
-              {% endif %}">
-                {% if feed_interval %}
-                    Custom
-                {% else %}
-                    Using global default
-                {% endif %}
-            </span>
-        </h5>
-        <div class="d-flex align-items-center gap-2 flex-wrap">
-            <span class="text-muted">Current: <strong>
-                {% if feed_interval %}
-                    {{ feed_interval }}
-                    {% if feed_interval >= 60 %}({{ (feed_interval / 60) | round(1) }} hours){% endif %}
-                {% else %}
-                    {{ global_interval }}
-                    {% if global_interval >= 60 %}({{ (global_interval / 60) | round(1) }} hours){% endif %}
-                {% endif %}
-            minutes</strong></span>
-            <form action="/set_update_interval"
-                  method="post"
-                  class="d-inline-flex gap-2 align-items-center">
-                <input type="hidden" name="feed_url" value="{{ feed.url }}" />
-                <input type="number"
-                       class="form-control form-control-sm interval-input"
-                       style="width: 100px"
-                       name="interval_minutes"
-                       placeholder="Minutes"
-                       min="1"
-                       value="{{ feed_interval if feed_interval else global_interval }}"
-                       required />
-                <button class="btn btn-primary btn-sm" type="submit">Set Interval</button>
-            </form>
-            {% if feed_interval %}
-                <form action="/reset_update_interval" method="post" class="d-inline">
-                    <input type="hidden" name="feed_url" value="{{ feed.url }}" />
-                    <button class="btn btn-secondary btn-sm" type="submit">Reset to Global Default</button>
-                </form>
-            {% endif %}
-        </div>
     </div>
-</div>
-{# Rendered HTML content #}
-<pre>{{ html|safe }}</pre>
-{% if is_show_more_entries_button_visible %}
-    <a class="btn btn-dark mt-3"
-       href="/feed?feed_url={{ feed.url|encode_url }}&starting_after={{ last_entry.id|encode_url }}">
-        Show more entries
-    </a>
-{% endif %}
 {% endblock content %}

@@ -9,9 +9,9 @@ Discord: TheLovinator#9276
 ## Features
 
 - Subscribe to RSS feeds and get updates to a Discord webhook.
-- Web interface to manage subscriptions.
+- Web interface to manage subscriptions, webhooks, and filters.
 - Customizable message format for each feed.
-- Choose between Discord embed or plain text.
+- Choose between sending a Discord embed, plain text or full-page screenshot to the webhook.
 - Regex filters for RSS feeds.
 - Blacklist/whitelist words in the title/description/author/etc.
 - Set different update frequencies for each feed or use a global default.
@@ -54,6 +54,8 @@ or [install directly on your computer](#install-directly-on-your-computer).
 - Start the bot:
   - Type `uv run discord_rss_bot/main.py` into the PowerShell window.
     - You can stop the bot with <kbd>Ctrl</kbd> + <kbd>c</kbd>.
+- Required for screenshot mode: install browser runtime once:
+  - `uv run playwright install chromium`
 - Bot is now running on port 3000.
 - You should run this bot behind a reverse proxy like [Caddy](https://caddyserver.com/)
   or [Nginx](https://www.nginx.com/) if you want to access it from the internet. Remember to add authentication.

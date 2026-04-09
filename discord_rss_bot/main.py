@@ -50,6 +50,8 @@ from discord_rss_bot.custom_message import replace_tags_in_text_message
 from discord_rss_bot.custom_message import save_embed
 from discord_rss_bot.feeds import create_feed
 from discord_rss_bot.feeds import extract_domain
+from discord_rss_bot.feeds import get_feed_delivery_mode
+from discord_rss_bot.feeds import get_screenshot_layout
 from discord_rss_bot.feeds import send_entry_to_discord
 from discord_rss_bot.feeds import send_to_discord
 from discord_rss_bot.git_backup import commit_state_change
@@ -67,7 +69,7 @@ if TYPE_CHECKING:
 
 LOGGING_CONFIG: dict[str, Any] = {
     "version": 1,
-    "disable_existing_loggers": True,
+    "disable_existing_loggers": False,
     "formatters": {
         "standard": {
             "format": "%(asctime)s [%(processName)s: %(process)d] [%(threadName)s: %(thread)d] [%(levelname)s] %(name)s: %(message)s",  # noqa: E501
@@ -179,10 +181,10 @@ templates: Jinja2Templates = Jinja2Templates(directory="discord_rss_bot/template
 
 
 # Add the filters to the Jinja2 environment so they can be used in html templates.
-templates.env.filters["encode_url"] = lambda url: urllib.parse.quote(url) if url else ""
-templates.env.filters["discord_markdown"] = markdownify
+templates.env.filters["encode_url"] = lambda url: urllib.parse.quote(str(url)) if url else ""
+templates.env.filters["discord_markdown"] = markdownify  # pyright: ignore[reportArgumentType]
 templates.env.filters["relative_time"] = relative_time
-templates.env.globals["get_backup_path"] = get_backup_path
+templates.env.globals["get_backup_path"] = get_backup_path  # pyright: ignore[reportArgumentType]
 
 
 @app.post("/add_webhook")
@@ -703,6 +705,7 @@ async def post_use_embed(
         RedirectResponse: Redirect to the feed page.
     """
     clean_feed_url: str = feed_url.strip()
+    reader.set_tag(clean_feed_url, "delivery_mode", "embed")  # pyright: ignore[reportArgumentType]
     reader.set_tag(clean_feed_url, "should_send_embed", True)  # pyright: ignore[reportArgumentType]
     commit_state_change(reader, f"Enable embed mode for {clean_feed_url}")
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
@@ -723,8 +726,75 @@ async def post_use_text(
         RedirectResponse: Redirect to the feed page.
     """
     clean_feed_url: str = feed_url.strip()
+    reader.set_tag(clean_feed_url, "delivery_mode", "text")  # pyright: ignore[reportArgumentType]
     reader.set_tag(clean_feed_url, "should_send_embed", False)  # pyright: ignore[reportArgumentType]
     commit_state_change(reader, f"Disable embed mode for {clean_feed_url}")
+    return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
+
+
+@app.post("/use_screenshot")
+async def post_use_screenshot(
+    feed_url: Annotated[str, Form()],
+    reader: Annotated[Reader, Depends(get_reader_dependency)],
+) -> RedirectResponse:
+    """Use full-page screenshot mode instead of embed or text.
+
+    Args:
+        feed_url: The feed to change.
+        reader: The Reader instance.
+
+    Returns:
+        RedirectResponse: Redirect to the feed page.
+    """
+    clean_feed_url: str = feed_url.strip()
+    reader.set_tag(clean_feed_url, "delivery_mode", "screenshot")  # pyright: ignore[reportArgumentType]
+    reader.set_tag(clean_feed_url, "screenshot_layout", "desktop")  # pyright: ignore[reportArgumentType]
+    reader.set_tag(clean_feed_url, "should_send_embed", False)  # pyright: ignore[reportArgumentType]
+    commit_state_change(reader, f"Enable screenshot mode for {clean_feed_url}")
+    return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
+
+
+@app.post("/use_screenshot_mobile")
+async def post_use_screenshot_mobile(
+    feed_url: Annotated[str, Form()],
+    reader: Annotated[Reader, Depends(get_reader_dependency)],
+) -> RedirectResponse:
+    """Use screenshot mode with mobile layout.
+
+    Args:
+        feed_url: The feed to change.
+        reader: The Reader instance.
+
+    Returns:
+        RedirectResponse: Redirect to the feed page.
+    """
+    clean_feed_url: str = feed_url.strip()
+    reader.set_tag(clean_feed_url, "delivery_mode", "screenshot")  # pyright: ignore[reportArgumentType]
+    reader.set_tag(clean_feed_url, "screenshot_layout", "mobile")  # pyright: ignore[reportArgumentType]
+    reader.set_tag(clean_feed_url, "should_send_embed", False)  # pyright: ignore[reportArgumentType]
+    commit_state_change(reader, f"Enable screenshot mobile layout for {clean_feed_url}")
+    return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
+
+
+@app.post("/use_screenshot_desktop")
+async def post_use_screenshot_desktop(
+    feed_url: Annotated[str, Form()],
+    reader: Annotated[Reader, Depends(get_reader_dependency)],
+) -> RedirectResponse:
+    """Use screenshot mode with desktop layout.
+
+    Args:
+        feed_url: The feed to change.
+        reader: The Reader instance.
+
+    Returns:
+        RedirectResponse: Redirect to the feed page.
+    """
+    clean_feed_url: str = feed_url.strip()
+    reader.set_tag(clean_feed_url, "delivery_mode", "screenshot")  # pyright: ignore[reportArgumentType]
+    reader.set_tag(clean_feed_url, "screenshot_layout", "desktop")  # pyright: ignore[reportArgumentType]
+    reader.set_tag(clean_feed_url, "should_send_embed", False)  # pyright: ignore[reportArgumentType]
+    commit_state_change(reader, f"Enable screenshot desktop layout for {clean_feed_url}")
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
 
@@ -886,6 +956,52 @@ async def post_set_global_update_interval(
     return RedirectResponse(url="/settings", status_code=303)
 
 
+@app.post("/set_global_screenshot_layout")
+async def post_set_global_screenshot_layout(
+    screenshot_layout: Annotated[str, Form()],
+    reader: Annotated[Reader, Depends(get_reader_dependency)],
+) -> RedirectResponse:
+    """Set the global default screenshot layout for newly added feeds.
+
+    Args:
+        screenshot_layout: The screenshot layout (`desktop` or `mobile`).
+        reader: The Reader instance.
+
+    Returns:
+        RedirectResponse: Redirect to the settings page.
+    """
+    clean_layout: str = screenshot_layout.strip().lower()
+    if clean_layout not in {"desktop", "mobile"}:
+        clean_layout = "desktop"
+
+    reader.set_tag((), "screenshot_layout", clean_layout)  # pyright: ignore[reportArgumentType]
+    commit_state_change(reader, f"Set global screenshot layout to {clean_layout}")
+    return RedirectResponse(url="/settings", status_code=303)
+
+
+@app.post("/set_global_delivery_mode")
+async def post_set_global_delivery_mode(
+    delivery_mode: Annotated[str, Form()],
+    reader: Annotated[Reader, Depends(get_reader_dependency)],
+) -> RedirectResponse:
+    """Set the global default delivery mode for newly added feeds.
+
+    Args:
+        delivery_mode: The delivery mode (`embed` or `text`).
+        reader: The Reader instance.
+
+    Returns:
+        RedirectResponse: Redirect to the settings page.
+    """
+    clean_delivery_mode: str = delivery_mode.strip().lower()
+    if clean_delivery_mode not in {"embed", "text"}:
+        clean_delivery_mode = "embed"
+
+    reader.set_tag((), "delivery_mode", clean_delivery_mode)  # pyright: ignore[reportArgumentType]
+    commit_state_change(reader, f"Set global delivery mode to {clean_delivery_mode}")
+    return RedirectResponse(url="/settings", status_code=303)
+
+
 @app.get("/add", response_class=HTMLResponse)
 def get_add(
     request: Request,
@@ -900,9 +1016,14 @@ def get_add(
     Returns:
         HTMLResponse: The add feed page.
     """
+    global_delivery_mode: str = str(reader.get_tag((), "delivery_mode", "embed")).strip().lower()
+    if global_delivery_mode not in {"embed", "text"}:
+        global_delivery_mode = "embed"
+
     context = {
         "request": request,
         "webhooks": reader.get_tag((), "webhooks", []),
+        "global_delivery_mode": global_delivery_mode,
     }
     return templates.TemplateResponse(request=request, name="add.html", context=context)
 
@@ -974,6 +1095,8 @@ async def get_feed(  # noqa: C901, PLR0912, PLR0914, PLR0915
                 "feed_counts": reader.get_feed_counts(feed=clean_feed_url),
                 "html": html,
                 "should_send_embed": False,
+                "delivery_mode": "text",
+                "screenshot_layout": "desktop",
                 "last_entry": None,
                 "messages": msg,
                 "is_show_more_entries_button_visible": is_show_more_entries_button_visible,
@@ -1002,7 +1125,9 @@ async def get_feed(  # noqa: C901, PLR0912, PLR0914, PLR0915
     # Create the html for the entries.
     html: str = create_html_for_feed(reader=reader, entries=entries, current_feed_url=clean_feed_url)
 
-    should_send_embed: bool = bool(reader.get_tag(feed, "should_send_embed", True))
+    delivery_mode: str = get_feed_delivery_mode(reader, feed)
+    should_send_embed: bool = delivery_mode == "embed"
+    screenshot_layout: str = get_screenshot_layout(reader, feed)
 
     # Get the update interval for this feed
     feed_interval: int | None = None
@@ -1027,6 +1152,8 @@ async def get_feed(  # noqa: C901, PLR0912, PLR0914, PLR0915
         "feed_counts": reader.get_feed_counts(feed=clean_feed_url),
         "html": html,
         "should_send_embed": should_send_embed,
+        "delivery_mode": delivery_mode,
+        "screenshot_layout": screenshot_layout,
         "last_entry": last_entry,
         "is_show_more_entries_button_visible": is_show_more_entries_button_visible,
         "total_entries": total_entries,
@@ -1212,6 +1339,14 @@ async def get_settings(
         if isinstance(interval_value, int):
             global_interval = interval_value
 
+    global_screenshot_layout: str = str(reader.get_tag((), "screenshot_layout", "desktop")).strip().lower()
+    if global_screenshot_layout not in {"desktop", "mobile"}:
+        global_screenshot_layout = "desktop"
+
+    global_delivery_mode: str = str(reader.get_tag((), "delivery_mode", "embed")).strip().lower()
+    if global_delivery_mode not in {"embed", "text"}:
+        global_delivery_mode = "embed"
+
     # Get all feeds with their intervals
     feeds: Iterable[Feed] = reader.get_feeds()
     feed_intervals = []
@@ -1233,6 +1368,8 @@ async def get_settings(
     context = {
         "request": request,
         "global_interval": global_interval,
+        "global_delivery_mode": global_delivery_mode,
+        "global_screenshot_layout": global_screenshot_layout,
         "feed_intervals": feed_intervals,
     }
     return templates.TemplateResponse(request=request, name="settings.html", context=context)

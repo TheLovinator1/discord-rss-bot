@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import re
 import urllib.parse
 from dataclasses import dataclass
@@ -167,6 +168,66 @@ def test_get() -> None:
 
     response: Response = client.get(url="/whitelist", params={"feed_url": encoded_feed_url(feed_url)})
     assert response.status_code == 200, f"/whitelist failed: {response.text}"
+
+
+def test_settings_page_shows_screenshot_layout_setting() -> None:
+    response: Response = client.get(url="/settings")
+    assert response.status_code == 200, f"/settings failed: {response.text}"
+    assert "Default delivery mode for new feeds" in response.text
+    assert "Default screenshot layout for new feeds" in response.text
+    assert "uv run playwright install chromium" in response.text
+
+
+def test_set_global_delivery_mode() -> None:
+    response: Response = client.post(url="/set_global_delivery_mode", data={"delivery_mode": "text"})
+    assert response.status_code == 200, f"Failed to set global delivery mode: {response.text}"
+
+    response = client.get(url="/settings")
+    assert response.status_code == 200, f"/settings failed after setting delivery mode: {response.text}"
+    assert re.search(r"<option\s+value=\"text\"[^>]*\bselected\b", response.text)
+
+
+def test_add_page_shows_global_default_delivery_mode_hint() -> None:
+    response: Response = client.post(url="/set_global_delivery_mode", data={"delivery_mode": "text"})
+    assert response.status_code == 200, f"Failed to set global delivery mode: {response.text}"
+
+    response = client.get(url="/add")
+    assert response.status_code == 200, f"/add failed: {response.text}"
+    assert "New feeds currently default to" in response.text
+    assert "text" in response.text
+
+
+def test_c3kay_feed_delivery_mode_toggle_routes_update_stored_tags() -> None:
+    reader = get_reader_dependency()
+    c3kay_feed_url = "https://feeds.c3kay.de/hoyolab-ui-toggle-test.xml"
+
+    with contextlib.suppress(Exception):
+        reader.add_feed(c3kay_feed_url)
+
+    response: Response = client.post(url="/use_text", data={"feed_url": c3kay_feed_url})
+    assert response.status_code == 200, f"Failed to set text mode: {response.text}"
+    assert reader.get_tag(c3kay_feed_url, "delivery_mode") == "text"
+    assert reader.get_tag(c3kay_feed_url, "should_send_embed") is False
+
+    response = client.post(url="/use_screenshot_mobile", data={"feed_url": c3kay_feed_url})
+    assert response.status_code == 200, f"Failed to set screenshot mobile mode: {response.text}"
+    assert reader.get_tag(c3kay_feed_url, "delivery_mode") == "screenshot"
+    assert reader.get_tag(c3kay_feed_url, "screenshot_layout") == "mobile"
+    assert reader.get_tag(c3kay_feed_url, "should_send_embed") is False
+
+    response = client.post(url="/use_embed", data={"feed_url": c3kay_feed_url})
+    assert response.status_code == 200, f"Failed to set embed mode: {response.text}"
+    assert reader.get_tag(c3kay_feed_url, "delivery_mode") == "embed"
+    assert reader.get_tag(c3kay_feed_url, "should_send_embed") is True
+
+
+def test_set_global_screenshot_layout() -> None:
+    response: Response = client.post(url="/set_global_screenshot_layout", data={"screenshot_layout": "mobile"})
+    assert response.status_code == 200, f"Failed to set global screenshot layout: {response.text}"
+
+    response = client.get(url="/settings")
+    assert response.status_code == 200, f"/settings failed after setting layout: {response.text}"
+    assert re.search(r"<option\s+value=\"mobile\"[^>]*\bselected\b", response.text)
 
 
 def test_pause_feed() -> None:

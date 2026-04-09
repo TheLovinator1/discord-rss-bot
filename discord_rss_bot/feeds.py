@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import concurrent.futures
 import datetime
 import json
 import logging
@@ -8,6 +10,8 @@ import pprint
 import re
 from typing import TYPE_CHECKING
 from typing import Any
+from typing import Literal
+from typing import cast
 from urllib.parse import ParseResult
 from urllib.parse import urlparse
 
@@ -16,6 +20,10 @@ from discord_webhook import DiscordEmbed
 from discord_webhook import DiscordWebhook
 from fastapi import HTTPException
 from markdownify import markdownify
+from playwright.sync_api import Browser
+from playwright.sync_api import Page
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+from playwright.sync_api import sync_playwright
 from reader import Entry
 from reader import EntryNotFoundError
 from reader import Feed
@@ -47,6 +55,13 @@ if TYPE_CHECKING:
     from requests import Response
 
 logger: logging.Logger = logging.getLogger(__name__)
+
+type DeliveryMode = Literal["embed", "text", "screenshot"]
+type ScreenshotLayout = Literal["desktop", "mobile"]
+type ScreenshotFileType = Literal["png", "jpeg"]
+
+MAX_DISCORD_UPLOAD_BYTES: int = 8 * 1024 * 1024
+JPEG_QUALITY_STEPS: tuple[int, ...] = (85, 70, 55, 40)
 
 
 def extract_domain(url: str) -> str:  # noqa: PLR0911
@@ -98,7 +113,7 @@ def extract_domain(url: str) -> str:  # noqa: PLR0911
         return "Other"
 
 
-def send_entry_to_discord(entry: Entry, reader: Reader) -> str | None:  # noqa: C901
+def send_entry_to_discord(entry: Entry, reader: Reader) -> str | None:
     """Send a single entry to Discord.
 
     Args:
@@ -116,8 +131,16 @@ def send_entry_to_discord(entry: Entry, reader: Reader) -> str | None:  # noqa: 
     # If https://discord.com/quests/<quest_id> is in the URL, send a separate message with the URL.
     send_discord_quest_notification(entry, webhook_url, reader=reader)
 
-    # Check if this is a c3kay feed
-    if is_c3kay_feed(entry.feed.url):
+    delivery_mode: DeliveryMode = get_entry_delivery_mode(reader, entry)
+    logger.info(
+        "Manual send entry %s from %s using delivery_mode=%s",
+        entry.id,
+        entry.feed.url,
+        delivery_mode,
+    )
+
+    # Hoyolab/c3kay feeds use a custom embed only when embed mode is selected.
+    if delivery_mode == "embed" and is_c3kay_feed(entry.feed.url):
         entry_link: str | None = entry.link
         if entry_link:
             post_id: str | None = extract_post_id_from_hoyolab_url(entry_link)
@@ -134,33 +157,332 @@ def send_entry_to_discord(entry: Entry, reader: Reader) -> str | None:  # noqa: 
         else:
             logger.warning("No entry link found for feed %s, falling back to regular processing", entry.feed.url)
 
+    if delivery_mode == "embed":
+        webhook: DiscordWebhook = create_embed_webhook(webhook_url, entry, reader=reader)
+    elif delivery_mode == "screenshot":
+        webhook = create_screenshot_webhook(webhook_url, entry, reader=reader)
+    else:
+        webhook = create_text_webhook(webhook_url, entry, reader=reader, use_default_message_on_empty=False)
+
+    execute_webhook(webhook, entry, reader=reader)
+    return None
+
+
+def get_entry_delivery_mode(reader: Reader, entry: Entry) -> DeliveryMode:
+    """Resolve the effective delivery mode for an entry.
+
+    Priority order:
+    1. YouTube feeds are forced to text mode.
+    2. New `delivery_mode` tag when valid.
+    3. Legacy `should_send_embed` flag for backwards compatibility.
+
+    Returns:
+        DeliveryMode: The effective delivery mode for this entry.
+    """
+    if is_youtube_feed(entry.feed.url):
+        return "text"
+
+    try:
+        delivery_mode_raw: str = str(reader.get_tag(entry.feed, "delivery_mode", "")).strip().lower()
+    except ReaderError:
+        logger.exception("Error getting delivery_mode tag for feed: %s", entry.feed.url)
+        delivery_mode_raw = ""
+
+    if delivery_mode_raw in {"embed", "text", "screenshot"}:
+        return cast("DeliveryMode", delivery_mode_raw)
+
+    try:
+        should_send_embed = bool(reader.get_tag(entry.feed, "should_send_embed", True))
+    except ReaderError:
+        logger.exception("Error getting should_send_embed tag for feed: %s", entry.feed.url)
+        should_send_embed = True
+
+    return "embed" if should_send_embed else "text"
+
+
+def get_feed_delivery_mode(reader: Reader, feed: Feed) -> DeliveryMode:
+    """Resolve the effective delivery mode for a feed.
+
+    This mirrors `get_entry_delivery_mode` and is used by the web UI.
+
+    Returns:
+        DeliveryMode: The effective delivery mode for this feed.
+    """
+    if is_youtube_feed(feed.url):
+        return "text"
+
+    try:
+        delivery_mode_raw: str = str(reader.get_tag(feed, "delivery_mode", "")).strip().lower()
+    except ReaderError:
+        logger.exception("Error getting delivery_mode tag for feed: %s", feed.url)
+        delivery_mode_raw = ""
+
+    if delivery_mode_raw in {"embed", "text", "screenshot"}:
+        return cast("DeliveryMode", delivery_mode_raw)
+
+    try:
+        should_send_embed = bool(reader.get_tag(feed, "should_send_embed", True))
+    except ReaderError:
+        logger.exception("Error getting should_send_embed tag for feed: %s", feed.url)
+        should_send_embed = True
+
+    return "embed" if should_send_embed else "text"
+
+
+def get_screenshot_layout(reader: Reader, feed: Feed) -> ScreenshotLayout:
+    """Resolve the screenshot layout for a feed.
+
+    Returns:
+        ScreenshotLayout: The screenshot layout (`desktop` or `mobile`).
+    """
+    try:
+        screenshot_layout_raw: str = str(reader.get_tag(feed, "screenshot_layout", "desktop")).strip().lower()
+    except ReaderError:
+        logger.exception("Error getting screenshot_layout tag for feed: %s", feed.url)
+        screenshot_layout_raw = "desktop"
+
+    if screenshot_layout_raw == "mobile":
+        return "mobile"
+    return "desktop"
+
+
+def create_text_webhook(
+    webhook_url: str,
+    entry: Entry,
+    reader: Reader,
+    *,
+    use_default_message_on_empty: bool,
+) -> DiscordWebhook:
+    """Create a text webhook using the configured custom message for a feed.
+
+    Returns:
+        DiscordWebhook: Configured webhook that sends a text message.
+    """
     webhook_message: str = ""
 
-    # Try to get the custom message for the feed. If the user has none, we will use the default message.
-    # This has to be a string for some reason so don't change it to "not custom_message.get_custom_message()"
     if get_custom_message(reader, entry.feed) != "":  # noqa: PLC1901
-        webhook_message: str = replace_tags_in_text_message(entry=entry, reader=reader)
+        webhook_message = replace_tags_in_text_message(entry=entry, reader=reader)
+
+    if not webhook_message and use_default_message_on_empty:
+        webhook_message = str(default_custom_message)
 
     if not webhook_message:
         webhook_message = "No message found."
 
-    # Create the webhook.
+    webhook_message = truncate_webhook_message(webhook_message)
+    return DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)
+
+
+def create_screenshot_webhook(webhook_url: str, entry: Entry, reader: Reader) -> DiscordWebhook:
+    """Create a webhook that uploads a full-page screenshot of the entry URL.
+
+    Returns:
+        DiscordWebhook: Configured webhook with screenshot upload, or text fallback on failure.
+    """
+    entry_link: str = str(entry.link or "").strip()
+    webhook_content: str | None = f"<{entry_link}>" if entry_link else None
+    webhook = DiscordWebhook(url=webhook_url, content=webhook_content, rate_limit_retry=True)
+
+    if not entry_link:
+        logger.warning("Entry %s has no link. Falling back to text message for screenshot mode.", entry.id)
+        return create_text_webhook(webhook_url, entry, reader=reader, use_default_message_on_empty=True)
+
+    screenshot_layout: ScreenshotLayout = get_screenshot_layout(reader, entry.feed)
+    logger.info(
+        "Attempting screenshot capture for entry %s with layout=%s: %s",
+        entry.id,
+        screenshot_layout,
+        entry_link,
+    )
+    screenshot_bytes: bytes | None = capture_full_page_screenshot(
+        entry_link,
+        screenshot_layout=screenshot_layout,
+        screenshot_type="png",
+    )
+    screenshot_extension: str = "png"
+
+    if screenshot_bytes and len(screenshot_bytes) > MAX_DISCORD_UPLOAD_BYTES:
+        logger.info(
+            "Screenshot for entry %s is too large as PNG (%d bytes). Trying JPEG compression.",
+            entry.id,
+            len(screenshot_bytes),
+        )
+
+        for quality in JPEG_QUALITY_STEPS:
+            jpeg_bytes = capture_full_page_screenshot(
+                entry_link,
+                screenshot_layout=screenshot_layout,
+                screenshot_type="jpeg",
+                jpeg_quality=quality,
+            )
+            if jpeg_bytes is None:
+                continue
+
+            logger.info(
+                "JPEG quality=%d produced %d bytes for entry %s",
+                quality,
+                len(jpeg_bytes),
+                entry.id,
+            )
+            screenshot_bytes = jpeg_bytes
+            screenshot_extension = "jpg"
+
+            if len(screenshot_bytes) <= MAX_DISCORD_UPLOAD_BYTES:
+                break
+
+    if screenshot_bytes is None:
+        logger.warning(
+            "Screenshot capture failed for entry %s (%s). Falling back to text message.",
+            entry.id,
+            entry_link,
+        )
+        return create_text_webhook(webhook_url, entry, reader=reader, use_default_message_on_empty=True)
+
+    if len(screenshot_bytes) > MAX_DISCORD_UPLOAD_BYTES:
+        logger.warning(
+            "Screenshot for entry %s is still too large after compression (%d bytes). Falling back to text message.",
+            entry.id,
+            len(screenshot_bytes),
+        )
+        return create_text_webhook(webhook_url, entry, reader=reader, use_default_message_on_empty=True)
+
+    filename: str = screenshot_filename_for_entry(entry, extension=screenshot_extension)
+    logger.info("Screenshot capture succeeded for entry %s (%d bytes)", entry.id, len(screenshot_bytes))
+    webhook.add_file(file=screenshot_bytes, filename=filename)
+    return webhook
+
+
+def screenshot_filename_for_entry(entry: Entry, *, extension: str = "png") -> str:
+    """Build a safe screenshot filename for Discord uploads.
+
+    Args:
+        entry: Entry used to derive a stable filename.
+        extension: File extension to use.
+
+    Returns:
+        str: Safe filename ending in the selected extension.
+    """
+    base_name: str = str(entry.id or "entry").strip().lower()
+    safe_name: str = re.sub(r"[^a-z0-9._-]+", "_", base_name)
+    safe_name: str = safe_name.strip("._")
+    if not safe_name:
+        safe_name = "entry"
+    safe_extension: str = re.sub(r"[^a-z0-9]+", "", extension.lower())
+    if not safe_extension:
+        safe_extension = "png"
+    return f"{safe_name[:80]}.{safe_extension}"
+
+
+def capture_full_page_screenshot(
+    url: str,
+    *,
+    screenshot_layout: ScreenshotLayout = "desktop",
+    screenshot_type: ScreenshotFileType = "png",
+    jpeg_quality: int = 85,
+) -> bytes | None:
+    """Capture a full-page PNG screenshot for a URL.
+
+    Returns:
+        bytes | None: PNG bytes on success, otherwise None.
+    """
+    # Playwright sync API cannot run in an active asyncio loop.
+    # FastAPI manual routes run on the event loop, so offload to a worker thread.
     try:
-        should_send_embed = bool(reader.get_tag(entry.feed, "should_send_embed", True))
-    except StorageError:
-        logger.exception("Error getting should_send_embed tag for feed: %s", entry.feed.url)
-        should_send_embed = True
+        asyncio.get_running_loop()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(
+                _capture_full_page_screenshot_sync,
+                url,
+                screenshot_layout=screenshot_layout,
+                screenshot_type=screenshot_type,
+                jpeg_quality=jpeg_quality,
+            )
+            return future.result()
+    except RuntimeError:
+        # No running loop in this thread (e.g. scheduler path).
+        return _capture_full_page_screenshot_sync(
+            url,
+            screenshot_layout=screenshot_layout,
+            screenshot_type=screenshot_type,
+            jpeg_quality=jpeg_quality,
+        )
 
-    # YouTube feeds should never use embeds
-    if is_youtube_feed(entry.feed.url):
-        should_send_embed = False
 
-    if should_send_embed:
-        webhook = create_embed_webhook(webhook_url, entry, reader=reader)
-    else:
-        webhook: DiscordWebhook = DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)
+def _capture_full_page_screenshot_sync(
+    url: str,
+    *,
+    screenshot_layout: ScreenshotLayout = "desktop",
+    screenshot_type: ScreenshotFileType = "png",
+    jpeg_quality: int = 85,
+) -> bytes | None:
+    """Capture a full-page PNG screenshot for a URL.
 
-    execute_webhook(webhook, entry, reader=reader)
+    Returns:
+        bytes | None: PNG bytes on success, otherwise None.
+    """
+    try:
+        with sync_playwright() as playwright:
+            browser: Browser = playwright.chromium.launch(
+                headless=True,
+                args=["--disable-dev-shm-usage", "--no-sandbox"],
+            )
+            try:
+                if screenshot_layout == "mobile":
+                    page = browser.new_page(
+                        viewport={"width": 390, "height": 844},
+                        is_mobile=True,
+                        has_touch=True,
+                        device_scale_factor=3,
+                        color_scheme="dark",
+                        user_agent=(
+                            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
+                            "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 "
+                            "Mobile/15E148 Safari/604.1"
+                        ),
+                    )
+                else:
+                    page = browser.new_page(viewport={"width": 1366, "height": 768}, color_scheme="dark")
+
+                page = cast("Page", page)
+                # `networkidle` can hang on pages with long-polling/analytics;
+                # load DOM first and then best-effort wait for network idle.
+                page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                try:
+                    page.wait_for_load_state("networkidle", timeout=5000)
+                except PlaywrightTimeoutError:
+                    logger.debug("Timed out waiting for network idle for URL: %s", url)
+
+                # Scroll through the page in viewport-sized steps to trigger
+                # lazy-loaded images and content before taking the screenshot.
+                page.evaluate(
+                    """
+                    async () => {
+                        const viewportHeight = window.innerHeight;
+                        const totalHeight = document.body.scrollHeight;
+                        let scrolled = 0;
+                        while (scrolled < totalHeight) {
+                            window.scrollBy(0, viewportHeight);
+                            scrolled += viewportHeight;
+                            await new Promise(r => setTimeout(r, 200));
+                        }
+                        window.scrollTo(0, 0);
+                    }
+                    """,
+                )
+                # Brief pause for any content revealed by scrolling to settle.
+                page.wait_for_timeout(500)
+
+                if screenshot_type == "jpeg":
+                    clamped_quality: int = max(1, min(100, jpeg_quality))
+                    return page.screenshot(type="jpeg", quality=clamped_quality, full_page=True)
+
+                return page.screenshot(type="png", full_page=True)
+            finally:
+                browser.close()
+    except OSError:
+        logger.exception("Playwright browser is not installed. Failed to capture screenshot for URL: %s", url)
+    except Exception:
+        logger.exception("Failed to capture screenshot for URL: %s", url)
     return None
 
 
@@ -375,26 +697,19 @@ def send_to_discord(reader: Reader | None = None, feed: Feed | None = None, *, d
             logger.info("No webhook URL found for feed: %s", entry.feed.url)
             continue
 
-        should_send_embed: bool = should_send_embed_check(effective_reader, entry)
+        delivery_mode: DeliveryMode = get_entry_delivery_mode(effective_reader, entry)
 
-        # Youtube feeds only need to send the link
-        if is_youtube_feed(entry.feed.url):
-            should_send_embed = False
-
-        if should_send_embed:
+        if delivery_mode == "embed":
             webhook = create_embed_webhook(webhook_url, entry, reader=effective_reader)
+        elif delivery_mode == "screenshot":
+            webhook = create_screenshot_webhook(webhook_url, entry, reader=effective_reader)
         else:
-            # If the user has set the custom message to an empty string, we will use the default message, otherwise we
-            # will use the custom message.
-            if get_custom_message(effective_reader, entry.feed) != "":  # noqa: PLC1901
-                webhook_message = replace_tags_in_text_message(entry, reader=effective_reader)
-            else:
-                webhook_message: str = str(default_custom_message)
-
-            webhook_message = truncate_webhook_message(webhook_message)
-
-            # Create the webhook.
-            webhook: DiscordWebhook = DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)
+            webhook = create_text_webhook(
+                webhook_url,
+                entry,
+                reader=effective_reader,
+                use_default_message_on_empty=True,
+            )
 
         # Check if the entry is blacklisted, and if it is, we will skip it.
         if entry_should_be_skipped(effective_reader, entry):
@@ -455,6 +770,7 @@ def execute_webhook(webhook: DiscordWebhook, entry: Entry, reader: Reader) -> No
         return
 
     response: Response = webhook.execute()
+    logger.debug("Discord webhook response for entry %s: status=%s", entry.id, response.status_code)
     if response.status_code not in {200, 204}:
         msg: str = f"Error sending entry to Discord: {response.text}\n{pprint.pformat(webhook.json)}"
         if entry:
@@ -487,17 +803,7 @@ def should_send_embed_check(reader: Reader, entry: Entry) -> bool:
     Returns:
         bool: True if we should send an embed, False otherwise.
     """
-    # YouTube feeds should never use embeds - only links
-    if is_youtube_feed(entry.feed.url):
-        return False
-
-    try:
-        should_send_embed = bool(reader.get_tag(entry.feed, "should_send_embed", True))
-    except ReaderError:
-        logger.exception("Error getting should_send_embed tag for feed: %s", entry.feed.url)
-        should_send_embed = True
-
-    return should_send_embed
+    return get_entry_delivery_mode(reader, entry) == "embed"
 
 
 def truncate_webhook_message(webhook_message: str) -> str:
@@ -516,7 +822,7 @@ def truncate_webhook_message(webhook_message: str) -> str:
     return webhook_message
 
 
-def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:  # noqa: C901
+def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:  # noqa: C901, PLR0912
     """Add a new feed, update it and mark every entry as read.
 
     Args:
@@ -572,8 +878,19 @@ def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:  
     # This is the default message that will be sent to Discord.
     reader.set_tag(clean_feed_url, "custom_message", default_custom_message)  # pyright: ignore[reportArgumentType]
 
+    global_screenshot_layout: str = str(reader.get_tag((), "screenshot_layout", "desktop")).strip().lower()
+    if global_screenshot_layout not in {"desktop", "mobile"}:
+        global_screenshot_layout = "desktop"
+    reader.set_tag(clean_feed_url, "screenshot_layout", global_screenshot_layout)  # pyright: ignore[reportArgumentType]
+
+    global_delivery_mode: str = str(reader.get_tag((), "delivery_mode", "embed")).strip().lower()
+    if global_delivery_mode not in {"embed", "text"}:
+        global_delivery_mode = "embed"
+    reader.set_tag(clean_feed_url, "delivery_mode", global_delivery_mode)  # pyright: ignore[reportArgumentType]
+    reader.set_tag(clean_feed_url, "should_send_embed", global_delivery_mode == "embed")  # pyright: ignore[reportArgumentType]
+
     # Set the default embed tag when creating the feed
-    reader.set_tag(clean_feed_url, "embed", json.dumps(default_custom_embed))
+    reader.set_tag(clean_feed_url, "embed", json.dumps(default_custom_embed))  # pyright: ignore[reportArgumentType]
 
     # Update the full-text search index so our new feed is searchable.
     reader.update_search()
