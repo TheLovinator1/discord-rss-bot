@@ -133,20 +133,41 @@
                 <ul class="list-group text-danger">
                     Feeds without attached webhook:
                     {% for feed in feeds_without_attached_webhook %}
-                        <a class="text-muted" href="/feed?feed_url={{ feed.url|encode_url }}">
-                            {# Display username@youtube for YouTube feeds #}
-                            {% if "youtube.com/feeds/videos.xml" in feed.url %}
-                                {% if "user=" in feed.url %}
-                                    {{ feed.url.split("user=")[1] }}@youtube
-                                {% elif "channel_id=" in feed.url %}
-                                    {{ feed.title if feed.title else feed.url.split("channel_id=")[1] }}@youtube
+                        <li class="list-group-item bg-dark border-dark text-danger">
+                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                <a class="text-muted" href="/feed?feed_url={{ feed.url|encode_url }}">
+                                    {# Display username@youtube for YouTube feeds #}
+                                    {% if "youtube.com/feeds/videos.xml" in feed.url %}
+                                        {% if "user=" in feed.url %}
+                                            {{ feed.url.split("user=")[1] }}@youtube
+                                        {% elif "channel_id=" in feed.url %}
+                                            {{ feed.title if feed.title else feed.url.split("channel_id=")[1] }}@youtube
+                                        {% else %}
+                                            {{ feed.url }}
+                                        {% endif %}
+                                    {% else %}
+                                        {{ feed.url }}
+                                    {% endif %}
+                                </a>
+                                {% if webhooks %}
+                                    <form action="/attach_feed_webhook"
+                                          method="post"
+                                          class="d-flex flex-wrap align-items-center gap-2 ms-md-auto">
+                                        <input type="hidden" name="feed_url" value="{{ feed.url }}" />
+                                        <input type="hidden" name="redirect_to" value="/" />
+                                        <select name="webhook_dropdown"
+                                                class="form-select form-select-sm bg-dark border-dark text-muted"
+                                                required>
+                                            <option value="" selected disabled>Select webhook...</option>
+                                            {% for hook in webhooks %}<option value="{{ hook.name }}">{{ hook.name }}</option>{% endfor %}
+                                        </select>
+                                        <button class="btn btn-outline-light btn-sm" type="submit">Attach</button>
+                                    </form>
                                 {% else %}
-                                    {{ feed.url }}
+                                    <span class="text-muted small">Add a webhook first to attach this feed.</span>
                                 {% endif %}
-                            {% else %}
-                                {{ feed.url }}
-                            {% endif %}
-                        </a>
+                            </div>
+                        </li>
                     {% endfor %}
                 </ul>
             </div>

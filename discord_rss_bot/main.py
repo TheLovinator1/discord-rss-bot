@@ -308,6 +308,52 @@ async def post_create_feed(
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
 
+@app.post("/attach_feed_webhook")
+async def post_attach_feed_webhook(
+    feed_url: Annotated[str, Form()],
+    webhook_dropdown: Annotated[str, Form()],
+    reader: Annotated[Reader, Depends(get_reader_dependency)],
+    redirect_to: Annotated[str, Form()] = "",
+) -> RedirectResponse:
+    """Attach an existing feed to one of the configured webhooks.
+
+    Args:
+        feed_url: The feed URL to update.
+        webhook_dropdown: The webhook name selected from the dropdown.
+        reader: The Reader instance.
+        redirect_to: Optional redirect URL after update.
+
+    Returns:
+        RedirectResponse: Redirect to index or feed page.
+
+    Raises:
+        HTTPException: If feed or webhook cannot be found.
+    """
+    clean_feed_url: str = urllib.parse.unquote(feed_url.strip())
+    selected_webhook_name: str = webhook_dropdown.strip()
+
+    try:
+        reader.get_feed(clean_feed_url)
+    except FeedNotFoundError as e:
+        raise HTTPException(status_code=404, detail="Feed not found") from e
+
+    webhook_url: str = ""
+    hooks = cast("list[dict[str, str]]", list(reader.get_tag((), "webhooks", [])))
+    for hook in hooks:
+        if hook.get("name") == selected_webhook_name:
+            webhook_url = hook.get("url", "").strip()
+            break
+
+    if not webhook_url:
+        raise HTTPException(status_code=404, detail="Webhook not found")
+
+    reader.set_tag(clean_feed_url, "webhook", webhook_url)  # pyright: ignore[reportArgumentType]
+    commit_state_change(reader, f"Attach feed {clean_feed_url} to webhook {selected_webhook_name}")
+
+    redirect_url: str = redirect_to.strip() or f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}"
+    return RedirectResponse(url=redirect_url, status_code=303)
+
+
 @app.post("/pause")
 async def post_pause_feed(
     feed_url: Annotated[str, Form()],

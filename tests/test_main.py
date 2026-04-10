@@ -559,6 +559,60 @@ def test_delete_webhook() -> None:
     assert webhook_name not in response3.text, f"Webhook found in /webhooks: {response3.text}"
 
 
+def test_attach_feed_webhook_from_index() -> None:
+    """Feeds without attached webhook should be attachable from the index page."""
+    original_webhook_name = "original-webhook"
+    original_webhook_url = "https://discord.com/api/webhooks/111/original"
+    replacement_webhook_name = "replacement-webhook"
+    replacement_webhook_url = "https://discord.com/api/webhooks/222/replacement"
+
+    # Start clean.
+    client.post(url="/remove", data={"feed_url": feed_url})
+    client.post(url="/delete_webhook", data={"webhook_url": original_webhook_url})
+    client.post(url="/delete_webhook", data={"webhook_url": replacement_webhook_url})
+
+    # Add a webhook and a feed attached to it.
+    response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": original_webhook_name, "webhook_url": original_webhook_url},
+    )
+    assert response.status_code == 200, f"Failed to add original webhook: {response.text}"
+
+    response = client.post(url="/add", data={"feed_url": feed_url, "webhook_dropdown": original_webhook_name})
+    assert response.status_code == 200, f"Failed to add feed: {response.text}"
+
+    # Remove the original webhook so feed becomes "without attached webhook".
+    response = client.post(url="/delete_webhook", data={"webhook_url": original_webhook_url})
+    assert response.status_code == 200, f"Failed to delete original webhook: {response.text}"
+
+    # Add a replacement webhook we can attach to.
+    response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": replacement_webhook_name, "webhook_url": replacement_webhook_url},
+    )
+    assert response.status_code == 200, f"Failed to add replacement webhook: {response.text}"
+
+    # The feed should now be listed in "Feeds without attached webhook" section.
+    response = client.get(url="/")
+    assert response.status_code == 200, f"Failed to get /: {response.text}"
+    assert "Feeds without attached webhook:" in response.text
+    assert "/attach_feed_webhook" in response.text
+
+    # Attach the feed to the new webhook.
+    response = client.post(
+        url="/attach_feed_webhook",
+        data={"feed_url": feed_url, "webhook_dropdown": replacement_webhook_name, "redirect_to": "/"},
+    )
+    assert response.status_code == 200, f"Failed to attach feed to webhook: {response.text}"
+
+    reader = get_reader_dependency()
+    assert reader.get_tag(feed_url, "webhook", "") == replacement_webhook_url
+
+    # Cleanup.
+    client.post(url="/remove", data={"feed_url": feed_url})
+    client.post(url="/delete_webhook", data={"webhook_url": replacement_webhook_url})
+
+
 def test_update_feed_not_found() -> None:
     """Test updating a non-existent feed."""
     # Generate a feed URL that does not exist
