@@ -221,11 +221,15 @@ async def post_add_webhook(
     # Example: [{"name": "webhook_name", "url": "webhook_url"}]
     webhooks = cast("list[dict[str, str]]", webhooks)
 
+    clean_webhook_url: str = webhook_url.strip()
+    if not is_url_valid(clean_webhook_url):
+        raise HTTPException(status_code=400, detail="Invalid webhook URL")
+
     # Only add the webhook if it doesn't already exist.
     stripped_webhook_name = webhook_name.strip()
     if all(webhook["name"] != stripped_webhook_name for webhook in webhooks):
         # Add the new webhook to the list of webhooks.
-        webhooks.append({"name": webhook_name.strip(), "url": webhook_url.strip()})
+        webhooks.append({"name": webhook_name.strip(), "url": clean_webhook_url})
 
         reader.set_tag((), "webhooks", webhooks)  # pyright: ignore[reportArgumentType]
 
@@ -1368,20 +1372,30 @@ def get_data_from_hook_url(hook_name: str, hook_url: str) -> WebhookInfo:
     Returns:
         WebhookInfo: The webhook username, avatar, guild id, etc.
     """
-    our_hook: WebhookInfo = WebhookInfo(custom_name=hook_name, url=hook_url)
+    clean_hook_url: str = hook_url.strip()
+    our_hook: WebhookInfo = WebhookInfo(custom_name=hook_name, url=clean_hook_url)
 
-    if hook_url:
-        response: Response = httpx.get(hook_url)
-        if response.is_success:
-            webhook_json = json.loads(response.text)
-            our_hook.webhook_type = webhook_json["type"] or None
-            our_hook.webhook_id = webhook_json["id"] or None
-            our_hook.name = webhook_json["name"] or None
-            our_hook.avatar = webhook_json["avatar"] or None
-            our_hook.channel_id = webhook_json["channel_id"] or None
-            our_hook.guild_id = webhook_json["guild_id"] or None
-            our_hook.token = webhook_json["token"] or None
-            our_hook.avatar_mod = int(webhook_json["channel_id"] or 0) % 5
+    # Keep /webhooks usable even if a malformed webhook URL was saved.
+    if not clean_hook_url or not is_url_valid(clean_hook_url):
+        logger.warning("Skipping webhook metadata fetch for invalid URL: %s", clean_hook_url)
+        return our_hook
+
+    try:
+        response: Response = httpx.get(clean_hook_url, timeout=10.0)
+    except httpx.HTTPError as e:
+        logger.warning("Failed to fetch webhook metadata for %s: %s", clean_hook_url, e)
+        return our_hook
+
+    if response.is_success:
+        webhook_json = json.loads(response.text)
+        our_hook.webhook_type = webhook_json["type"] or None
+        our_hook.webhook_id = webhook_json["id"] or None
+        our_hook.name = webhook_json["name"] or None
+        our_hook.avatar = webhook_json["avatar"] or None
+        our_hook.channel_id = webhook_json["channel_id"] or None
+        our_hook.guild_id = webhook_json["guild_id"] or None
+        our_hook.token = webhook_json["token"] or None
+        our_hook.avatar_mod = int(webhook_json["channel_id"] or 0) % 5
     return our_hook
 
 
@@ -1717,6 +1731,9 @@ def modify_webhook(
     webhooks = cast("list[dict[str, str]]", webhooks)
     old_hook_clean: str = old_hook.strip()
     new_hook_clean: str = new_hook.strip()
+    if not is_url_valid(new_hook_clean):
+        raise HTTPException(status_code=400, detail="Invalid webhook URL")
+
     webhook_modified: bool = False
 
     for hook in webhooks:

@@ -89,6 +89,56 @@ def test_add_webhook() -> None:
     assert webhook_name in response.text, f"Webhook not found in /webhooks: {response.text}"
 
 
+def test_add_webhook_rejects_invalid_url() -> None:
+    """Adding a webhook with a non-URL value should fail validation."""
+    response: Response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": "Invalid URL Hook", "webhook_url": "not-a-url"},
+    )
+
+    assert response.status_code == 400, f"Expected invalid webhook URL to be rejected: {response.text}"
+    assert "Invalid webhook URL" in response.text
+
+
+def test_add_webhook_allows_valid_url_after_invalid_attempt() -> None:
+    """A rejected invalid webhook URL should not prevent a later valid add."""
+    response: Response = client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    assert response.status_code == 200, f"Failed to delete webhook: {response.text}"
+
+    response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": "Invalid URL Hook", "webhook_url": "not-a-url"},
+    )
+    assert response.status_code == 400, f"Expected invalid webhook URL to be rejected: {response.text}"
+    assert "Invalid webhook URL" in response.text
+
+    response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": webhook_name, "webhook_url": webhook_url},
+    )
+    assert response.status_code == 200, f"Failed to add webhook after invalid attempt: {response.text}"
+
+    response = client.get(url="/webhooks")
+    assert response.status_code == 200, f"Failed to get /webhooks: {response.text}"
+    assert webhook_name in response.text, f"Webhook not found in /webhooks: {response.text}"
+
+    response = client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    assert response.status_code == 200, f"Failed to delete webhook: {response.text}"
+
+
+def test_webhooks_page_handles_invalid_stored_webhook_url() -> None:
+    """/webhooks should render even if a malformed webhook URL is present in storage."""
+    reader: Reader = get_reader_dependency()
+    malformed_webhook_name = "Malformed hook"
+    malformed_webhook_url = "definitely-not-a-url"
+
+    reader.set_tag((), "webhooks", [{"name": malformed_webhook_name, "url": malformed_webhook_url}])  # pyright: ignore[reportArgumentType]
+    response: Response = client.get(url="/webhooks")
+
+    assert response.status_code == 200, f"/webhooks should not crash for malformed URLs: {response.text}"
+    assert malformed_webhook_name in response.text
+
+
 def test_create_feed() -> None:
     """Test the /create_feed page."""
     # Ensure webhook exists for this test regardless of test order.
