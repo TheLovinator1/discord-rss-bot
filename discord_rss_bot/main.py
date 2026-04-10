@@ -114,6 +114,13 @@ def get_reader_dependency() -> Reader:
     return get_reader()
 
 
+def has_webhooks() -> bool:
+    """Return whether at least one global webhook is configured."""
+    reader: Reader = get_reader()
+    webhooks = list(reader.get_tag((), "webhooks", []))
+    return bool(webhooks)
+
+
 # Time constants for relative time formatting
 SECONDS_PER_MINUTE = 60
 SECONDS_PER_HOUR = 3600
@@ -185,6 +192,7 @@ templates.env.filters["encode_url"] = lambda url: urllib.parse.quote(str(url)) i
 templates.env.filters["discord_markdown"] = markdownify  # pyright: ignore[reportArgumentType]
 templates.env.filters["relative_time"] = relative_time
 templates.env.globals["get_backup_path"] = get_backup_path  # pyright: ignore[reportArgumentType]
+templates.env.globals["has_webhooks"] = has_webhooks  # pyright: ignore[reportArgumentType]
 
 
 @app.post("/add_webhook")

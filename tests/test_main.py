@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     import pytest
     from httpx import Response
     from reader import Entry
+    from reader import Reader
 
 client: TestClient = TestClient(app)
 webhook_name: str = "Hello, I am a webhook!"
@@ -195,6 +196,28 @@ def test_add_page_shows_global_default_delivery_mode_hint() -> None:
     assert response.status_code == 200, f"/add failed: {response.text}"
     assert "New feeds currently default to" in response.text
     assert "text" in response.text
+
+
+def test_navbar_add_feed_visible_only_when_webhooks_exist() -> None:
+    reader: Reader = get_reader_dependency()
+    reader.set_tag((), "webhooks", [])  # pyright: ignore[reportArgumentType]
+
+    response: Response = client.get(url="/")
+    assert response.status_code == 200, f"/ failed: {response.text}"
+    assert '<a class="nav-link" href="/add">Add feed</a>' not in response.text
+
+    response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": webhook_name, "webhook_url": webhook_url},
+    )
+    assert response.status_code == 200, f"Failed to add webhook: {response.text}"
+
+    response = client.get(url="/")
+    assert response.status_code == 200, f"/ failed: {response.text}"
+    assert '<a class="nav-link" href="/add">Add feed</a>' in response.text
+
+    cleanup_response: Response = client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    assert cleanup_response.status_code == 200, f"Failed to clean up webhook: {cleanup_response.text}"
 
 
 def test_c3kay_feed_delivery_mode_toggle_routes_update_stored_tags() -> None:
