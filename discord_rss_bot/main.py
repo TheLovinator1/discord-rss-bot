@@ -1112,6 +1112,14 @@ async def get_feed(  # noqa: C901, PLR0912, PLR0914, PLR0915
     except FeedNotFoundError as e:
         raise HTTPException(status_code=404, detail=f"Feed '{clean_feed_url}' not found.\n\n{e}") from e
 
+    webhooks: list[dict[str, str]] = cast("list[dict[str, str]]", list(reader.get_tag((), "webhooks", [])))
+    current_webhook_url: str = str(reader.get_tag(feed.url, "webhook", "")).strip()
+    current_webhook_name: str = ""
+    for hook in webhooks:
+        if hook.get("url", "").strip() == current_webhook_url:
+            current_webhook_name = hook.get("name", "").strip()
+            break
+
     # Only show button if more than 10 entries.
     total_entries: int = reader.get_entry_counts(feed=feed).total or 0
     is_show_more_entries_button_visible: bool = total_entries > entries_per_page
@@ -1157,6 +1165,9 @@ async def get_feed(  # noqa: C901, PLR0912, PLR0914, PLR0915
                 "total_entries": total_entries,
                 "feed_interval": feed_interval,
                 "global_interval": global_interval,
+                "webhooks": webhooks,
+                "current_webhook_url": current_webhook_url,
+                "current_webhook_name": current_webhook_name,
             }
             return templates.TemplateResponse(request=request, name="feed.html", context=context)
 
@@ -1213,6 +1224,9 @@ async def get_feed(  # noqa: C901, PLR0912, PLR0914, PLR0915
         "total_entries": total_entries,
         "feed_interval": feed_interval,
         "global_interval": global_interval,
+        "webhooks": webhooks,
+        "current_webhook_url": current_webhook_url,
+        "current_webhook_name": current_webhook_name,
     }
     return templates.TemplateResponse(request=request, name="feed.html", context=context)
 
