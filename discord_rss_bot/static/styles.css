@@ -77,7 +77,7 @@ body {
 }
 
 .filter-preview__list {
-    max-height: 48vh;
+    max-height: 160vh;
     overflow-y: auto;
     padding-right: 0.25rem;
 }

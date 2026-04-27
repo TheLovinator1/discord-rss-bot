@@ -763,24 +763,11 @@ def build_filter_preview_context(
             },
         )
 
-    preview_html = ""
-    if sent_count:
-        preview_html = create_html_for_feed(
-            reader=reader,
-            entries=[
-                entry for entry in preview_entries if preview_decisions[get_entry_decision_key(entry)].should_send
-            ],
-            current_feed_url=feed.url,
-            entry_decisions=preview_decisions,
-        )
-
     return {
         "filter_name": filter_name,
         "filter_label": filter_name.title(),
-        "preview_entries": preview_entries,
         "preview_rendered_count": sent_count,
         "preview_rows": preview_rows,
-        "preview_html": preview_html,
         "preview_limit": FILTER_PREVIEW_LIMIT,
         "preview_summary": {
             "total": len(preview_entries),
