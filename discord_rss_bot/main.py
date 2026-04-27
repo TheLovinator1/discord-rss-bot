@@ -715,9 +715,11 @@ def build_filter_preview_context(
     helper_text: str = "Saved whitelist rules still apply while previewing blacklist changes."
 
     if filter_name == "blacklist":
-        preview_blacklist_values = coerce_filter_values("blacklist", form_values)
+        if form_values is not None:
+            preview_blacklist_values = coerce_filter_values("blacklist", form_values)
     else:
-        preview_whitelist_values = coerce_filter_values("whitelist", form_values)
+        if form_values is not None:
+            preview_whitelist_values = coerce_filter_values("whitelist", form_values)
         helper_text = "Saved blacklist rules still apply while previewing whitelist changes."
 
     preview_entries: list[Entry] = list(reader.get_entries(feed=feed, limit=FILTER_PREVIEW_LIMIT))
@@ -761,17 +763,22 @@ def build_filter_preview_context(
             },
         )
 
-    preview_html: str = create_html_for_feed(
-        reader=reader,
-        entries=preview_entries,
-        current_feed_url=feed.url,
-        entry_decisions=preview_decisions,
-    )
+    preview_html = ""
+    if sent_count:
+        preview_html = create_html_for_feed(
+            reader=reader,
+            entries=[
+                entry for entry in preview_entries if preview_decisions[get_entry_decision_key(entry)].should_send
+            ],
+            current_feed_url=feed.url,
+            entry_decisions=preview_decisions,
+        )
 
     return {
         "filter_name": filter_name,
         "filter_label": filter_name.title(),
         "preview_entries": preview_entries,
+        "preview_rendered_count": sent_count,
         "preview_rows": preview_rows,
         "preview_html": preview_html,
         "preview_limit": FILTER_PREVIEW_LIMIT,

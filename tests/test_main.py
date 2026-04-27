@@ -252,6 +252,172 @@ def test_whitelist_page_uses_live_preview_layout() -> None:
     assert "Whitelist Rules" in response.text
 
 
+def test_blacklist_page_initial_preview_uses_saved_blacklist_rules() -> None:
+    @dataclass(slots=True)
+    class DummyFeed:
+        url: str
+        title: str
+
+    @dataclass(slots=True)
+    class DummyEntry:
+        id: str
+        feed: DummyFeed
+        title: str
+        summary: str
+        author: str
+        link: str
+        published: datetime | None
+        content: list[object] = field(default_factory=list)
+
+    class StubReader:
+        def __init__(self) -> None:
+            self.feed = DummyFeed(url="https://example.com/preview.xml", title="Preview Feed")
+            self.entries: list[Entry] = [
+                cast(
+                    "Entry",
+                    DummyEntry(
+                        id="blocked-only",
+                        feed=self.feed,
+                        title="Blocked update",
+                        summary="Summary",
+                        author="Author",
+                        link="https://example.com/blocked-only",
+                        published=datetime(2024, 1, 1, tzinfo=UTC),
+                    ),
+                ),
+                cast(
+                    "Entry",
+                    DummyEntry(
+                        id="allowed-only",
+                        feed=self.feed,
+                        title="Allowed note",
+                        summary="Summary",
+                        author="Author",
+                        link="https://example.com/allowed-only",
+                        published=datetime(2024, 1, 2, tzinfo=UTC),
+                    ),
+                ),
+            ]
+
+        def get_feed(self, _feed_url: str) -> DummyFeed:
+            return self.feed
+
+        def get_entries(self, **_kwargs: object) -> list[Entry]:
+            return self.entries
+
+        def get_tag(self, _resource: object, key: str, default: object = None) -> object:
+            if key == "blacklist_title":
+                return "blocked"
+            return default
+
+    stub_reader = StubReader()
+    app.dependency_overrides[get_reader_dependency] = lambda: stub_reader
+    rendered_titles: list[str] = []
+
+    def fake_create_html_for_feed(*, entries: list[Entry], **_kwargs: object) -> str:
+        entry_titles: list[str] = [entry.title or entry.id for entry in entries]
+        rendered_titles.extend(entry_titles)
+        return " | ".join(entry_titles)
+
+    try:
+        with patch("discord_rss_bot.main.create_html_for_feed", side_effect=fake_create_html_for_feed):
+            response: Response = client.get(url="/blacklist", params={"feed_url": stub_reader.feed.url})
+
+        assert response.status_code == 200, f"/blacklist failed: {response.text}"
+        assert rendered_titles == ["Allowed note"]
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_whitelist_page_initial_preview_uses_saved_whitelist_rules() -> None:
+    @dataclass(slots=True)
+    class DummyFeed:
+        url: str
+        title: str
+
+    @dataclass(slots=True)
+    class DummyEntry:
+        id: str
+        feed: DummyFeed
+        title: str
+        summary: str
+        author: str
+        link: str
+        published: datetime | None
+        content: list[object] = field(default_factory=list)
+
+    class StubReader:
+        def __init__(self) -> None:
+            self.feed = DummyFeed(url="https://example.com/preview.xml", title="Preview Feed")
+            self.entries: list[Entry] = [
+                cast(
+                    "Entry",
+                    DummyEntry(
+                        id="blocked-only",
+                        feed=self.feed,
+                        title="Blocked update",
+                        summary="Summary",
+                        author="Author",
+                        link="https://example.com/blocked-only",
+                        published=datetime(2024, 1, 1, tzinfo=UTC),
+                    ),
+                ),
+                cast(
+                    "Entry",
+                    DummyEntry(
+                        id="allowed-only",
+                        feed=self.feed,
+                        title="Allowed note",
+                        summary="Summary",
+                        author="Author",
+                        link="https://example.com/allowed-only",
+                        published=datetime(2024, 1, 2, tzinfo=UTC),
+                    ),
+                ),
+                cast(
+                    "Entry",
+                    DummyEntry(
+                        id="blocked-and-allowed",
+                        feed=self.feed,
+                        title="Blocked allowed",
+                        summary="Summary",
+                        author="Author",
+                        link="https://example.com/blocked-and-allowed",
+                        published=datetime(2024, 1, 3, tzinfo=UTC),
+                    ),
+                ),
+            ]
+
+        def get_feed(self, _feed_url: str) -> DummyFeed:
+            return self.feed
+
+        def get_entries(self, **_kwargs: object) -> list[Entry]:
+            return self.entries
+
+        def get_tag(self, _resource: object, key: str, default: object = None) -> object:
+            if key == "whitelist_title":
+                return "allowed"
+            return default
+
+    stub_reader = StubReader()
+    app.dependency_overrides[get_reader_dependency] = lambda: stub_reader
+    rendered_titles: list[str] = []
+
+    def fake_create_html_for_feed(*, entries: list[Entry], **_kwargs: object) -> str:
+        entry_titles: list[str] = [entry.title or entry.id for entry in entries]
+        rendered_titles.extend(entry_titles)
+        return " | ".join(entry_titles)
+
+    try:
+        with patch("discord_rss_bot.main.create_html_for_feed", side_effect=fake_create_html_for_feed):
+            response: Response = client.get(url="/whitelist", params={"feed_url": stub_reader.feed.url})
+
+        assert response.status_code == 200, f"/whitelist failed: {response.text}"
+        assert rendered_titles == ["Allowed note", "Blocked allowed"]
+    finally:
+        app.dependency_overrides = {}
+
+
 def test_blacklist_preview_does_not_persist_unsaved_rules() -> None:
     reader: Reader = ensure_preview_feed_exists()
     reader.set_tag(feed_url, "blacklist_title", "saved-blacklist")  # pyright: ignore[reportArgumentType]
@@ -292,6 +458,275 @@ def test_whitelist_preview_shows_precedence_over_blacklist() -> None:
     finally:
         with contextlib.suppress(Exception):
             reader.delete_tag(feed_url, "blacklist_title")
+
+
+def test_whitelist_preview_rendered_entries_respect_saved_blacklist_rules() -> None:
+    @dataclass(slots=True)
+    class DummyFeed:
+        url: str
+        title: str
+
+    @dataclass(slots=True)
+    class DummyEntry:
+        id: str
+        feed: DummyFeed
+        title: str
+        summary: str
+        author: str
+        link: str
+        published: datetime | None
+        content: list[object] = field(default_factory=list)
+
+    class StubReader:
+        def __init__(self) -> None:
+            self.feed = DummyFeed(url="https://example.com/preview.xml", title="Preview Feed")
+            self.entries: list[Entry] = [
+                cast(
+                    "Entry",
+                    DummyEntry(
+                        id="blocked-only",
+                        feed=self.feed,
+                        title="Blocked update",
+                        summary="Summary",
+                        author="Author",
+                        link="https://example.com/blocked-only",
+                        published=datetime(2024, 1, 1, tzinfo=UTC),
+                    ),
+                ),
+                cast(
+                    "Entry",
+                    DummyEntry(
+                        id="allowed-only",
+                        feed=self.feed,
+                        title="Allowed note",
+                        summary="Summary",
+                        author="Author",
+                        link="https://example.com/allowed-only",
+                        published=datetime(2024, 1, 2, tzinfo=UTC),
+                    ),
+                ),
+                cast(
+                    "Entry",
+                    DummyEntry(
+                        id="blocked-and-allowed",
+                        feed=self.feed,
+                        title="Blocked allowed",
+                        summary="Summary",
+                        author="Author",
+                        link="https://example.com/blocked-and-allowed",
+                        published=datetime(2024, 1, 3, tzinfo=UTC),
+                    ),
+                ),
+            ]
+
+        def get_feed(self, _feed_url: str) -> DummyFeed:
+            return self.feed
+
+        def get_entries(self, **_kwargs: object) -> list[Entry]:
+            return self.entries
+
+        def get_tag(self, _resource: object, key: str, default: object = None) -> object:
+            if key == "blacklist_title":
+                return "blocked"
+            return default
+
+    stub_reader = StubReader()
+    app.dependency_overrides[get_reader_dependency] = lambda: stub_reader
+    rendered_titles: list[str] = []
+
+    def fake_create_html_for_feed(*, entries: list[Entry], **_kwargs: object) -> str:
+        entry_titles: list[str] = [entry.title or entry.id for entry in entries]
+        rendered_titles.extend(entry_titles)
+        return " | ".join(entry_titles)
+
+    try:
+        with patch("discord_rss_bot.main.create_html_for_feed", side_effect=fake_create_html_for_feed):
+            response: Response = client.get(
+                url="/whitelist_preview",
+                params={"feed_url": stub_reader.feed.url, "whitelist_title": "allowed"},
+            )
+
+        assert response.status_code == 200, f"/whitelist_preview failed: {response.text}"
+        assert rendered_titles == ["Allowed note", "Blocked allowed"]
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_blacklist_preview_rendered_entries_respect_saved_whitelist_rules() -> None:
+    @dataclass(slots=True)
+    class DummyFeed:
+        url: str
+        title: str
+
+    @dataclass(slots=True)
+    class DummyEntry:
+        id: str
+        feed: DummyFeed
+        title: str
+        summary: str
+        author: str
+        link: str
+        published: datetime | None
+        content: list[object] = field(default_factory=list)
+
+    class StubReader:
+        def __init__(self) -> None:
+            self.feed = DummyFeed(url="https://example.com/preview.xml", title="Preview Feed")
+            self.entries: list[Entry] = [
+                cast(
+                    "Entry",
+                    DummyEntry(
+                        id="blocked-only",
+                        feed=self.feed,
+                        title="Blocked update",
+                        summary="Summary",
+                        author="Author",
+                        link="https://example.com/blocked-only",
+                        published=datetime(2024, 1, 1, tzinfo=UTC),
+                    ),
+                ),
+                cast(
+                    "Entry",
+                    DummyEntry(
+                        id="allowed-only",
+                        feed=self.feed,
+                        title="Allowed note",
+                        summary="Summary",
+                        author="Author",
+                        link="https://example.com/allowed-only",
+                        published=datetime(2024, 1, 2, tzinfo=UTC),
+                    ),
+                ),
+                cast(
+                    "Entry",
+                    DummyEntry(
+                        id="blocked-and-allowed",
+                        feed=self.feed,
+                        title="Blocked allowed",
+                        summary="Summary",
+                        author="Author",
+                        link="https://example.com/blocked-and-allowed",
+                        published=datetime(2024, 1, 3, tzinfo=UTC),
+                    ),
+                ),
+            ]
+
+        def get_feed(self, _feed_url: str) -> DummyFeed:
+            return self.feed
+
+        def get_entries(self, **_kwargs: object) -> list[Entry]:
+            return self.entries
+
+        def get_tag(self, _resource: object, key: str, default: object = None) -> object:
+            if key == "whitelist_title":
+                return "allowed"
+            return default
+
+    stub_reader = StubReader()
+    app.dependency_overrides[get_reader_dependency] = lambda: stub_reader
+    rendered_titles: list[str] = []
+
+    def fake_create_html_for_feed(*, entries: list[Entry], **_kwargs: object) -> str:
+        entry_titles: list[str] = [entry.title or entry.id for entry in entries]
+        rendered_titles.extend(entry_titles)
+        return " | ".join(entry_titles)
+
+    try:
+        with patch("discord_rss_bot.main.create_html_for_feed", side_effect=fake_create_html_for_feed):
+            response: Response = client.get(
+                url="/blacklist_preview",
+                params={"feed_url": stub_reader.feed.url, "blacklist_title": "blocked"},
+            )
+
+        assert response.status_code == 200, f"/blacklist_preview failed: {response.text}"
+        assert rendered_titles == ["Allowed note", "Blocked allowed"]
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_blacklist_preview_shows_no_rendered_entries_message_when_all_entries_are_skipped() -> None:
+    @dataclass(slots=True)
+    class DummyFeed:
+        url: str
+        title: str
+
+    @dataclass(slots=True)
+    class DummyEntry:
+        id: str
+        feed: DummyFeed
+        title: str
+        summary: str
+        author: str
+        link: str
+        published: datetime | None
+        content: list[object] = field(default_factory=list)
+
+    class StubReader:
+        def __init__(self) -> None:
+            self.feed = DummyFeed(url="https://example.com/preview.xml", title="Preview Feed")
+            self.entries: list[Entry] = [
+                cast(
+                    "Entry",
+                    DummyEntry(
+                        id="blocked-only",
+                        feed=self.feed,
+                        title="Blocked update",
+                        summary="Summary",
+                        author="Author",
+                        link="https://example.com/blocked-only",
+                        published=datetime(2024, 1, 1, tzinfo=UTC),
+                    ),
+                ),
+                cast(
+                    "Entry",
+                    DummyEntry(
+                        id="allowed-only",
+                        feed=self.feed,
+                        title="Allowed note",
+                        summary="Summary",
+                        author="Author",
+                        link="https://example.com/allowed-only",
+                        published=datetime(2024, 1, 2, tzinfo=UTC),
+                    ),
+                ),
+                cast(
+                    "Entry",
+                    DummyEntry(
+                        id="blocked-and-allowed",
+                        feed=self.feed,
+                        title="Blocked allowed",
+                        summary="Summary",
+                        author="Author",
+                        link="https://example.com/blocked-and-allowed",
+                        published=datetime(2024, 1, 3, tzinfo=UTC),
+                    ),
+                ),
+            ]
+
+        def get_feed(self, _feed_url: str) -> DummyFeed:
+            return self.feed
+
+        def get_entries(self, **_kwargs: object) -> list[Entry]:
+            return self.entries
+
+        def get_tag(self, _resource: object, _key: str, default: object = None) -> object:
+            return default
+
+    stub_reader = StubReader()
+    app.dependency_overrides[get_reader_dependency] = lambda: stub_reader
+
+    try:
+        with patch("discord_rss_bot.main.create_html_for_feed") as create_html_mock:
+            response: Response = client.get(
+                url="/blacklist_preview",
+                params={"feed_url": stub_reader.feed.url, "blacklist_title": "blocked,allowed,note"},
+            )
+
+        assert response.status_code == 200, f"/blacklist_preview failed: {response.text}"
+        create_html_mock.assert_not_called()
+        assert "No entries would be sent with the current rules." in response.text
+    finally:
+        app.dependency_overrides = {}
 
 
 def test_blacklist_preview_uses_50_entry_limit() -> None:
