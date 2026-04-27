@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from discord_rss_bot.filter.utils import is_regex_match
-from discord_rss_bot.filter.utils import is_word_in_text
+from discord_rss_bot.filter.evaluator import find_filter_match
+from discord_rss_bot.filter.evaluator import get_filter_values_from_reader
+from discord_rss_bot.filter.evaluator import has_filter_values
 
 if TYPE_CHECKING:
     from reader import Entry
@@ -31,29 +32,10 @@ def has_white_tags(reader: Reader, feed: Feed) -> bool:
     Returns:
         bool: If the feed has any of the tags.
     """
-    whitelist_title: str = str(reader.get_tag(feed, "whitelist_title", "")).strip()
-    whitelist_summary: str = str(reader.get_tag(feed, "whitelist_summary", "")).strip()
-    whitelist_content: str = str(reader.get_tag(feed, "whitelist_content", "")).strip()
-    whitelist_author: str = str(reader.get_tag(feed, "whitelist_author", "")).strip()
-
-    regex_whitelist_title: str = str(reader.get_tag(feed, "regex_whitelist_title", "")).strip()
-    regex_whitelist_summary: str = str(reader.get_tag(feed, "regex_whitelist_summary", "")).strip()
-    regex_whitelist_content: str = str(reader.get_tag(feed, "regex_whitelist_content", "")).strip()
-    regex_whitelist_author: str = str(reader.get_tag(feed, "regex_whitelist_author", "")).strip()
-
-    return bool(
-        whitelist_title
-        or whitelist_author
-        or whitelist_content
-        or whitelist_summary
-        or regex_whitelist_author
-        or regex_whitelist_content
-        or regex_whitelist_summary
-        or regex_whitelist_title,
-    )
+    return has_filter_values(get_filter_values_from_reader(reader, feed, "whitelist"))
 
 
-def should_be_sent(reader: Reader, entry: Entry) -> bool:  # noqa: PLR0911
+def should_be_sent(reader: Reader, entry: Entry) -> bool:
     """Return True if the entry is in the whitelist.
 
     Args:
@@ -63,44 +45,4 @@ def should_be_sent(reader: Reader, entry: Entry) -> bool:  # noqa: PLR0911
     Returns:
         bool: If the entry is in the whitelist.
     """
-    feed: Feed = entry.feed
-    # Regular whitelist tags
-    whitelist_title: str = str(reader.get_tag(feed, "whitelist_title", "")).strip()
-    whitelist_summary: str = str(reader.get_tag(feed, "whitelist_summary", "")).strip()
-    whitelist_content: str = str(reader.get_tag(feed, "whitelist_content", "")).strip()
-    whitelist_author: str = str(reader.get_tag(feed, "whitelist_author", "")).strip()
-
-    # Regex whitelist tags
-    regex_whitelist_title: str = str(reader.get_tag(feed, "regex_whitelist_title", "")).strip()
-    regex_whitelist_summary: str = str(reader.get_tag(feed, "regex_whitelist_summary", "")).strip()
-    regex_whitelist_content: str = str(reader.get_tag(feed, "regex_whitelist_content", "")).strip()
-    regex_whitelist_author: str = str(reader.get_tag(feed, "regex_whitelist_author", "")).strip()
-
-    # Check regular whitelist
-    if entry.title and whitelist_title and is_word_in_text(whitelist_title, entry.title):
-        return True
-    if entry.summary and whitelist_summary and is_word_in_text(whitelist_summary, entry.summary):
-        return True
-    if entry.author and whitelist_author and is_word_in_text(whitelist_author, entry.author):
-        return True
-    if (
-        entry.content
-        and entry.content[0].value
-        and whitelist_content
-        and is_word_in_text(whitelist_content, entry.content[0].value)
-    ):
-        return True
-
-    # Check regex whitelist
-    if entry.title and regex_whitelist_title and is_regex_match(regex_whitelist_title, entry.title):
-        return True
-    if entry.summary and regex_whitelist_summary and is_regex_match(regex_whitelist_summary, entry.summary):
-        return True
-    if entry.author and regex_whitelist_author and is_regex_match(regex_whitelist_author, entry.author):
-        return True
-    return bool(
-        entry.content
-        and entry.content[0].value
-        and regex_whitelist_content
-        and is_regex_match(regex_whitelist_content, entry.content[0].value),
-    )
+    return bool(find_filter_match(entry, get_filter_values_from_reader(reader, entry.feed, "whitelist"), "whitelist"))

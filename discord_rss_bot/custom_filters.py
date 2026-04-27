@@ -4,10 +4,7 @@ import urllib.parse
 from functools import lru_cache
 from typing import TYPE_CHECKING
 
-from discord_rss_bot.filter.blacklist import entry_should_be_skipped
-from discord_rss_bot.filter.blacklist import feed_has_blacklist_tags
-from discord_rss_bot.filter.whitelist import has_white_tags
-from discord_rss_bot.filter.whitelist import should_be_sent
+from discord_rss_bot.filter.evaluator import get_entry_filter_decision_from_reader
 
 if TYPE_CHECKING:
     from reader import Entry
@@ -41,7 +38,7 @@ def entry_is_whitelisted(entry_to_check: Entry, reader: Reader) -> bool:
         bool: True if the feed is whitelisted, False otherwise.
 
     """
-    return bool(has_white_tags(reader, entry_to_check.feed) and should_be_sent(reader, entry_to_check))
+    return get_entry_filter_decision_from_reader(reader, entry_to_check).whitelist_match is not None
 
 
 def entry_is_blacklisted(entry_to_check: Entry, reader: Reader) -> bool:
@@ -55,6 +52,4 @@ def entry_is_blacklisted(entry_to_check: Entry, reader: Reader) -> bool:
         bool: True if the feed is blacklisted, False otherwise.
 
     """
-    return bool(
-        feed_has_blacklist_tags(reader, entry_to_check.feed) and entry_should_be_skipped(reader, entry_to_check),
-    )
+    return get_entry_filter_decision_from_reader(reader, entry_to_check).blacklist_match is not None

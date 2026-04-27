@@ -37,6 +37,15 @@ def encoded_feed_url(url: str) -> str:
     return urllib.parse.quote(feed_url) if url else ""
 
 
+def ensure_preview_feed_exists() -> Reader:
+    reader: Reader = get_reader_dependency()
+    with contextlib.suppress(Exception):
+        reader.add_feed(feed_url)
+    with contextlib.suppress(Exception):
+        reader.update_feed(feed_url)
+    return reader
+
+
 def test_search() -> None:
     """Test the /search page."""
     # Remove the feed if it already exists before we run the test.
@@ -219,6 +228,221 @@ def test_get() -> None:
 
     response: Response = client.get(url="/whitelist", params={"feed_url": encoded_feed_url(feed_url)})
     assert response.status_code == 200, f"/whitelist failed: {response.text}"
+
+
+def test_blacklist_page_uses_live_preview_layout() -> None:
+    ensure_preview_feed_exists()
+
+    response: Response = client.get(url="/blacklist", params={"feed_url": encoded_feed_url(feed_url)})
+
+    assert response.status_code == 200, f"/blacklist failed: {response.text}"
+    assert 'hx-get="/blacklist_preview"' in response.text
+    assert 'id="filter-preview"' in response.text
+    assert "Blacklist Rules" in response.text
+
+
+def test_whitelist_page_uses_live_preview_layout() -> None:
+    ensure_preview_feed_exists()
+
+    response: Response = client.get(url="/whitelist", params={"feed_url": encoded_feed_url(feed_url)})
+
+    assert response.status_code == 200, f"/whitelist failed: {response.text}"
+    assert 'hx-get="/whitelist_preview"' in response.text
+    assert 'id="filter-preview"' in response.text
+    assert "Whitelist Rules" in response.text
+
+
+def test_blacklist_preview_does_not_persist_unsaved_rules() -> None:
+    reader: Reader = ensure_preview_feed_exists()
+    reader.set_tag(feed_url, "blacklist_title", "saved-blacklist")  # pyright: ignore[reportArgumentType]
+
+    try:
+        response: Response = client.get(
+            url="/blacklist_preview",
+            params={
+                "feed_url": feed_url,
+                "blacklist_title": "fvnnnfnfdnfdnfd",
+            },
+        )
+
+        assert response.status_code == 200, f"/blacklist_preview failed: {response.text}"
+        assert "Live preview" in response.text
+        assert reader.get_tag(feed_url, "blacklist_title", "") == "saved-blacklist"
+    finally:
+        with contextlib.suppress(Exception):
+            reader.delete_tag(feed_url, "blacklist_title")
+
+
+def test_whitelist_preview_shows_precedence_over_blacklist() -> None:
+    reader: Reader = ensure_preview_feed_exists()
+    reader.set_tag(feed_url, "blacklist_title", "fvnnnfnfdnfdnfd")  # pyright: ignore[reportArgumentType]
+
+    try:
+        response: Response = client.get(
+            url="/whitelist_preview",
+            params={
+                "feed_url": feed_url,
+                "whitelist_title": "fvnnnfnfdnfdnfd",
+            },
+        )
+
+        assert response.status_code == 200, f"/whitelist_preview failed: {response.text}"
+        assert "whitelist overrides blacklist" in response.text
+        assert "Sent" in response.text
+    finally:
+        with contextlib.suppress(Exception):
+            reader.delete_tag(feed_url, "blacklist_title")
+
+
+def test_blacklist_preview_uses_50_entry_limit() -> None:
+    @dataclass(slots=True)
+    class DummyContent:
+        value: str
+
+    @dataclass(slots=True)
+    class DummyFeed:
+        url: str
+        title: str
+
+    @dataclass(slots=True)
+    class DummyEntry:
+        id: str
+        feed: DummyFeed
+        title: str
+        summary: str
+        author: str
+        link: str
+        published: datetime | None
+        content: list[DummyContent] = field(default_factory=lambda: [DummyContent("content")])
+
+    class StubReader:
+        def __init__(self) -> None:
+            self.feed = DummyFeed(url="https://example.com/filter-preview.xml", title="Preview Feed")
+            self.recorded_limit: int | None = None
+            self.entries: list[Entry] = [
+                cast(
+                    "Entry",
+                    DummyEntry(
+                        id=f"entry-{index}",
+                        feed=self.feed,
+                        title=f"Entry {index}",
+                        summary=f"Summary {index}",
+                        author="Author",
+                        link=f"https://example.com/entry-{index}",
+                        published=datetime(2024, 1, 1, tzinfo=UTC),
+                    ),
+                )
+                for index in range(60)
+            ]
+
+        def get_feed(self, _feed_url: str) -> DummyFeed:
+            return self.feed
+
+        def get_entries(self, **kwargs: object) -> list[Entry]:
+            limit = kwargs.get("limit")
+            self.recorded_limit = limit if isinstance(limit, int) else None
+            if isinstance(limit, int):
+                return self.entries[:limit]
+            return self.entries
+
+        def get_tag(self, _resource: object, _key: str, default: object = None) -> object:
+            return default
+
+    stub_reader = StubReader()
+    app.dependency_overrides[get_reader_dependency] = lambda: stub_reader
+
+    try:
+        with patch("discord_rss_bot.main.create_html_for_feed", return_value="<div>Rendered</div>"):
+            response: Response = client.get(
+                url="/blacklist_preview",
+                params={"feed_url": stub_reader.feed.url},
+            )
+
+        assert response.status_code == 200, f"/blacklist_preview failed: {response.text}"
+        assert stub_reader.recorded_limit == 50, (
+            f"Expected preview to request 50 entries, got {stub_reader.recorded_limit}"
+        )
+        assert "50 checked" in response.text
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_blacklist_preview_shows_labeled_field_values_for_substring_match() -> None:
+    @dataclass(slots=True)
+    class DummyContent:
+        value: str
+
+    @dataclass(slots=True)
+    class DummyFeed:
+        url: str
+        title: str
+
+    @dataclass(slots=True)
+    class DummyEntry:
+        id: str
+        feed: DummyFeed
+        title: str
+        summary: str
+        author: str
+        link: str
+        published: datetime | None
+        content: list[DummyContent] = field(default_factory=list)
+
+    class StubReader:
+        def __init__(self) -> None:
+            self.feed = DummyFeed(url="https://example.com/wow.xml", title="Warcraft Feed")
+            self.entries: list[Entry] = [
+                cast(
+                    "Entry",
+                    DummyEntry(
+                        id="wow-1",
+                        feed=self.feed,
+                        title="World of Warcraft",
+                        summary="<p>Massive MMO news update</p>",
+                        author="Blizzard",
+                        link="https://example.com/wow-1",
+                        published=datetime(2024, 1, 1, tzinfo=UTC),
+                        content=[DummyContent("<p>The expansion launches soon.</p>")],
+                    ),
+                ),
+            ]
+
+        def get_feed(self, _feed_url: str) -> DummyFeed:
+            return self.feed
+
+        def get_entries(self, **_kwargs: object) -> list[Entry]:
+            return self.entries
+
+        def get_tag(self, _resource: object, _key: str, default: object = None) -> object:
+            return default
+
+    stub_reader = StubReader()
+    app.dependency_overrides[get_reader_dependency] = lambda: stub_reader
+
+    try:
+        with patch("discord_rss_bot.main.create_html_for_feed", return_value="<div>Rendered</div>"):
+            response: Response = client.get(
+                url="/blacklist_preview",
+                params={
+                    "feed_url": stub_reader.feed.url,
+                    "blacklist_title": "orld",
+                },
+            )
+
+        assert response.status_code == 200, f"/blacklist_preview failed: {response.text}"
+        assert "Skipped" in response.text
+        assert "World of Warcraft" in response.text
+        assert "Title" in response.text
+        assert "Author" in response.text
+        assert "Description" in response.text
+        assert "Content" in response.text
+        assert "filter-preview__field-row" in response.text
+        assert "filter-preview__match" in response.text
+        assert '<mark class="filter-preview__match filter-preview__match--danger">orld</mark>' in response.text
+        assert "Massive MMO news update" in response.text
+        assert "The expansion launches soon." in response.text
+    finally:
+        app.dependency_overrides = {}
 
 
 def test_settings_page_shows_screenshot_layout_setting() -> None:

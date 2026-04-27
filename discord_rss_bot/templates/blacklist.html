@@ -1,98 +1,126 @@
 {% extends "base.html" %}
 {% block title %}
-| Blacklist
+    | Blacklist
 {% endblock title %}
 {% block content %}
-<div class="p-2 border border-dark">
-    <form action="/blacklist" method="post">
-        <!-- Feed URL -->
-        <div class="row pb-2">
-            <div class="col-sm-12">
-                <div class="form-text">
-                    <ul class="list-inline">
-                        <li>
-                            Comma separated list of words to blacklist. If a word is found in the
-                            corresponding blacklists, the feed will not be sent.
-                        </li>
-                        <li>Whitelist always takes precedence over blacklist. Leave empty to disable.</li>
-                        <li>Words are case-insensitive. No spaces should be used before or after the comma.</li>
-                        <li>
-                            Correct:
-                            <code>
-                                    primogem,events,gameplay preview,special program
-                                </code>
-                        </li>
-                        <li>
-                            Wrong:
-                            <code>
-                                    primogem, events, gameplay preview, special program
-                                </code>
-                        </li>
-                    </ul>
-                </div>
-                <label for="blacklist_title" class="col-sm-6 col-form-label">Blacklist - Title</label>
-                <input name="blacklist_title" type="text" class="form-control bg-dark border-dark text-muted"
-                    id="blacklist_title" value="{%- if blacklist_title -%}{{ blacklist_title }}{%- endif -%}" />
-                <label for="blacklist_summary" class="col-sm-6 col-form-label">Blacklist - Summary</label>
-                <input name="blacklist_summary" type="text" class="form-control bg-dark border-dark text-muted"
-                    id="blacklist_summary" value="{%- if blacklist_summary -%}{{ blacklist_summary }}{%- endif -%}" />
-                <label for="blacklist_content" class="col-sm-6 col-form-label">Blacklist - Content</label>
-                <input name="blacklist_content" type="text" class="form-control bg-dark border-dark text-muted"
-                    id="blacklist_content" value="{%- if blacklist_content -%}{{ blacklist_content }}{%- endif -%}" />
-                <label for="blacklist_author" class="col-sm-6 col-form-label">Blacklist - Author</label>
-                <input name="blacklist_author" type="text" class="form-control bg-dark border-dark text-muted"
-                    id="blacklist_author" value="{%- if blacklist_author -%}{{ blacklist_author }}{%- endif -%}" />
-
-                <div class="mt-4">
-                    <div class="form-text">
-                        <ul class="list-inline">
-                            <li>
-                                Regular expression patterns for advanced filtering. Each pattern should be on a new
-                                line.
-                            </li>
-                            <li>Patterns are case-insensitive.</li>
-                            <li>
-                                Examples:
-                                <code>
-<pre>
-^New Release:.*
-\b(update|version|patch)\s+\d+\.\d+
-.*\[(important|notice)\].*
-</pre>
-                                </code>
-                            </li>
-                        </ul>
+    <div class="row g-3 filter-page">
+        <div class="col-lg-5">
+            <section class="card border border-dark shadow-sm text-light rounded-0 filter-page__sidebar">
+                <div class="card-body p-3 p-md-4">
+                    <div class="mb-4">
+                        <h2 class="h4 mb-2">Blacklist Rules</h2>
+                        <p class="text-muted mb-3">
+                            Build block rules on the left and watch the latest feed entries update on the right before you save.
+                        </p>
+                        <div class="p-3 border border-dark rounded-0 small text-muted">
+                            <p class="mb-2">
+                                Use comma-separated terms or snippets for quick blocking. Use regex when the pattern is more specific.
+                            </p>
+                            <p class="mb-2">
+                                Plain text matching is case-insensitive and partial, so <code>orld</code> matches <code>World of Warcraft</code>.
+                            </p>
+                            <p class="mb-2">Whitelist matches still win. If an entry matches both, the preview keeps it as sent.</p>
+                            <p class="mb-0">Keep the left side for editing and the right side for checking what gets removed.</p>
+                        </div>
                     </div>
-                    <label for="regex_blacklist_title" class="col-sm-6 col-form-label">Regex Blacklist - Title</label>
-                    <textarea name="regex_blacklist_title" class="form-control bg-dark border-dark text-muted"
-                        id="regex_blacklist_title"
-                        rows="3">{%- if regex_blacklist_title -%}{{ regex_blacklist_title }}{%- endif -%}</textarea>
-
-                    <label for="regex_blacklist_summary" class="col-sm-6 col-form-label">Regex Blacklist -
-                        Summary</label>
-                    <textarea name="regex_blacklist_summary" class="form-control bg-dark border-dark text-muted"
-                        id="regex_blacklist_summary"
-                        rows="3">{%- if regex_blacklist_summary -%}{{ regex_blacklist_summary }}{%- endif -%}</textarea>
-
-                    <label for="regex_blacklist_content" class="col-sm-6 col-form-label">Regex Blacklist -
-                        Content</label>
-                    <textarea name="regex_blacklist_content" class="form-control bg-dark border-dark text-muted"
-                        id="regex_blacklist_content"
-                        rows="3">{%- if regex_blacklist_content -%}{{ regex_blacklist_content }}{%- endif -%}</textarea>
-
-                    <label for="regex_blacklist_author" class="col-sm-6 col-form-label">Regex Blacklist - Author</label>
-                    <textarea name="regex_blacklist_author" class="form-control bg-dark border-dark text-muted"
-                        id="regex_blacklist_author"
-                        rows="3">{%- if regex_blacklist_author -%}{{ regex_blacklist_author }}{%- endif -%}</textarea>
+                    <form action="/blacklist"
+                          method="post"
+                          class="row g-3"
+                          hx-get="/blacklist_preview"
+                          hx-target="#filter-preview"
+                          hx-swap="innerHTML"
+                          hx-trigger="input delay:400ms, change delay:200ms">
+                        <input type="hidden" name="feed_url" value="{{ feed.url }}" />
+                        <div class="col-12">
+                            <h3 class="h6 text-uppercase text-muted mb-3">Word Rules</h3>
+                            <div class="p-3 border border-dark rounded-0 form-text mb-3">
+                                <p class="mb-2">Comma separated terms or snippets. Spaces around commas are ignored.</p>
+                                <p class="mb-0">
+                                    Example:
+                                    <code>primogem,events,orld,special program</code>
+                                </p>
+                            </div>
+                            <label for="blacklist_title" class="form-label">Block if title contains</label>
+                            <input name="blacklist_title"
+                                   type="text"
+                                   class="form-control bg-dark border-dark text-muted"
+                                   id="blacklist_title"
+                                   value="{{ blacklist_title }}" />
+                        </div>
+                        <div class="col-12">
+                            <label for="blacklist_summary" class="form-label">Block if summary contains</label>
+                            <input name="blacklist_summary"
+                                   type="text"
+                                   class="form-control bg-dark border-dark text-muted"
+                                   id="blacklist_summary"
+                                   value="{{ blacklist_summary }}" />
+                        </div>
+                        <div class="col-12">
+                            <label for="blacklist_content" class="form-label">Block if content contains</label>
+                            <input name="blacklist_content"
+                                   type="text"
+                                   class="form-control bg-dark border-dark text-muted"
+                                   id="blacklist_content"
+                                   value="{{ blacklist_content }}" />
+                        </div>
+                        <div class="col-12">
+                            <label for="blacklist_author" class="form-label">Block if author contains</label>
+                            <input name="blacklist_author"
+                                   type="text"
+                                   class="form-control bg-dark border-dark text-muted"
+                                   id="blacklist_author"
+                                   value="{{ blacklist_author }}" />
+                        </div>
+                        <div class="col-12 pt-2">
+                            <h3 class="h6 text-uppercase text-muted mb-3">Regex Rules</h3>
+                            <div class="p-3 border border-dark rounded-0 form-text mb-3">
+                                <p class="mb-2">One pattern per line. Matching is case-insensitive.</p>
+                                <pre class="mb-0 filter-page__example">^New Release:.*
+\b(update|version|patch)\s+\d+\.\d+
+.*\[(important|notice)\].*</pre>
+                            </div>
+                            <label for="regex_blacklist_title" class="form-label">Block if title matches regex</label>
+                            <textarea name="regex_blacklist_title"
+                                      class="form-control bg-dark border-dark text-muted"
+                                      id="regex_blacklist_title"
+                                      rows="3">{{ regex_blacklist_title }}</textarea>
+                        </div>
+                        <div class="col-12">
+                            <label for="regex_blacklist_summary" class="form-label">Block if summary matches regex</label>
+                            <textarea name="regex_blacklist_summary"
+                                      class="form-control bg-dark border-dark text-muted"
+                                      id="regex_blacklist_summary"
+                                      rows="3">{{ regex_blacklist_summary }}</textarea>
+                        </div>
+                        <div class="col-12">
+                            <label for="regex_blacklist_content" class="form-label">Block if content matches regex</label>
+                            <textarea name="regex_blacklist_content"
+                                      class="form-control bg-dark border-dark text-muted"
+                                      id="regex_blacklist_content"
+                                      rows="3">{{ regex_blacklist_content }}</textarea>
+                        </div>
+                        <div class="col-12">
+                            <label for="regex_blacklist_author" class="form-label">Block if author matches regex</label>
+                            <textarea name="regex_blacklist_author"
+                                      class="form-control bg-dark border-dark text-muted"
+                                      id="regex_blacklist_author"
+                                      rows="3">{{ regex_blacklist_author }}</textarea>
+                        </div>
+                        <div class="col-12 d-flex flex-wrap gap-2 pt-2">
+                            <button class="btn btn-dark btn-sm" type="submit">Update blacklist</button>
+                            <a class="btn btn-outline-light btn-sm"
+                               href="/feed?feed_url={{ feed.url|encode_url }}">Back to feed</a>
+                        </div>
+                    </form>
                 </div>
-            </div>
+            </section>
         </div>
-        <!-- Add a hidden feed_url field to the form -->
-        <input type="hidden" name="feed_url" value="{{ feed.url }}" />
-        <!-- Submit button -->
-        <div class="d-md-flex">
-            <button class="btn btn-dark btn-sm">Update blacklist</button>
+        <div class="col-lg-7">
+            <section class="card border border-dark shadow-sm text-light rounded-0 h-100">
+                <div class="card-body p-3 p-md-4">
+                    <div id="filter-preview">{% include "_filter_preview.html" %}</div>
+                </div>
+            </section>
         </div>
-    </form>
-</div>
+    </div>
 {% endblock content %}

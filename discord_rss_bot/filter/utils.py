@@ -7,22 +7,22 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 
 def is_word_in_text(word_string: str, text: str) -> bool:
-    """Check if any of the words are in the text.
+    """Check if any comma-separated terms are in the text.
 
     Args:
-        word_string: A comma-separated string of words to search for.
+        word_string: A comma-separated string of terms to search for.
         text: The text to search in.
 
     Returns:
-        bool: True if any word is found in the text, otherwise False.
+        bool: True if any term is found in the text, otherwise False.
     """
-    word_list: list[str] = word_string.split(",")
+    if not word_string or not text:
+        return False
 
-    # Compile regex patterns for each word.
-    patterns: list[re.Pattern[str]] = [re.compile(rf"(^|[^\w]){word}([^\w]|$)", re.IGNORECASE) for word in word_list]
+    normalized_text: str = text.casefold()
+    terms: list[str] = [term.strip().casefold() for term in word_string.split(",") if term.strip()]
 
-    # Check if any pattern matches the text.
-    return any(pattern.search(text) for pattern in patterns)
+    return any(term in normalized_text for term in terms)
 
 
 def is_regex_match(regex_string: str, text: str) -> bool:

@@ -37,9 +37,7 @@ from discord_rss_bot.custom_message import CustomEmbed
 from discord_rss_bot.custom_message import get_custom_message
 from discord_rss_bot.custom_message import replace_tags_in_embed
 from discord_rss_bot.custom_message import replace_tags_in_text_message
-from discord_rss_bot.filter.blacklist import entry_should_be_skipped
-from discord_rss_bot.filter.whitelist import has_white_tags
-from discord_rss_bot.filter.whitelist import should_be_sent
+from discord_rss_bot.filter.evaluator import get_entry_filter_decision_from_reader
 from discord_rss_bot.hoyolab_api import create_hoyolab_webhook
 from discord_rss_bot.hoyolab_api import extract_post_id_from_hoyolab_url
 from discord_rss_bot.hoyolab_api import fetch_hoyolab_post
@@ -711,14 +709,9 @@ def send_to_discord(reader: Reader | None = None, feed: Feed | None = None, *, d
                 use_default_message_on_empty=True,
             )
 
-        # Check if the entry is blacklisted, and if it is, we will skip it.
-        if entry_should_be_skipped(effective_reader, entry):
-            logger.info("Entry was blacklisted: %s", entry.id)
-            continue
-
-        # Check if the feed has a whitelist, and if it does, check if the entry is whitelisted.
-        if has_white_tags(effective_reader, entry.feed) and not should_be_sent(effective_reader, entry):
-            logger.info("Entry was not whitelisted: %s", entry.id)
+        decision = get_entry_filter_decision_from_reader(effective_reader, entry)
+        if not decision.should_send:
+            logger.info("Entry was skipped: %s (%s)", entry.id, decision.reason)
             continue
 
         # Use a custom webhook for Hoyolab feeds.

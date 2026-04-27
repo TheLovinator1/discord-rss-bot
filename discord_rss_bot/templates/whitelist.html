@@ -1,98 +1,124 @@
 {% extends "base.html" %}
 {% block title %}
-| Whitelist
+    | Whitelist
 {% endblock title %}
 {% block content %}
-<div class="p-2 border border-dark">
-    <form action="/whitelist" method="post">
-        <!-- Feed URL -->
-        <div class="row pb-2">
-            <div class="col-sm-12">
-                <div class="form-text">
-                    <ul class="list-inline">
-                        <li>
-                            Comma separated list of words to whitelist. Only send message to
-                            Discord if one of these words are present in the corresponding fields.
-                        </li>
-                        <li>Whitelist always takes precedence over blacklist. Leave empty to disable.</li>
-                        <li>Words are case-insensitive. No spaces should be used before or after the comma.</li>
-                        <li>
-                            Correct:
-                            <code>
-                                    primogem,events,gameplay preview,special program
-                                </code>
-                        </li>
-                        <li>
-                            Wrong:
-                            <code>
-                                    primogem, events, gameplay preview, special program
-                                </code>
-                        </li>
-                    </ul>
-                </div>
-                <label for="whitelist_title" class="col-sm-6 col-form-label">Whitelist - Title</label>
-                <input name="whitelist_title" type="text" class="form-control bg-dark border-dark text-muted"
-                    id="whitelist_title" value="{%- if whitelist_title -%}{{ whitelist_title }} {%- endif -%}" />
-                <label for="whitelist_summary" class="col-sm-6 col-form-label">Whitelist - Summary</label>
-                <input name="whitelist_summary" type="text" class="form-control bg-dark border-dark text-muted"
-                    id="whitelist_summary" value="{%- if whitelist_summary -%}{{ whitelist_summary }}{%- endif -%}" />
-                <label for="whitelist_content" class="col-sm-6 col-form-label">Whitelist - Content</label>
-                <input name="whitelist_content" type="text" class="form-control bg-dark border-dark text-muted"
-                    id="whitelist_content" value="{%- if whitelist_content -%}{{ whitelist_content }}{%- endif -%}" />
-                <label for="whitelist_author" class="col-sm-6 col-form-label">Whitelist - Author</label>
-                <input name="whitelist_author" type="text" class="form-control bg-dark border-dark text-muted"
-                    id="whitelist_author" value="{%- if whitelist_author -%} {{ whitelist_author }} {%- endif -%}" />
-
-                <div class="mt-4">
-                    <div class="form-text">
-                        <ul class="list-inline">
-                            <li>
-                                Regular expression patterns for advanced filtering. Each pattern should be on a new
-                                line.
-                            </li>
-                            <li>Patterns are case-insensitive.</li>
-                            <li>
-                                Examples:
-                                <code>
-<pre>
-^New Release:.*
-\b(update|version|patch)\s+\d+\.\d+
-.*\[(important|notice)\].*
-</pre>
-                                </code>
-                            </li>
-                        </ul>
+    <div class="row g-3 filter-page">
+        <div class="col-lg-5">
+            <section class="card border border-dark shadow-sm text-light rounded-0 filter-page__sidebar">
+                <div class="card-body p-3 p-md-4">
+                    <div class="mb-4">
+                        <h2 class="h4 mb-2">Whitelist Rules</h2>
+                        <p class="text-muted mb-3">
+                            Shape what is allowed through, and use the live pane to see which entries are the only ones that will still be sent.
+                        </p>
+                        <div class="p-3 border border-dark rounded-0 small text-muted">
+                            <p class="mb-2">Whitelist rules are restrictive. If any whitelist rule exists, entries must match it to be sent.</p>
+                            <p class="mb-2">
+                                Plain text matching is case-insensitive and partial, so <code>orld</code> matches <code>World of Warcraft</code>.
+                            </p>
+                            <p class="mb-2">When an entry matches both lists, whitelist still wins and the preview shows it as sent.</p>
+                            <p class="mb-0">Saved blacklist rules remain active while you preview whitelist edits.</p>
+                        </div>
                     </div>
-                    <label for="regex_whitelist_title" class="col-sm-6 col-form-label">Regex Whitelist - Title</label>
-                    <textarea name="regex_whitelist_title" class="form-control bg-dark border-dark text-muted"
-                        id="regex_whitelist_title"
-                        rows="3">{%- if regex_whitelist_title -%}{{ regex_whitelist_title }}{%- endif -%}</textarea>
-
-                    <label for="regex_whitelist_summary" class="col-sm-6 col-form-label">Regex Whitelist -
-                        Summary</label>
-                    <textarea name="regex_whitelist_summary" class="form-control bg-dark border-dark text-muted"
-                        id="regex_whitelist_summary"
-                        rows="3">{%- if regex_whitelist_summary -%}{{ regex_whitelist_summary }}{%- endif -%}</textarea>
-
-                    <label for="regex_whitelist_content" class="col-sm-6 col-form-label">Regex Whitelist -
-                        Content</label>
-                    <textarea name="regex_whitelist_content" class="form-control bg-dark border-dark text-muted"
-                        id="regex_whitelist_content"
-                        rows="3">{%- if regex_whitelist_content -%}{{ regex_whitelist_content }}{%- endif -%}</textarea>
-
-                    <label for="regex_whitelist_author" class="col-sm-6 col-form-label">Regex Whitelist - Author</label>
-                    <textarea name="regex_whitelist_author" class="form-control bg-dark border-dark text-muted"
-                        id="regex_whitelist_author"
-                        rows="3">{%- if regex_whitelist_author -%}{{ regex_whitelist_author }}{%- endif -%}</textarea>
+                    <form action="/whitelist"
+                          method="post"
+                          class="row g-3"
+                          hx-get="/whitelist_preview"
+                          hx-target="#filter-preview"
+                          hx-swap="innerHTML"
+                          hx-trigger="input delay:400ms, change delay:200ms">
+                        <input type="hidden" name="feed_url" value="{{ feed.url }}" />
+                        <div class="col-12">
+                            <h3 class="h6 text-uppercase text-muted mb-3">Word Rules</h3>
+                            <div class="p-3 border border-dark rounded-0 form-text mb-3">
+                                <p class="mb-2">Comma separated terms or snippets. Spaces around commas are ignored.</p>
+                                <p class="mb-0">
+                                    Example:
+                                    <code>primogem,events,orld,special program</code>
+                                </p>
+                            </div>
+                            <label for="whitelist_title" class="form-label">Allow if title contains</label>
+                            <input name="whitelist_title"
+                                   type="text"
+                                   class="form-control bg-dark border-dark text-muted"
+                                   id="whitelist_title"
+                                   value="{{ whitelist_title }}" />
+                        </div>
+                        <div class="col-12">
+                            <label for="whitelist_summary" class="form-label">Allow if summary contains</label>
+                            <input name="whitelist_summary"
+                                   type="text"
+                                   class="form-control bg-dark border-dark text-muted"
+                                   id="whitelist_summary"
+                                   value="{{ whitelist_summary }}" />
+                        </div>
+                        <div class="col-12">
+                            <label for="whitelist_content" class="form-label">Allow if content contains</label>
+                            <input name="whitelist_content"
+                                   type="text"
+                                   class="form-control bg-dark border-dark text-muted"
+                                   id="whitelist_content"
+                                   value="{{ whitelist_content }}" />
+                        </div>
+                        <div class="col-12">
+                            <label for="whitelist_author" class="form-label">Allow if author contains</label>
+                            <input name="whitelist_author"
+                                   type="text"
+                                   class="form-control bg-dark border-dark text-muted"
+                                   id="whitelist_author"
+                                   value="{{ whitelist_author }}" />
+                        </div>
+                        <div class="col-12 pt-2">
+                            <h3 class="h6 text-uppercase text-muted mb-3">Regex Rules</h3>
+                            <div class="p-3 border border-dark rounded-0 form-text mb-3">
+                                <p class="mb-2">One pattern per line. Matching is case-insensitive.</p>
+                                <pre class="mb-0 filter-page__example">^New Release:.*
+\b(update|version|patch)\s+\d+\.\d+
+.*\[(important|notice)\].*</pre>
+                            </div>
+                            <label for="regex_whitelist_title" class="form-label">Allow if title matches regex</label>
+                            <textarea name="regex_whitelist_title"
+                                      class="form-control bg-dark border-dark text-muted"
+                                      id="regex_whitelist_title"
+                                      rows="3">{{ regex_whitelist_title }}</textarea>
+                        </div>
+                        <div class="col-12">
+                            <label for="regex_whitelist_summary" class="form-label">Allow if summary matches regex</label>
+                            <textarea name="regex_whitelist_summary"
+                                      class="form-control bg-dark border-dark text-muted"
+                                      id="regex_whitelist_summary"
+                                      rows="3">{{ regex_whitelist_summary }}</textarea>
+                        </div>
+                        <div class="col-12">
+                            <label for="regex_whitelist_content" class="form-label">Allow if content matches regex</label>
+                            <textarea name="regex_whitelist_content"
+                                      class="form-control bg-dark border-dark text-muted"
+                                      id="regex_whitelist_content"
+                                      rows="3">{{ regex_whitelist_content }}</textarea>
+                        </div>
+                        <div class="col-12">
+                            <label for="regex_whitelist_author" class="form-label">Allow if author matches regex</label>
+                            <textarea name="regex_whitelist_author"
+                                      class="form-control bg-dark border-dark text-muted"
+                                      id="regex_whitelist_author"
+                                      rows="3">{{ regex_whitelist_author }}</textarea>
+                        </div>
+                        <div class="col-12 d-flex flex-wrap gap-2 pt-2">
+                            <button class="btn btn-dark btn-sm" type="submit">Update whitelist</button>
+                            <a class="btn btn-outline-light btn-sm"
+                               href="/feed?feed_url={{ feed.url|encode_url }}">Back to feed</a>
+                        </div>
+                    </form>
                 </div>
-            </div>
+            </section>
         </div>
-        <!-- Add a hidden feed_url field to the form -->
-        <input type="hidden" name="feed_url" value="{{ feed.url }}" />
-        <!-- Submit button -->
-        <div class="d-md-flex">
-            <button class="btn btn-dark btn-sm">Update whitelist</button>
+        <div class="col-lg-7">
+            <section class="card border border-dark shadow-sm text-light rounded-0 h-100">
+                <div class="card-body p-3 p-md-4">
+                    <div id="filter-preview">{% include "_filter_preview.html" %}</div>
+                </div>
+            </section>
         </div>
-    </form>
-</div>
+    </div>
 {% endblock content %}

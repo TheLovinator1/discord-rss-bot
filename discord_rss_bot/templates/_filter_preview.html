@@ -1,0 +1,86 @@
+<div class="d-flex flex-column gap-4 filter-preview">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3">
+        <div>
+            <h3 class="h5 mb-1">Live preview</h3>
+            <p class="text-muted mb-0">Latest {{ preview_limit }} entries from {{ feed.title or feed.url }}</p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <span class="badge bg-secondary">{{ preview_summary.total }} checked</span>
+            <span class="badge bg-success">{{ preview_summary.sent }} sent</span>
+            <span class="badge bg-danger">{{ preview_summary.skipped }} skipped</span>
+            <span class="badge bg-warning text-dark">{{ preview_summary.blacklist_matches }} blacklist match{{ 'es' if preview_summary.blacklist_matches != 1 else '' }}</span>
+            <span class="badge bg-info text-dark">{{ preview_summary.whitelist_matches }} whitelist match{{ 'es' if preview_summary.whitelist_matches != 1 else '' }}</span>
+        </div>
+    </div>
+    <p class="text-muted small mb-0">{{ preview_helper_text }}</p>
+    <section>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <h4 class="h6 text-uppercase text-muted mb-0">Decision list</h4>
+            <span class="text-muted small">Updates as you type. Saving is still manual.</span>
+        </div>
+        {% if preview_rows %}
+            <div class="d-flex flex-column gap-2 filter-preview__list">
+                {% for row in preview_rows %}
+                    <article class="p-3 border border-dark rounded-0 filter-preview__item">
+                        <div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-3 mb-2">
+                            <div class="filter-preview__content">
+                                <h5 class="h6 mb-1">
+                                    {% if row.entry.link %}
+                                        <a class="text-muted text-decoration-none filter-preview__link"
+                                           href="{{ row.entry.link }}">{{ row.entry.title or row.entry.id }}</a>
+                                    {% else %}
+                                        <span class="text-light">{{ row.entry.title or row.entry.id }}</span>
+                                    {% endif %}
+                                </h5>
+                                <p class="text-muted small mb-0">
+                                    {% if row.entry.author %}By {{ row.entry.author }} |{% endif %}
+                                    {{ row.published_label }}
+                                </p>
+                            </div>
+                            <span class="badge bg-{{ row.status_class }} filter-preview__status">{{ row.status_label }}</span>
+                        </div>
+                        <p class="mb-2">{{ row.decision.reason }}</p>
+                        <div class="d-flex flex-wrap gap-2 align-items-center small">
+                            {% if row.decision.blacklist_match %}
+                                <span class="badge bg-danger">{{ row.decision.blacklist_match.description }}</span>
+                                <span class="filter-preview__pattern">{{ row.decision.blacklist_match.pattern }}</span>
+                            {% endif %}
+                            {% if row.decision.whitelist_match %}
+                                <span class="badge bg-success">{{ row.decision.whitelist_match.description }}</span>
+                                <span class="filter-preview__pattern">{{ row.decision.whitelist_match.pattern }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="filter-preview__field-table mt-2">
+                            {% for field in row.field_rows %}
+                                <section class="filter-preview__field-row">
+                                    <div class="filter-preview__field-name">{{ field.label }}</div>
+                                    <div class="filter-preview__field-value">{{ field.value_html|safe }}</div>
+                                    <div class="filter-preview__field-badges">
+                                        {% for badge in field.badges %}<span class="badge bg-{{ badge.class }}">{{ badge.label }}</span>{% endfor %}
+                                    </div>
+                                </section>
+                            {% endfor %}
+                        </div>
+                    </article>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="p-3 border border-dark rounded-0">
+                <p class="text-muted mb-0">No entries are available yet for this feed, so there is nothing to preview.</p>
+            </div>
+        {% endif %}
+    </section>
+    <section>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <h4 class="h6 text-uppercase text-muted mb-0">Rendered entries</h4>
+            <span class="text-muted small">Uses the same entry rendering as the feed page.</span>
+        </div>
+        {% if preview_html %}
+            <div class="filter-preview__rendered">{{ preview_html|safe }}</div>
+        {% else %}
+            <div class="p-3 border border-dark rounded-0">
+                <p class="text-muted mb-0">Rendered preview will appear here when entries are available.</p>
+            </div>
+        {% endif %}
+    </section>
+</div>

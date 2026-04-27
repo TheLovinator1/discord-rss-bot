@@ -64,3 +64,127 @@ body {
     overflow-wrap: anywhere;
     word-break: break-word;
 }
+
+.filter-page__sidebar {
+    height: 100%;
+}
+
+.filter-page__example {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: #d8d8d8;
+    font-size: 0.9rem;
+}
+
+.filter-preview__list {
+    max-height: 48vh;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+}
+
+.filter-preview__content {
+    min-width: 0;
+}
+
+.filter-preview__link {
+    overflow-wrap: anywhere;
+}
+
+.filter-preview__status {
+    min-width: 5.5rem;
+}
+
+.filter-preview__pattern {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.5rem;
+    border: 1px solid #2f2f2f;
+    background: #1b1b1b;
+    color: #d7d7d7;
+    overflow-wrap: anywhere;
+}
+
+.filter-preview__rendered {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.filter-preview__rendered>div {
+    margin-bottom: 0;
+}
+
+.filter-preview__field-table {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border: 1px solid #2f2f2f;
+    background: #1b1b1b;
+}
+
+.filter-preview__field-row {
+    display: grid;
+    grid-template-columns: minmax(5.5rem, 6.75rem) minmax(0, 1fr) auto;
+    gap: 0.75rem;
+    align-items: start;
+    padding: 0.55rem 0.75rem;
+    border-bottom: 1px solid #2a2a2a;
+}
+
+.filter-preview__field-row:last-child {
+    border-bottom: 0;
+}
+
+.filter-preview__field-name {
+    color: #d8d8d8;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.filter-preview__field-value {
+    color: #bfbfbf;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.filter-preview__field-badges {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.25rem;
+}
+
+.filter-preview__match {
+    padding: 0 0.15rem;
+    border-radius: 0.15rem;
+}
+
+.filter-preview__match--danger {
+    background: #652020;
+    color: #ffe2e2;
+}
+
+.filter-preview__match--success {
+    background: #1e5330;
+    color: #def8e5;
+}
+
+@media (max-width: 767.98px) {
+    .filter-preview__field-row {
+        grid-template-columns: 1fr;
+        gap: 0.35rem;
+    }
+
+    .filter-preview__field-badges {
+        justify-content: flex-start;
+    }
+}
+
+@media (min-width: 992px) {
+    .filter-page__sidebar {
+        position: sticky;
+        top: 1rem;
+    }
+}

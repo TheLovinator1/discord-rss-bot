@@ -9,6 +9,8 @@ from reader import Feed
 from reader import Reader
 from reader import make_reader
 
+from discord_rss_bot.filter.evaluator import evaluate_entry_filters
+from discord_rss_bot.filter.evaluator import get_filter_values_from_reader
 from discord_rss_bot.filter.whitelist import has_white_tags
 from discord_rss_bot.filter.whitelist import should_be_sent
 
@@ -184,3 +186,54 @@ def test_regex_should_be_sent() -> None:
     assert should_be_sent(reader, first_entry[0]) is True, "Entry should be sent with newline-separated patterns"
     reader.delete_tag(feed, "regex_whitelist_author")
     assert should_be_sent(reader, first_entry[0]) is False, "Entry should not be sent"
+
+
+def test_active_whitelist_blocks_non_matching_blacklisted_entry() -> None:
+    """An active whitelist should block non-matching entries even if blacklist also matches."""
+    reader: Reader = get_reader()
+
+    reader.add_feed(feed_url)
+    feed: Feed = reader.get_feed(feed_url)
+    reader.update_feeds()
+
+    first_entry: list[Entry] = []
+    entries: Iterable[Entry] = reader.get_entries(feed=feed)
+    for entry in entries:
+        first_entry.append(entry)
+        break
+
+    assert len(first_entry) == 1, "First entry should be added"
+
+    reader.set_tag(feed, "blacklist_title", "fvnnnfnfdnfdnfd")  # pyright: ignore[reportArgumentType]
+    reader.set_tag(feed, "whitelist_title", "does-not-match")  # pyright: ignore[reportArgumentType]
+
+    decision = evaluate_entry_filters(
+        first_entry[0],
+        blacklist_values=get_filter_values_from_reader(reader, feed, "blacklist"),
+        whitelist_values=get_filter_values_from_reader(reader, feed, "whitelist"),
+    )
+
+    assert decision.should_send is False, "Entry should be skipped when whitelist is active but does not match"
+    assert decision.blacklist_match is not None, "Expected a blacklist match"
+    assert decision.whitelist_match is None, "Expected whitelist to miss"
+    assert "no whitelist rule matched" in decision.reason
+
+
+def test_whitelist_substring_match_on_title() -> None:
+    """Whitelist plain-text rules should match title substrings."""
+    reader: Reader = get_reader()
+
+    reader.add_feed(feed_url)
+    feed: Feed = reader.get_feed(feed_url)
+    reader.update_feeds()
+
+    first_entry: list[Entry] = []
+    entries: Iterable[Entry] = reader.get_entries(feed=feed)
+    for entry in entries:
+        first_entry.append(entry)
+        break
+
+    assert len(first_entry) == 1, "First entry should be added"
+
+    reader.set_tag(feed, "whitelist_title", "vnnnfn")  # pyright: ignore[reportArgumentType]
+    assert should_be_sent(reader, first_entry[0]) is True, "Substring title match should whitelist the entry"

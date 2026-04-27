@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import logging.config
+import re
 import typing
 import urllib.parse
 from contextlib import asynccontextmanager
@@ -10,6 +11,8 @@ from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime
 from functools import lru_cache
+from html import escape
+from html import unescape
 from typing import TYPE_CHECKING
 from typing import Annotated
 from typing import Any
@@ -54,6 +57,14 @@ from discord_rss_bot.feeds import get_feed_delivery_mode
 from discord_rss_bot.feeds import get_screenshot_layout
 from discord_rss_bot.feeds import send_entry_to_discord
 from discord_rss_bot.feeds import send_to_discord
+from discord_rss_bot.filter.evaluator import FILTER_FIELDS
+from discord_rss_bot.filter.evaluator import EntryFilterDecision
+from discord_rss_bot.filter.evaluator import FilterMatch
+from discord_rss_bot.filter.evaluator import coerce_filter_values
+from discord_rss_bot.filter.evaluator import evaluate_entry_filters
+from discord_rss_bot.filter.evaluator import get_entry_decision_key
+from discord_rss_bot.filter.evaluator import get_entry_fields
+from discord_rss_bot.filter.evaluator import get_filter_values_from_reader
 from discord_rss_bot.git_backup import commit_state_change
 from discord_rss_bot.git_backup import get_backup_path
 from discord_rss_bot.is_url_valid import is_url_valid
@@ -125,6 +136,15 @@ def has_webhooks() -> bool:
 SECONDS_PER_MINUTE = 60
 SECONDS_PER_HOUR = 3600
 SECONDS_PER_DAY = 86400
+FILTER_PREVIEW_LIMIT = 50
+PREVIEW_FIELD_LABELS: dict[str, str] = {
+    "title": "Title",
+    "author": "Author",
+    "summary": "Description",
+    "content": "Content",
+}
+PREVIEW_HTML_TAG_PATTERN = re.compile(r"<[^>]+>")
+PREVIEW_WHITESPACE_PATTERN = re.compile(r"\s+")
 
 
 def relative_time(dt: datetime | None) -> str:
@@ -459,19 +479,50 @@ async def get_whitelist(
     """
     clean_feed_url: str = feed_url.strip()
     feed: Feed = reader.get_feed(urllib.parse.unquote(clean_feed_url))
-
-    whitelist_title: str = str(reader.get_tag(feed, "whitelist_title", ""))
-    whitelist_summary: str = str(reader.get_tag(feed, "whitelist_summary", ""))
-    whitelist_content: str = str(reader.get_tag(feed, "whitelist_content", ""))
-    whitelist_author: str = str(reader.get_tag(feed, "whitelist_author", ""))
-    regex_whitelist_title: str = str(reader.get_tag(feed, "regex_whitelist_title", ""))
-    regex_whitelist_summary: str = str(reader.get_tag(feed, "regex_whitelist_summary", ""))
-    regex_whitelist_content: str = str(reader.get_tag(feed, "regex_whitelist_content", ""))
-    regex_whitelist_author: str = str(reader.get_tag(feed, "regex_whitelist_author", ""))
-
     context = {
         "request": request,
         "feed": feed,
+        **build_filter_form_context("whitelist", get_filter_values_from_reader(reader, feed, "whitelist")),
+        **build_filter_preview_context(reader, feed, "whitelist"),
+    }
+    return templates.TemplateResponse(request=request, name="whitelist.html", context=context)
+
+
+@app.get("/whitelist_preview", response_class=HTMLResponse)
+async def get_whitelist_preview(
+    feed_url: str,
+    request: Request,
+    reader: Annotated[Reader, Depends(get_reader_dependency)],
+    whitelist_title: str = "",
+    whitelist_summary: str = "",
+    whitelist_content: str = "",
+    whitelist_author: str = "",
+    regex_whitelist_title: str = "",
+    regex_whitelist_summary: str = "",
+    regex_whitelist_content: str = "",
+    regex_whitelist_author: str = "",
+) -> HTMLResponse:
+    """Render the whitelist preview fragment for HTMX updates.
+
+    Args:
+        feed_url: Feed URL whose entries should be previewed.
+        request: The request object.
+        reader: The Reader instance.
+        whitelist_title: Word-based title whitelist.
+        whitelist_summary: Word-based summary whitelist.
+        whitelist_content: Word-based content whitelist.
+        whitelist_author: Word-based author whitelist.
+        regex_whitelist_title: Regex title whitelist.
+        regex_whitelist_summary: Regex summary whitelist.
+        regex_whitelist_content: Regex content whitelist.
+        regex_whitelist_author: Regex author whitelist.
+
+    Returns:
+        HTMLResponse: Rendered filter preview fragment.
+    """
+    clean_feed_url: str = urllib.parse.unquote(feed_url.strip())
+    feed: Feed = reader.get_feed(clean_feed_url)
+    form_values: dict[str, str] = {
         "whitelist_title": whitelist_title,
         "whitelist_summary": whitelist_summary,
         "whitelist_content": whitelist_content,
@@ -481,7 +532,16 @@ async def get_whitelist(
         "regex_whitelist_content": regex_whitelist_content,
         "regex_whitelist_author": regex_whitelist_author,
     }
-    return templates.TemplateResponse(request=request, name="whitelist.html", context=context)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="_filter_preview.html",
+        context={
+            "request": request,
+            "feed": feed,
+            **build_filter_preview_context(reader, feed, "whitelist", form_values=form_values),
+        },
+    )
 
 
 @app.post("/blacklist")
@@ -548,18 +608,50 @@ async def get_blacklist(
     """
     feed: Feed = reader.get_feed(urllib.parse.unquote(feed_url))
 
-    blacklist_title: str = str(reader.get_tag(feed, "blacklist_title", ""))
-    blacklist_summary: str = str(reader.get_tag(feed, "blacklist_summary", ""))
-    blacklist_content: str = str(reader.get_tag(feed, "blacklist_content", ""))
-    blacklist_author: str = str(reader.get_tag(feed, "blacklist_author", ""))
-    regex_blacklist_title: str = str(reader.get_tag(feed, "regex_blacklist_title", ""))
-    regex_blacklist_summary: str = str(reader.get_tag(feed, "regex_blacklist_summary", ""))
-    regex_blacklist_content: str = str(reader.get_tag(feed, "regex_blacklist_content", ""))
-    regex_blacklist_author: str = str(reader.get_tag(feed, "regex_blacklist_author", ""))
-
     context = {
         "request": request,
         "feed": feed,
+        **build_filter_form_context("blacklist", get_filter_values_from_reader(reader, feed, "blacklist")),
+        **build_filter_preview_context(reader, feed, "blacklist"),
+    }
+    return templates.TemplateResponse(request=request, name="blacklist.html", context=context)
+
+
+@app.get("/blacklist_preview", response_class=HTMLResponse)
+async def get_blacklist_preview(
+    feed_url: str,
+    request: Request,
+    reader: Annotated[Reader, Depends(get_reader_dependency)],
+    blacklist_title: str = "",
+    blacklist_summary: str = "",
+    blacklist_content: str = "",
+    blacklist_author: str = "",
+    regex_blacklist_title: str = "",
+    regex_blacklist_summary: str = "",
+    regex_blacklist_content: str = "",
+    regex_blacklist_author: str = "",
+) -> HTMLResponse:
+    """Render the blacklist preview fragment for HTMX updates.
+
+    Args:
+        feed_url: Feed URL whose entries should be previewed.
+        request: The request object.
+        reader: The Reader instance.
+        blacklist_title: Word-based title blacklist.
+        blacklist_summary: Word-based summary blacklist.
+        blacklist_content: Word-based content blacklist.
+        blacklist_author: Word-based author blacklist.
+        regex_blacklist_title: Regex title blacklist.
+        regex_blacklist_summary: Regex summary blacklist.
+        regex_blacklist_content: Regex content blacklist.
+        regex_blacklist_author: Regex author blacklist.
+
+    Returns:
+        HTMLResponse: Rendered filter preview fragment.
+    """
+    clean_feed_url: str = urllib.parse.unquote(feed_url.strip())
+    feed: Feed = reader.get_feed(clean_feed_url)
+    form_values: dict[str, str] = {
         "blacklist_title": blacklist_title,
         "blacklist_summary": blacklist_summary,
         "blacklist_content": blacklist_content,
@@ -569,7 +661,347 @@ async def get_blacklist(
         "regex_blacklist_content": regex_blacklist_content,
         "regex_blacklist_author": regex_blacklist_author,
     }
-    return templates.TemplateResponse(request=request, name="blacklist.html", context=context)
+
+    return templates.TemplateResponse(
+        request=request,
+        name="_filter_preview.html",
+        context={
+            "request": request,
+            "feed": feed,
+            **build_filter_preview_context(reader, feed, "blacklist", form_values=form_values),
+        },
+    )
+
+
+def build_filter_form_context(filter_name: str, values: dict[str, str]) -> dict[str, str]:
+    """Return template context keys for a filter form.
+
+    Args:
+        filter_name: Either blacklist or whitelist.
+        values: Normalized filter values.
+
+    Returns:
+        dict[str, str]: Template keys matching current form field names.
+    """
+    context: dict[str, str] = {}
+    for field_name in FILTER_FIELDS:
+        context[f"{filter_name}_{field_name}"] = values[field_name]
+        context[f"regex_{filter_name}_{field_name}"] = values[f"regex_{field_name}"]
+    return context
+
+
+def build_filter_preview_context(
+    reader: Reader,
+    feed: Feed,
+    filter_name: str,
+    form_values: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Build preview data for the blacklist and whitelist pages.
+
+    Args:
+        reader: The Reader instance.
+        feed: The feed being previewed.
+        filter_name: Either blacklist or whitelist.
+        form_values: Optional unsaved values from the current form.
+
+    Returns:
+        dict[str, Any]: Preview context for template rendering.
+    """
+    saved_blacklist_values: dict[str, str] = get_filter_values_from_reader(reader, feed, "blacklist")
+    saved_whitelist_values: dict[str, str] = get_filter_values_from_reader(reader, feed, "whitelist")
+
+    preview_blacklist_values: dict[str, str] = saved_blacklist_values
+    preview_whitelist_values: dict[str, str] = saved_whitelist_values
+    helper_text: str = "Saved whitelist rules still apply while previewing blacklist changes."
+
+    if filter_name == "blacklist":
+        preview_blacklist_values = coerce_filter_values("blacklist", form_values)
+    else:
+        preview_whitelist_values = coerce_filter_values("whitelist", form_values)
+        helper_text = "Saved blacklist rules still apply while previewing whitelist changes."
+
+    preview_entries: list[Entry] = list(reader.get_entries(feed=feed, limit=FILTER_PREVIEW_LIMIT))
+    preview_rows: list[dict[str, Any]] = []
+    preview_decisions: dict[str, EntryFilterDecision] = {}
+    sent_count = 0
+    skipped_count = 0
+    blacklist_match_count = 0
+    whitelist_match_count = 0
+
+    for entry in preview_entries:
+        decision: EntryFilterDecision = evaluate_entry_filters(
+            entry,
+            blacklist_values=preview_blacklist_values,
+            whitelist_values=preview_whitelist_values,
+        )
+        preview_decisions[get_entry_decision_key(entry)] = decision
+
+        if decision.should_send:
+            sent_count += 1
+        else:
+            skipped_count += 1
+
+        if decision.blacklist_match:
+            blacklist_match_count += 1
+        if decision.whitelist_match:
+            whitelist_match_count += 1
+
+        published_label: str = "Unknown date"
+        if entry.published:
+            published_label = entry.published.strftime("%Y-%m-%d %H:%M:%S")
+
+        preview_rows.append(
+            {
+                "entry": entry,
+                "decision": decision,
+                "field_rows": build_preview_field_rows(entry, decision),
+                "published_label": published_label,
+                "status_label": "Sent" if decision.should_send else "Skipped",
+                "status_class": "success" if decision.should_send else "danger",
+            },
+        )
+
+    preview_html: str = create_html_for_feed(
+        reader=reader,
+        entries=preview_entries,
+        current_feed_url=feed.url,
+        entry_decisions=preview_decisions,
+    )
+
+    return {
+        "filter_name": filter_name,
+        "filter_label": filter_name.title(),
+        "preview_entries": preview_entries,
+        "preview_rows": preview_rows,
+        "preview_html": preview_html,
+        "preview_limit": FILTER_PREVIEW_LIMIT,
+        "preview_summary": {
+            "total": len(preview_entries),
+            "sent": sent_count,
+            "skipped": skipped_count,
+            "blacklist_matches": blacklist_match_count,
+            "whitelist_matches": whitelist_match_count,
+        },
+        "preview_helper_text": helper_text,
+    }
+
+
+def build_preview_field_rows(entry: Entry, decision: EntryFilterDecision) -> list[dict[str, Any]]:
+    """Build labeled preview fields for the filter UI.
+
+    Args:
+        entry: Entry whose values should be shown.
+        decision: The final decision for the entry.
+
+    Returns:
+        list[dict[str, Any]]: Labeled field rows for the preview template.
+    """
+    entry_fields: dict[str, str] = get_entry_fields(entry)
+    field_rows: list[dict[str, Any]] = []
+
+    for field_name in ("title", "author", "summary", "content"):
+        badges: list[dict[str, str]] = []
+        matches: list[tuple[FilterMatch, str]] = []
+        if decision.blacklist_match and decision.blacklist_match.field_name == field_name:
+            badges.append({"label": "Blacklist match", "class": "danger"})
+            matches.append((decision.blacklist_match, "danger"))
+        if decision.whitelist_match and decision.whitelist_match.field_name == field_name:
+            badges.append({"label": "Whitelist match", "class": "success"})
+            matches.append((decision.whitelist_match, "success"))
+
+        field_rows.append(
+            {
+                "label": PREVIEW_FIELD_LABELS[field_name],
+                "value_html": format_preview_field_value(entry_fields[field_name], matches),
+                "badges": badges,
+            },
+        )
+
+    return field_rows
+
+
+def format_preview_field_value(
+    value: str,
+    matches: list[tuple[FilterMatch, str]],
+    max_length: int = 280,
+) -> str:
+    """Convert entry field content into readable preview text with highlight markup.
+
+    Args:
+        value: Raw field value from the entry.
+        matches: Matching filters for this field and their display classes.
+        max_length: Max number of characters to display.
+
+    Returns:
+        str: Normalized preview HTML.
+    """
+    normalized_value: str = normalize_preview_field_value(value)
+    if not normalized_value:
+        return "No value"
+
+    highlighted_span, highlight_class = get_preview_highlight_span(normalized_value, matches)
+    clipped_value, clipped_span = clip_preview_value(normalized_value, highlighted_span, max_length)
+
+    if clipped_span is None or highlight_class is None:
+        return escape(clipped_value)
+
+    start, end = clipped_span
+    return "".join(
+        [
+            escape(clipped_value[:start]),
+            f'<mark class="filter-preview__match filter-preview__match--{highlight_class}">',
+            escape(clipped_value[start:end]),
+            "</mark>",
+            escape(clipped_value[end:]),
+        ],
+    )
+
+
+def normalize_preview_field_value(value: str) -> str:
+    """Convert entry field content into readable plain text.
+
+    Args:
+        value: Raw field value.
+
+    Returns:
+        str: Plain-text preview value.
+    """
+    if not value:
+        return ""
+
+    plain_text: str = PREVIEW_HTML_TAG_PATTERN.sub(" ", value)
+    return PREVIEW_WHITESPACE_PATTERN.sub(" ", unescape(plain_text)).strip()
+
+
+def get_preview_highlight_span(
+    value: str,
+    matches: list[tuple[FilterMatch, str]],
+) -> tuple[tuple[int, int] | None, str | None]:
+    """Return the earliest highlight span for the preview field.
+
+    Args:
+        value: Normalized field value.
+        matches: Matching filters and associated preview classes.
+
+    Returns:
+        tuple[tuple[int, int] | None, str | None]: Span and highlight class.
+    """
+    first_span: tuple[int, int] | None = None
+    first_class: str | None = None
+
+    for match, highlight_class in matches:
+        span = get_filter_match_span(value, match)
+        if span is None:
+            continue
+        if first_span is None or span[0] < first_span[0]:
+            first_span = span
+            first_class = highlight_class
+
+    return first_span, first_class
+
+
+def get_filter_match_span(value: str, match: FilterMatch) -> tuple[int, int] | None:
+    """Return the matched substring span for a preview field.
+
+    Args:
+        value: Normalized preview value.
+        match: Matching filter metadata.
+
+    Returns:
+        tuple[int, int] | None: The first matching span if found.
+    """
+    if match.match_type == "regex":
+        return get_regex_match_span(value, match.pattern)
+    return get_text_match_span(value, match.pattern)
+
+
+def get_text_match_span(value: str, pattern: str) -> tuple[int, int] | None:
+    """Return the earliest case-insensitive substring span for comma-separated text terms."""
+    earliest_span: tuple[int, int] | None = None
+    for term in [part.strip() for part in pattern.split(",") if part.strip()]:
+        compiled_pattern = re.compile(re.escape(term), re.IGNORECASE)
+        match = compiled_pattern.search(value)
+        if match and (earliest_span is None or match.start() < earliest_span[0]):
+            earliest_span = match.span()
+    return earliest_span
+
+
+def get_regex_match_span(value: str, pattern: str) -> tuple[int, int] | None:
+    """Return the earliest regex match span for newline/comma-separated patterns."""
+    earliest_span: tuple[int, int] | None = None
+    for pattern_str in split_regex_patterns(pattern):
+        try:
+            compiled_pattern = re.compile(pattern_str, re.IGNORECASE)
+        except re.error:
+            continue
+
+        match = compiled_pattern.search(value)
+        if match and match.start() != match.end():
+            current_span = match.span()
+            if earliest_span is None or current_span[0] < earliest_span[0]:
+                earliest_span = current_span
+    return earliest_span
+
+
+def split_regex_patterns(pattern: str) -> list[str]:
+    """Split regex filter text using the same newline/comma semantics as the matcher.
+
+    Args:
+        pattern: The raw regex pattern string.
+
+    Returns:
+        list[str]: A list of individual regex patterns.
+    """
+    regex_patterns: list[str] = []
+    for line in pattern.split("\n"):
+        stripped_line = line.strip()
+        if not stripped_line:
+            continue
+        if "," in stripped_line:
+            regex_patterns.extend([part.strip() for part in stripped_line.split(",") if part.strip()])
+        else:
+            regex_patterns.append(stripped_line)
+    return regex_patterns
+
+
+def clip_preview_value(
+    value: str,
+    highlight_span: tuple[int, int] | None,
+    max_length: int,
+) -> tuple[str, tuple[int, int] | None]:
+    """Clip a preview value while keeping the highlighted match visible when possible.
+
+    Args:
+        value: The normalized preview value.
+        highlight_span: The span of the highlighted match within the value.
+        max_length: The maximum length of the clipped value.
+
+    Returns:
+        tuple[str, tuple[int, int] | None]: The clipped preview value and adjusted highlight
+    """
+    if len(value) <= max_length:
+        return value, highlight_span
+
+    if highlight_span is None:
+        return f"{value[: max_length - 1].rstrip()}…", None
+
+    match_start, match_end = highlight_span
+    window_start = max(0, match_start - (max_length // 3))
+    window_end = min(len(value), window_start + max_length)
+    if match_end > window_end:
+        window_end = min(len(value), match_end + (max_length // 3))
+        window_start = max(0, window_end - max_length)
+
+    clipped_value = value[window_start:window_end]
+    clipped_span = (match_start - window_start, match_end - window_start)
+
+    if window_start > 0:
+        clipped_value = f"…{clipped_value}"
+        clipped_span = (clipped_span[0] + 1, clipped_span[1] + 1)
+    if window_end < len(value):
+        clipped_value = f"{clipped_value}…"
+
+    return clipped_value, clipped_span
 
 
 @app.post("/custom")
@@ -1239,6 +1671,7 @@ def create_html_for_feed(  # noqa: C901, PLR0914
     reader: Reader,
     entries: Iterable[Entry],
     current_feed_url: str = "",
+    entry_decisions: dict[str, EntryFilterDecision] | None = None,
 ) -> str:
     """Create HTML for the search results.
 
@@ -1246,6 +1679,7 @@ def create_html_for_feed(  # noqa: C901, PLR0914
         reader: The Reader instance to use.
         entries: The entries to create HTML for.
         current_feed_url: The feed URL currently being viewed in /feed.
+        entry_decisions: Optional preview decisions keyed by feed URL and entry id.
 
     Returns:
         str: The HTML for the search results.
@@ -1268,12 +1702,22 @@ def create_html_for_feed(  # noqa: C901, PLR0914
         if entry.published:
             published: str = entry.published.strftime("%Y-%m-%d %H:%M:%S")
 
+        decision: EntryFilterDecision | None = None
+        if entry_decisions is not None:
+            decision = entry_decisions.get(get_entry_decision_key(entry))
+
+        is_blacklisted: bool = entry_is_blacklisted(entry, reader=reader)
+        is_whitelisted: bool = entry_is_whitelisted(entry, reader=reader)
+        if decision is not None:
+            is_blacklisted = decision.blacklist_match is not None
+            is_whitelisted = decision.whitelist_match is not None
+
         blacklisted: str = ""
-        if entry_is_blacklisted(entry, reader=reader):
+        if is_blacklisted:
             blacklisted = "<span class='badge bg-danger'>Blacklisted</span>"
 
         whitelisted: str = ""
-        if entry_is_whitelisted(entry, reader=reader):
+        if is_whitelisted:
             whitelisted = "<span class='badge bg-success'>Whitelisted</span>"
 
         source_feed_url: str = getattr(entry, "original_feed_url", None) or entry.feed.url

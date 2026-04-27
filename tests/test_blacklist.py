@@ -11,6 +11,8 @@ from reader import make_reader
 
 from discord_rss_bot.filter.blacklist import entry_should_be_skipped
 from discord_rss_bot.filter.blacklist import feed_has_blacklist_tags
+from discord_rss_bot.filter.evaluator import evaluate_entry_filters
+from discord_rss_bot.filter.evaluator import get_filter_values_from_reader
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -203,3 +205,54 @@ def test_regex_should_be_skipped() -> None:
     )
     reader.delete_tag(feed, "regex_blacklist_author")
     assert entry_should_be_skipped(reader, first_entry[0]) is False, f"Entry should not be skipped: {first_entry[0]}"
+
+
+def test_whitelist_match_overrides_blacklist_match() -> None:
+    """A whitelist hit should beat a blacklist hit in the final decision."""
+    reader: Reader = get_reader()
+
+    reader.add_feed(feed_url)
+    feed: Feed = reader.get_feed(feed_url)
+    reader.update_feeds()
+
+    first_entry: list[Entry] = []
+    entries: Iterable[Entry] = reader.get_entries(feed=feed)
+    for entry in entries:
+        first_entry.append(entry)
+        break
+
+    assert len(first_entry) == 1, f"First entry should be added: {first_entry}"
+
+    reader.set_tag(feed, "blacklist_title", "fvnnnfnfdnfdnfd")  # pyright: ignore[reportArgumentType]
+    reader.set_tag(feed, "whitelist_title", "fvnnnfnfdnfdnfd")  # pyright: ignore[reportArgumentType]
+
+    decision = evaluate_entry_filters(
+        first_entry[0],
+        blacklist_values=get_filter_values_from_reader(reader, feed, "blacklist"),
+        whitelist_values=get_filter_values_from_reader(reader, feed, "whitelist"),
+    )
+
+    assert decision.should_send is True, "Whitelist match should override blacklist match"
+    assert decision.blacklist_match is not None, "Expected a blacklist match"
+    assert decision.whitelist_match is not None, "Expected a whitelist match"
+    assert "whitelist overrides blacklist" in decision.reason
+
+
+def test_blacklist_substring_match_on_title() -> None:
+    """Blacklist plain-text rules should match title substrings."""
+    reader: Reader = get_reader()
+
+    reader.add_feed(feed_url)
+    feed: Feed = reader.get_feed(feed_url)
+    reader.update_feeds()
+
+    first_entry: list[Entry] = []
+    entries: Iterable[Entry] = reader.get_entries(feed=feed)
+    for entry in entries:
+        first_entry.append(entry)
+        break
+
+    assert len(first_entry) == 1, f"First entry should be added: {first_entry}"
+
+    reader.set_tag(feed, "blacklist_title", "vnnnfn")  # pyright: ignore[reportArgumentType]
+    assert entry_should_be_skipped(reader, first_entry[0]) is True, "Substring title match should blacklist the entry"
