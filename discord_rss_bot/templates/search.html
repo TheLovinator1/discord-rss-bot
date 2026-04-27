@@ -1,7 +1,12 @@
 {% extends "base.html" %}
 {% block title %}
-    | Search
+    Search
+    {% if query %}: {{ query }}{% endif %}
+    | discord-rss-bot
 {% endblock title %}
+{% block description %}
+    Browse search results for {{ query if query else "your query" }} across tracked feed entries and feeds.
+{% endblock description %}
 {% block content %}
     <div class="p-2 border border-dark text-muted">
         Your search for "{{ query }}" returned {{ search_amount.total }} results.

@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 {% block title %}
-    | Webhooks
+    Webhooks | discord-rss-bot
 {% endblock title %}
+{% block description %}
+    Manage stored Discord webhooks and inspect the delivery endpoints connected to your feeds.
+{% endblock description %}
 {% block content %}
     <div class="container my-4 text-light">
         {% for hook in hooks_with_data %}

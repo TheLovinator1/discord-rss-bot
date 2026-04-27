@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 {% block title %}
-    | Blacklist
+    Blacklist: {{ feed.title if feed.title else feed.url }} | discord-rss-bot
 {% endblock title %}
+{% block description %}
+    Block matching entries from {{ feed.title if feed.title else feed.url }} before they are delivered to Discord.
+{% endblock description %}
 {% block content %}
     <div class="row g-3 filter-page">
         <div class="col-lg-5">

@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 {% block title %}
-    | {{ feed.title }}
+    {{ feed.title if feed.title else feed.url }} | discord-rss-bot
 {% endblock title %}
+{% block description %}
+    Review feed health, delivery settings, filters, webhook attachment, and update intervals for {{ feed.title if feed.title else feed.url }}.
+{% endblock description %}
 {% block content %}
     <div class="row g-3 feed-page">
         <div class="col-12">

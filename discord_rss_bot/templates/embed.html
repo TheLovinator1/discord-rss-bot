@@ -1,7 +1,6 @@
 {% extends "base.html" %}
-{% block title %}
-| Embed
-{% endblock title %}
+{% block title %}Embed Template: {{ feed.title if feed.title else feed.url }} | discord-rss-bot{% endblock title %}
+{% block description %}Customize the Discord embed layout, colors, and media for {{ feed.title if feed.title else feed.url }}.{% endblock description %}
 {% block content %}
 <div class="p-2 border border-dark">
     <form action="/embed" method="post">

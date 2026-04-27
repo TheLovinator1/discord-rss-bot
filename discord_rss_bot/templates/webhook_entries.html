@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 {% block title %}
-    | {{ webhook_name }}
+    {{ webhook_name }} | discord-rss-bot
 {% endblock title %}
+{% block description %}
+    Review webhook settings, attached feeds, and latest entries delivered to {{ webhook_name }}.
+{% endblock description %}
 {% block content %}
     {% if message %}<div class="alert alert-info" role="alert">{{ message }}</div>{% endif %}
     <div class="card mb-3 border border-dark p-3 text-light">

@@ -3,17 +3,38 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>
+            {% block title %}
+                discord-rss-bot
+            {% endblock title %}
+        </title>
         <meta name="description"
-              content="Stay updated with the latest news and events with our easy-to-use RSS bot. Never miss a message or announcement again with real-time notifications directly to your Discord server." />
+              content="{% block description %}Manage RSS feeds, webhooks, filters, and message delivery settings for Discord updates from a single dashboard.{% endblock description %}" />
+        {% set page_title = self.title() | striptags | trim %}
+        {% set page_description = self.description() | striptags | trim %}
+        {% set canonical_url = request.url %}
+        {% set social_image = request.base_url ~ "static/favicon.ico" %}
         <meta name="keywords"
               content="discord, rss, bot, notifications, announcements, updates, real-time, server, messages, news, events, feed." />
+        <meta name="theme-color" content="#212529" />
+        <meta name="color-scheme" content="dark" />
+        <meta name="robots" content="noindex, nofollow">
+        <link rel="canonical" href="{{ canonical_url }}" />
+        <meta property="og:site_name" content="discord-rss-bot" />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="{{ page_title }}" />
+        <meta property="og:description" content="{{ page_description }}" />
+        <meta property="og:url" content="{{ canonical_url }}" />
+        <meta property="og:image" content="{{ social_image }}" />
+        <meta property="og:image:type" content="image/x-icon" />
+        <meta property="og:image:alt" content="discord-rss-bot icon" />
+        <meta name="twitter:card" content="summary" />
+        <meta name="twitter:title" content="{{ page_title }}" />
+        <meta name="twitter:description" content="{{ page_description }}" />
+        <meta name="twitter:image" content="{{ social_image }}" />
         <link href="/static/bootstrap.min.css" rel="stylesheet" />
         <link href="/static/styles.css" rel="stylesheet" />
         <link rel="icon" href="/static/favicon.ico" type="image/x-icon" />
-        <title>discord-rss-bot
-            {% block title %}
-            {% endblock title %}
-        </title>
         {% block head %}
         {% endblock head %}
     </head>

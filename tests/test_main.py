@@ -46,6 +46,26 @@ def ensure_preview_feed_exists() -> Reader:
     return reader
 
 
+def assert_social_preview_metadata(
+    response: Response,
+    *,
+    title: str,
+    description: str,
+) -> None:
+    assert response.status_code == 200, f"Expected page to render successfully: {response.text}"
+    assert f"<title>{title}</title>" in response.text
+    assert re.search(
+        rf'<meta name="description"\s+content="{re.escape(description)}"\s*/>',
+        response.text,
+    )
+    assert f'<meta property="og:title" content="{title}" />' in response.text
+    assert f'<meta property="og:description" content="{description}" />' in response.text
+    assert '<meta property="og:site_name" content="discord-rss-bot" />' in response.text
+    assert '<meta name="twitter:card" content="summary" />' in response.text
+    assert f'<meta name="twitter:title" content="{title}" />' in response.text
+    assert f'<meta name="twitter:description" content="{description}" />' in response.text
+
+
 def test_search() -> None:
     """Test the /search page."""
     # Remove the feed if it already exists before we run the test.
@@ -228,6 +248,91 @@ def test_get() -> None:
 
     response: Response = client.get(url="/whitelist", params={"feed_url": encoded_feed_url(feed_url)})
     assert response.status_code == 200, f"/whitelist failed: {response.text}"
+
+
+def test_views_render_social_preview_metadata() -> None:
+    client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
+    response: Response = client.post(
+        url="/add_webhook",
+        data={"webhook_name": webhook_name, "webhook_url": webhook_url},
+    )
+    assert response.status_code == 200, f"Failed to add webhook: {response.text}"
+
+    feeds: Response = client.get("/")
+    if feed_url in feeds.text:
+        client.post(url="/remove", data={"feed_url": feed_url})
+        client.post(url="/remove", data={"feed_url": encoded_feed_url(feed_url)})
+
+    response = client.post(url="/add", data={"feed_url": feed_url, "webhook_dropdown": webhook_name})
+    assert response.status_code == 200, f"Failed to add feed: {response.text}"
+
+    assert_social_preview_metadata(
+        client.get(url="/"),
+        title="Feeds Dashboard | discord-rss-bot",
+        description="View configured feeds, broken sources, webhook groups, and delivery status across your Discord RSS bot dashboard.",  # noqa: E501
+    )
+    assert_social_preview_metadata(
+        client.get(url="/add"),
+        title="Add Feed | discord-rss-bot",
+        description="Add a new RSS or Atom feed and attach it to a Discord webhook for delivery.",
+    )
+    assert_social_preview_metadata(
+        client.get(url="/add_webhook"),
+        title="Add Webhook | discord-rss-bot",
+        description="Register a Discord webhook so feeds can post updates into your server or thread.",
+    )
+    assert_social_preview_metadata(
+        client.get(url="/settings"),
+        title="Settings | discord-rss-bot",
+        description="Adjust default update intervals, delivery modes, and screenshot layout for feeds managed by your bot.",  # noqa: E501
+    )
+    assert_social_preview_metadata(
+        client.get(url="/webhooks"),
+        title="Webhooks | discord-rss-bot",
+        description="Manage stored Discord webhooks and inspect the delivery endpoints connected to your feeds.",
+    )
+    assert_social_preview_metadata(
+        client.get(url="/search", params={"query": "a"}),
+        title="Search: a | discord-rss-bot",
+        description="Browse search results for a across tracked feed entries and feeds.",
+    )
+
+    feed_response = client.get(url="/feed", params={"feed_url": encoded_feed_url(feed_url)})
+    assert feed_response.status_code == 200, f"/feed failed: {feed_response.text}"
+    assert '<meta property="og:title" content="' in feed_response.text
+    assert "| discord-rss-bot" in feed_response.text
+    assert (
+        "Review feed health, delivery settings, filters, webhook attachment, and update intervals for"
+        in feed_response.text
+    )
+
+    blacklist_response = client.get(url="/blacklist", params={"feed_url": encoded_feed_url(feed_url)})
+    assert blacklist_response.status_code == 200, f"/blacklist failed: {blacklist_response.text}"
+    assert '<meta property="og:title" content="Blacklist:' in blacklist_response.text
+    assert "Block matching entries from" in blacklist_response.text
+
+    whitelist_response = client.get(url="/whitelist", params={"feed_url": encoded_feed_url(feed_url)})
+    assert whitelist_response.status_code == 200, f"/whitelist failed: {whitelist_response.text}"
+    assert '<meta property="og:title" content="Whitelist:' in whitelist_response.text
+    assert "Allow only matching entries from" in whitelist_response.text
+
+    custom_response = client.get(url="/custom", params={"feed_url": encoded_feed_url(feed_url)})
+    assert custom_response.status_code == 200, f"/custom failed: {custom_response.text}"
+    assert '<meta property="og:title" content="Message Template:' in custom_response.text
+    assert "Customize the plain text Discord message template for" in custom_response.text
+
+    embed_response = client.get(url="/embed", params={"feed_url": encoded_feed_url(feed_url)})
+    assert embed_response.status_code == 200, f"/embed failed: {embed_response.text}"
+    assert '<meta property="og:title" content="Embed Template:' in embed_response.text
+    assert "Customize the Discord embed layout, colors, and media for" in embed_response.text
+
+    webhook_entries_response = client.get(url="/webhook_entries", params={"webhook_url": webhook_url})
+    assert webhook_entries_response.status_code == 200, f"/webhook_entries failed: {webhook_entries_response.text}"
+    assert f'<meta property="og:title" content="{webhook_name} | discord-rss-bot" />' in webhook_entries_response.text
+    assert (
+        f"Review webhook settings, attached feeds, and latest entries delivered to {webhook_name}."
+        in webhook_entries_response.text
+    )
 
 
 def test_blacklist_page_uses_live_preview_layout() -> None:

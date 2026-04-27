@@ -1,7 +1,6 @@
 {% extends "base.html" %}
-{% block title %}
-| Custom message
-{% endblock title %}
+{% block title %}Message Template: {{ feed.title if feed.title else feed.url }} | discord-rss-bot{% endblock title %}
+{% block description %}Customize the plain text Discord message template for {{ feed.title if feed.title else feed.url }}.{% endblock description %}
 {% block content %}
 <div class="p-2 border border-dark">
     <form action="/custom" method="post">

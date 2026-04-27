@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 {% block title %}
-    | Add new feed
+    Add Feed | discord-rss-bot
 {% endblock title %}
+{% block description %}
+    Add a new RSS or Atom feed and attach it to a Discord webhook for delivery.
+{% endblock description %}
 {% block content %}
     <div class="p-2 border border-dark">
         <form action="/add" method="post">
