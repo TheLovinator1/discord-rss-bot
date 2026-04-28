@@ -5,7 +5,6 @@ import json
 import logging
 import re
 from dataclasses import dataclass
-from functools import lru_cache
 from typing import TYPE_CHECKING
 
 from bs4 import BeautifulSoup
@@ -194,7 +193,6 @@ def replace_tags_in_text_message(entry: Entry, reader: Reader) -> str:
     return custom_message.replace("\\n", "\n")
 
 
-@lru_cache(200)
 def get_first_image(summary: str | None, content: str | None) -> str:  # noqa: C901
     """Get image from summary or content.
 
