@@ -5,6 +5,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import TYPE_CHECKING
 
 from bs4 import BeautifulSoup
@@ -193,18 +194,40 @@ def replace_tags_in_text_message(entry: Entry, reader: Reader) -> str:
     return custom_message.replace("\\n", "\n")
 
 
-def get_first_image(summary: str | None, content: str | None) -> str:
+@lru_cache(200)
+def get_first_image(summary: str | None, content: str | None) -> str:  # noqa: C901
     """Get image from summary or content.
 
     Args:
-        summary: The summary from the entry
-        content: The content from the entry
+        summary: The summary from the entry (string, or tuple/list of objects)
+        content: The content from the entry (string, or tuple/list of objects)
 
     Returns:
         The first image
     """
-    # TODO(TheLovinator): We should find a better way to get the image.
-    if content and (images := BeautifulSoup(content, features="lxml").find_all("img")):
+
+    def extract_string(data: str | list | tuple | None) -> str | None:
+        if not data:
+            return None
+        if isinstance(data, str):
+            return data
+        if isinstance(data, (list, tuple)):
+            extracted: list[str] = []
+            for item in data:
+                if hasattr(item, "value"):
+                    extracted.append(item.value)
+                elif isinstance(item, dict) and "value" in item:
+                    extracted.append(item.get("value", ""))
+                else:
+                    extracted.append(str(item))
+            return "".join(extracted)
+        return str(data)
+
+    # Convert potentially complex objects into strings
+    content_str: str | None = extract_string(content)
+    summary_str: str | None = extract_string(summary)
+
+    if content_str and (images := BeautifulSoup(content_str, features="lxml").find_all("img")):
         for image in images:
             if not isinstance(image, Tag) or "src" not in image.attrs:
                 logger.error("Image is not a Tag or does not have a src attribute.")
@@ -215,8 +238,9 @@ def get_first_image(summary: str | None, content: str | None) -> str:
                 logger.warning("Invalid URL: %s", src)
                 continue
 
-            return str(image.attrs["src"])
-    if summary and (images := BeautifulSoup(summary, features="lxml").find_all("img")):
+            return src
+
+    if summary_str and (images := BeautifulSoup(summary_str, features="lxml").find_all("img")):
         for image in images:
             if not isinstance(image, Tag) or "src" not in image.attrs:
                 logger.error("Image is not a Tag or does not have a src attribute.")
@@ -227,6 +251,7 @@ def get_first_image(summary: str | None, content: str | None) -> str:
                 continue
 
             return str(image.attrs["src"])
+
     return ""
 
 

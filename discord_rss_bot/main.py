@@ -522,6 +522,7 @@ async def get_whitelist_preview(
     """
     clean_feed_url: str = urllib.parse.unquote(feed_url.strip())
     feed: Feed = reader.get_feed(clean_feed_url)
+
     form_values: dict[str, str] = {
         "whitelist_title": whitelist_title,
         "whitelist_summary": whitelist_summary,
@@ -760,6 +761,7 @@ def build_filter_preview_context(
                 "published_label": published_label,
                 "status_label": "Sent" if decision.should_send else "Skipped",
                 "status_class": "success" if decision.should_send else "danger",
+                "first_image": get_first_image(summary=entry.summary, content=entry.content),
             },
         )
 

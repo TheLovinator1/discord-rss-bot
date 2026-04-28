@@ -61,6 +61,16 @@
                                 </section>
                             {% endfor %}
                         </div>
+                        <div class="filter-preview__field-table mt-2"
+                             style="max-width: 600px;
+                                    max-height: 300px;
+                                    overflow: hidden">
+                            <img class="img-fluid w-100"
+                                 style="object-fit: cover;
+                                        height: 100%"
+                                 alt="Image for {{ row.entry.title }}"
+                                 src="{{ row.first_image }}">
+                        </div>
                     </article>
                 {% endfor %}
             </div>
