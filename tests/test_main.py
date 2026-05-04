@@ -283,7 +283,7 @@ def test_blacklist_preview_does_not_persist_unsaved_rules() -> None:
             reader.delete_tag(feed_url, "blacklist_title")
 
 
-def test_whitelist_preview_shows_precedence_over_blacklist() -> None:
+def test_whitelist_preview_shows_blacklist_precedence() -> None:
     reader: Reader = ensure_preview_feed_exists()
     reader.set_tag(feed_url, "blacklist_title", "fvnnnfnfdnfdnfd")  # pyright: ignore[reportArgumentType]
 
@@ -297,8 +297,8 @@ def test_whitelist_preview_shows_precedence_over_blacklist() -> None:
         )
 
         assert response.status_code == 200, f"/whitelist_preview failed: {response.text}"
-        assert "whitelist overrides blacklist" in response.text
-        assert "Sent" in response.text
+        assert "blacklist overrides whitelist" in response.text
+        assert "Skipped" in response.text
     finally:
         with contextlib.suppress(Exception):
             reader.delete_tag(feed_url, "blacklist_title")

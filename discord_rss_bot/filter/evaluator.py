@@ -121,7 +121,7 @@ def evaluate_entry_filters(
 ) -> EntryFilterDecision:
     """Evaluate one entry against blacklist and whitelist settings.
 
-    Whitelist matches take precedence over blacklist matches.
+    Blacklist matches take precedence over whitelist matches.
 
     Args:
         entry: The entry to evaluate.
@@ -140,10 +140,20 @@ def evaluate_entry_filters(
     has_blacklist_filters: bool = has_filter_values(normalized_blacklist_values)
     has_whitelist_filters: bool = has_filter_values(normalized_whitelist_values)
 
-    if whitelist_match and blacklist_match:
+    if blacklist_match and whitelist_match:
         return EntryFilterDecision(
-            should_send=True,
-            reason=f"Sent because {whitelist_match.description}; whitelist overrides blacklist.",
+            should_send=False,
+            reason=f"Skipped because {blacklist_match.description}; blacklist overrides whitelist.",
+            blacklist_match=blacklist_match,
+            whitelist_match=whitelist_match,
+            has_blacklist_filters=has_blacklist_filters,
+            has_whitelist_filters=has_whitelist_filters,
+        )
+
+    if blacklist_match:
+        return EntryFilterDecision(
+            should_send=False,
+            reason=f"Skipped because {blacklist_match.description}.",
             blacklist_match=blacklist_match,
             whitelist_match=whitelist_match,
             has_blacklist_filters=has_blacklist_filters,
@@ -160,30 +170,10 @@ def evaluate_entry_filters(
             has_whitelist_filters=has_whitelist_filters,
         )
 
-    if has_whitelist_filters and blacklist_match:
-        return EntryFilterDecision(
-            should_send=False,
-            reason=f"Skipped because {blacklist_match.description} and no whitelist rule matched.",
-            blacklist_match=blacklist_match,
-            whitelist_match=whitelist_match,
-            has_blacklist_filters=has_blacklist_filters,
-            has_whitelist_filters=has_whitelist_filters,
-        )
-
     if has_whitelist_filters:
         return EntryFilterDecision(
             should_send=False,
             reason="Skipped because no whitelist rule matched.",
-            blacklist_match=blacklist_match,
-            whitelist_match=whitelist_match,
-            has_blacklist_filters=has_blacklist_filters,
-            has_whitelist_filters=has_whitelist_filters,
-        )
-
-    if blacklist_match:
-        return EntryFilterDecision(
-            should_send=False,
-            reason=f"Skipped because {blacklist_match.description}.",
             blacklist_match=blacklist_match,
             whitelist_match=whitelist_match,
             has_blacklist_filters=has_blacklist_filters,

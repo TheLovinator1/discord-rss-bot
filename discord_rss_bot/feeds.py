@@ -732,7 +732,7 @@ def send_to_discord(reader: Reader | None = None, feed: Feed | None = None, *, d
             else:
                 logger.warning("No entry link found for feed %s, falling back to regular processing", entry.feed.url)
 
-        # Send the entry to Discord as it is not blacklisted or feed has a whitelist.
+        # Send the entry to Discord because the combined blacklist/whitelist decision allowed it.
         execute_webhook(webhook, entry, reader=effective_reader)
 
         # If we only want to send one entry, we will break the loop. This is used when testing this function.

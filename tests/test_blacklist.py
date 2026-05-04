@@ -207,8 +207,8 @@ def test_regex_should_be_skipped() -> None:
     assert entry_should_be_skipped(reader, first_entry[0]) is False, f"Entry should not be skipped: {first_entry[0]}"
 
 
-def test_whitelist_match_overrides_blacklist_match() -> None:
-    """A whitelist hit should beat a blacklist hit in the final decision."""
+def test_blacklist_match_overrides_whitelist_match() -> None:
+    """A blacklist hit should beat a whitelist hit in the final decision."""
     reader: Reader = get_reader()
 
     reader.add_feed(feed_url)
@@ -232,10 +232,10 @@ def test_whitelist_match_overrides_blacklist_match() -> None:
         whitelist_values=get_filter_values_from_reader(reader, feed, "whitelist"),
     )
 
-    assert decision.should_send is True, "Whitelist match should override blacklist match"
+    assert decision.should_send is False, "Blacklist match should override whitelist match"
     assert decision.blacklist_match is not None, "Expected a blacklist match"
     assert decision.whitelist_match is not None, "Expected a whitelist match"
-    assert "whitelist overrides blacklist" in decision.reason
+    assert "blacklist overrides whitelist" in decision.reason
 
 
 def test_blacklist_substring_match_on_title() -> None:

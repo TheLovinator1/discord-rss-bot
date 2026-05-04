@@ -188,8 +188,8 @@ def test_regex_should_be_sent() -> None:
     assert should_be_sent(reader, first_entry[0]) is False, "Entry should not be sent"
 
 
-def test_active_whitelist_blocks_non_matching_blacklisted_entry() -> None:
-    """An active whitelist should block non-matching entries even if blacklist also matches."""
+def test_blacklist_blocks_when_active_whitelist_misses() -> None:
+    """A blacklist hit should block when an active whitelist does not match."""
     reader: Reader = get_reader()
 
     reader.add_feed(feed_url)
@@ -213,10 +213,10 @@ def test_active_whitelist_blocks_non_matching_blacklisted_entry() -> None:
         whitelist_values=get_filter_values_from_reader(reader, feed, "whitelist"),
     )
 
-    assert decision.should_send is False, "Entry should be skipped when whitelist is active but does not match"
+    assert decision.should_send is False, "Entry should be skipped when blacklist matches"
     assert decision.blacklist_match is not None, "Expected a blacklist match"
     assert decision.whitelist_match is None, "Expected whitelist to miss"
-    assert "no whitelist rule matched" in decision.reason
+    assert "blacklist text match on title" in decision.reason
 
 
 def test_whitelist_substring_match_on_title() -> None:
