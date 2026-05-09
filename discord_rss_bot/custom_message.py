@@ -14,6 +14,9 @@ from markdownify import markdownify
 from discord_rss_bot.is_url_valid import is_url_valid
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from reader import Content
     from reader import Entry
     from reader import Feed
     from reader import Reader
@@ -193,7 +196,7 @@ def replace_tags_in_text_message(entry: Entry, reader: Reader) -> str:
     return custom_message.replace("\\n", "\n")
 
 
-def get_first_image(summary: str | None, content: str | None) -> str:  # noqa: C901
+def get_first_image(summary: str | None, content: str | Sequence[Content] | None) -> str:  # noqa: C901
     """Get image from summary or content.
 
     Args:
@@ -204,7 +207,7 @@ def get_first_image(summary: str | None, content: str | None) -> str:  # noqa: C
         The first image
     """
 
-    def extract_string(data: str | list | tuple | None) -> str | None:
+    def extract_string(data: str | list | tuple | Sequence[Content] | None) -> str | None:
         if not data:
             return None
         if isinstance(data, str):

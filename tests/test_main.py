@@ -15,6 +15,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 import discord_rss_bot.main as main_module
+from discord_rss_bot import feeds
 from discord_rss_bot.main import app
 from discord_rss_bot.main import create_html_for_feed
 from discord_rss_bot.main import get_reader_dependency
@@ -31,6 +32,8 @@ client: TestClient = TestClient(app)
 webhook_name: str = "Hello, I am a webhook!"
 webhook_url: str = "https://discord.com/api/webhooks/1234567890/abcdefghijklmnopqrstuvwxyz"
 feed_url: str = "https://lovinator.space/rss_test.xml"
+type TestTagValue = str | bool | int | list[dict[str, str]] | feeds.JsonValue | None
+type TestKwargValue = str | int | None
 
 
 def encoded_feed_url(url: str) -> str:
@@ -348,14 +351,14 @@ def test_blacklist_preview_uses_50_entry_limit() -> None:
         def get_feed(self, _feed_url: str) -> DummyFeed:
             return self.feed
 
-        def get_entries(self, **kwargs: object) -> list[Entry]:
+        def get_entries(self, **kwargs: TestKwargValue) -> list[Entry]:
             limit = kwargs.get("limit")
             self.recorded_limit = limit if isinstance(limit, int) else None
             if isinstance(limit, int):
                 return self.entries[:limit]
             return self.entries
 
-        def get_tag(self, _resource: object, _key: str, default: object = None) -> object:
+        def get_tag(self, _resource: str | DummyFeed, _key: str, default: TestTagValue = None) -> TestTagValue:
             return default
 
     stub_reader = StubReader()
@@ -420,10 +423,10 @@ def test_blacklist_preview_shows_labeled_field_values_for_substring_match() -> N
         def get_feed(self, _feed_url: str) -> DummyFeed:
             return self.feed
 
-        def get_entries(self, **_kwargs: object) -> list[Entry]:
+        def get_entries(self, **_kwargs: TestKwargValue) -> list[Entry]:
             return self.entries
 
-        def get_tag(self, _resource: object, _key: str, default: object = None) -> object:
+        def get_tag(self, _resource: str | DummyFeed, _key: str, default: TestTagValue = None) -> TestTagValue:
             return default
 
     stub_reader = StubReader()
@@ -526,6 +529,103 @@ def test_c3kay_feed_delivery_mode_toggle_routes_update_stored_tags() -> None:
     assert response.status_code == 200, f"Failed to set embed mode: {response.text}"
     assert reader.get_tag(c3kay_feed_url, "delivery_mode") == "embed"
     assert reader.get_tag(c3kay_feed_url, "should_send_embed") is True
+
+
+def test_set_feed_save_sent_webhooks_route_updates_stored_tag() -> None:
+    @dataclass(slots=True)
+    class DummyFeed:
+        url: str
+        title: str
+
+    class StubReader:
+        def __init__(self) -> None:
+            self.feed = DummyFeed(url="https://example.com/feed.xml", title="Example")
+            self.tags: dict[tuple[str, str], bool] = {}
+
+        def get_feed(self, feed_url: str) -> DummyFeed:
+            assert feed_url == self.feed.url
+            return self.feed
+
+        def set_tag(self, resource: str, key: str, value: bool) -> None:  # noqa: FBT001
+            self.tags[resource, key] = value
+
+    stub_reader = StubReader()
+    app.dependency_overrides[get_reader_dependency] = lambda: stub_reader
+
+    try:
+        with patch("discord_rss_bot.main.commit_state_change"):
+            response: Response = client.post(
+                url="/set_feed_save_sent_webhooks",
+                data={"feed_url": stub_reader.feed.url, "enabled": "false"},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303, f"/set_feed_save_sent_webhooks failed: {response.text}"
+        assert stub_reader.tags[stub_reader.feed.url, feeds.SAVE_SENT_WEBHOOKS_TAG] is False
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_sent_webhooks_view_shows_saved_records() -> None:
+    @dataclass(slots=True)
+    class DummyFeed:
+        url: str
+        title: str
+
+    sent_webhook_url = "https://discord.com/api/webhooks/123/abc"
+    sent_feed_url = "https://example.com/feed.xml"
+
+    class StubReader:
+        def __init__(self) -> None:
+            self.feed = DummyFeed(url=sent_feed_url, title="Example feed")
+
+        def get_tag(
+            self,
+            resource: str | tuple[()],
+            key: str,
+            default: feeds.JsonValue = None,
+        ) -> feeds.JsonValue:
+            if resource == () and key == feeds.SENT_WEBHOOKS_TAG:
+                return [
+                    {
+                        "feed_url": sent_feed_url,
+                        "feed_title": "Example feed",
+                        "entry_id": "entry-1",
+                        "entry_title": "Fixed typo",
+                        "entry_link": "https://example.com/entry-1",
+                        "webhook_url": sent_webhook_url,
+                        "message_id": "message-1",
+                        "delivery_mode": "text",
+                        "payload": {"content": "Fixed typo", "embeds": [], "attachments": []},
+                        "discord_response": {"id": "message-1", "channel_id": "channel-1"},
+                        "response_text": '{"id": "message-1", "channel_id": "channel-1"}',
+                        "last_updated_at": "2026-05-08T12:00:00+00:00",
+                        "last_status_code": 200,
+                        "update_count": 1,
+                    },
+                ]
+            if resource == () and key == "webhooks":
+                return [{"name": "Main", "url": sent_webhook_url}]
+            return default
+
+        def get_feeds(self) -> list[DummyFeed]:
+            return [self.feed]
+
+    app.dependency_overrides[get_reader_dependency] = StubReader
+
+    try:
+        response: Response = client.get(url="/sent_webhooks")
+
+        assert response.status_code == 200, f"/sent_webhooks failed: {response.text}"
+        assert "Fixed typo" in response.text
+        assert "message-1" in response.text
+        assert "channel-1" in response.text
+        assert sent_webhook_url not in response.text
+        assert "HTTP 200" in response.text
+        assert "Example feed" in response.text
+        assert "Main" in response.text
+    finally:
+        app.dependency_overrides = {}
 
 
 def test_set_global_screenshot_layout() -> None:
@@ -964,6 +1064,35 @@ def test_update_feed_not_found() -> None:
     assert "Feed not found" in response.text
 
 
+def test_update_feed_updates_saved_webhooks_for_modified_entries() -> None:
+    class StubReader:
+        pass
+
+    stub_reader = StubReader()
+    modified_entries = [("https://example.com/feed.xml", "entry-1")]
+    app.dependency_overrides[get_reader_dependency] = lambda: stub_reader
+
+    try:
+        with (
+            patch(
+                "discord_rss_bot.main.update_feed_and_collect_modified_entries",
+                return_value=modified_entries,
+            ) as mock_update_feed,
+            patch("discord_rss_bot.main.update_sent_webhooks_for_modified_entries") as mock_update_webhooks,
+        ):
+            response: Response = client.get(
+                url="/update",
+                params={"feed_url": "https://example.com/feed.xml"},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303, f"Expected redirect after update, got: {response.text}"
+        mock_update_feed.assert_called_once_with(stub_reader, "https://example.com/feed.xml")
+        mock_update_webhooks.assert_called_once_with(stub_reader, modified_entries)
+    finally:
+        app.dependency_overrides = {}
+
+
 def test_post_entry_send_to_discord() -> None:
     """Test that /post_entry sends an entry to Discord and redirects to the feed page.
 
@@ -1046,7 +1175,7 @@ def test_post_entry_uses_feed_url_to_disambiguate_duplicate_ids() -> None:
 
     selected_feed_urls: list[str] = []
 
-    def fake_send_entry_to_discord(entry: Entry, reader: object) -> None:
+    def fake_send_entry_to_discord(entry: Entry, reader: Reader) -> None:
         selected_feed_urls.append(entry.feed.url)
 
     app.dependency_overrides[get_reader_dependency] = StubReader
@@ -1547,7 +1676,12 @@ def test_webhook_entries_sort_newest_and_non_null_published_first() -> None:
     ]
 
     class StubReader:
-        def get_tag(self, resource: object, key: str, default: object = None) -> object:
+        def get_tag(
+            self,
+            resource: str | tuple[()] | DummyFeed,
+            key: str,
+            default: TestTagValue = None,
+        ) -> TestTagValue:
             if resource == () and key == "webhooks":
                 return [{"name": webhook_name, "url": webhook_url}]
             if key == "webhook" and isinstance(resource, str):
@@ -1557,12 +1691,12 @@ def test_webhook_entries_sort_newest_and_non_null_published_first() -> None:
         def get_feeds(self) -> list[DummyFeed]:
             return [dummy_feed]
 
-        def get_entries(self, **_kwargs: object) -> list[Entry]:
+        def get_entries(self, **_kwargs: TestKwargValue) -> list[Entry]:
             return unsorted_entries
 
     observed_order: list[str] = []
 
-    def capture_entries(*, reader: object, entries: list[Entry], current_feed_url: str = "") -> str:
+    def capture_entries(*, reader: Reader, entries: list[Entry], current_feed_url: str = "") -> str:
         del reader, current_feed_url
         observed_order.extend(entry.id for entry in entries)
         return ""
@@ -1761,7 +1895,12 @@ def test_webhook_entries_mass_update_preview_shows_old_and_new_urls() -> None:
                 DummyFeed(url="https://unchanged.example.com/rss/c.xml", title="C"),
             ]
 
-        def get_tag(self, resource: object, key: str, default: object = None) -> object:
+        def get_tag(
+            self,
+            resource: str | tuple[()] | DummyFeed,
+            key: str,
+            default: TestTagValue = None,
+        ) -> TestTagValue:
             if resource == () and key == "webhooks":
                 return [{"name": webhook_name, "url": webhook_url}]
             if key == "webhook" and isinstance(resource, str):
@@ -1774,7 +1913,7 @@ def test_webhook_entries_mass_update_preview_shows_old_and_new_urls() -> None:
         def get_feeds(self) -> list[DummyFeed]:
             return self._feeds
 
-        def get_entries(self, **_kwargs: object) -> list[Entry]:
+        def get_entries(self, **_kwargs: TestKwargValue) -> list[Entry]:
             return []
 
     app.dependency_overrides[get_reader_dependency] = StubReader
@@ -1827,7 +1966,12 @@ def test_bulk_change_feed_urls_updates_matching_feeds() -> None:
             self.change_calls: list[tuple[str, str]] = []
             self.updated_feeds: list[str] = []
 
-        def get_tag(self, resource: object, key: str, default: object = None) -> object:
+        def get_tag(
+            self,
+            resource: str | tuple[()] | DummyFeed,
+            key: str,
+            default: TestTagValue = None,
+        ) -> TestTagValue:
             if resource == () and key == "webhooks":
                 return [{"name": webhook_name, "url": webhook_url}]
             if key == "webhook" and isinstance(resource, str):
@@ -1843,7 +1987,7 @@ def test_bulk_change_feed_urls_updates_matching_feeds() -> None:
         def update_feed(self, feed_url: str) -> None:
             self.updated_feeds.append(feed_url)
 
-        def get_entries(self, **_kwargs: object) -> list[Entry]:
+        def get_entries(self, **_kwargs: TestKwargValue) -> list[Entry]:
             return []
 
         def set_entry_read(self, _entry: Entry, _value: bool) -> None:  # noqa: FBT001
@@ -1899,7 +2043,7 @@ def test_webhook_entries_mass_update_preview_fragment_endpoint() -> None:
                 DummyFeed(url="https://old.example.com/rss/b.xml", title="B"),
             ]
 
-        def get_tag(self, resource: object, key: str, default: object = None) -> object:
+        def get_tag(self, resource: str | DummyFeed, key: str, default: TestTagValue = None) -> TestTagValue:
             if key == "webhook" and isinstance(resource, str):
                 return webhook_url
             return default
@@ -1947,7 +2091,12 @@ def test_bulk_change_feed_urls_force_update_overwrites_conflict() -> None:  # no
             self.delete_calls: list[str] = []
             self.change_calls: list[tuple[str, str]] = []
 
-        def get_tag(self, resource: object, key: str, default: object = None) -> object:
+        def get_tag(
+            self,
+            resource: str | tuple[()] | DummyFeed,
+            key: str,
+            default: TestTagValue = None,
+        ) -> TestTagValue:
             if resource == () and key == "webhooks":
                 return [{"name": webhook_name, "url": webhook_url}]
             if key == "webhook" and isinstance(resource, str):
@@ -1966,7 +2115,7 @@ def test_bulk_change_feed_urls_force_update_overwrites_conflict() -> None:  # no
         def update_feed(self, _feed_url: str) -> None:
             return
 
-        def get_entries(self, **_kwargs: object) -> list[Entry]:
+        def get_entries(self, **_kwargs: TestKwargValue) -> list[Entry]:
             return []
 
         def set_entry_read(self, _entry: Entry, _value: bool) -> None:  # noqa: FBT001
@@ -2019,7 +2168,12 @@ def test_bulk_change_feed_urls_force_update_ignores_resolution_error() -> None:
             ]
             self.change_calls: list[tuple[str, str]] = []
 
-        def get_tag(self, resource: object, key: str, default: object = None) -> object:
+        def get_tag(
+            self,
+            resource: str | tuple[()] | DummyFeed,
+            key: str,
+            default: TestTagValue = None,
+        ) -> TestTagValue:
             if resource == () and key == "webhooks":
                 return [{"name": webhook_name, "url": webhook_url}]
             if key == "webhook" and isinstance(resource, str):
@@ -2035,7 +2189,7 @@ def test_bulk_change_feed_urls_force_update_ignores_resolution_error() -> None:
         def update_feed(self, _feed_url: str) -> None:
             return
 
-        def get_entries(self, **_kwargs: object) -> list[Entry]:
+        def get_entries(self, **_kwargs: TestKwargValue) -> list[Entry]:
             return []
 
         def set_entry_read(self, _entry: Entry, _value: bool) -> None:  # noqa: FBT001

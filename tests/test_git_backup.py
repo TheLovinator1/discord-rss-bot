@@ -6,13 +6,15 @@ import shutil
 import subprocess  # noqa: S404
 from pathlib import Path
 from typing import TYPE_CHECKING
-from typing import Any
+from typing import cast
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
 
+from discord_rss_bot.git_backup import JsonObject
+from discord_rss_bot.git_backup import JsonValue
 from discord_rss_bot.git_backup import commit_state_change
 from discord_rss_bot.git_backup import export_state
 from discord_rss_bot.git_backup import get_backup_path
@@ -172,7 +174,7 @@ def test_export_state_creates_state_json(tmp_path: Path) -> None:
         feed_or_key: tuple | str,
         tag: str | None = None,
         default: str | None = None,
-    ) -> list[Any] | str | None:
+    ) -> list[JsonValue] | str | None:
         if feed_or_key == () and tag is None:
             # Called for global webhooks list
             return []
@@ -191,7 +193,7 @@ def test_export_state_creates_state_json(tmp_path: Path) -> None:
     state_file: Path = backup_path / "state.json"
     assert state_file.exists(), "state.json should be created by export_state"
 
-    data: dict[str, Any] = json.loads(state_file.read_text(encoding="utf-8"))
+    data = cast("JsonObject", json.loads(state_file.read_text(encoding="utf-8")))
     assert "feeds" in data
     assert "webhooks" in data
     assert data["feeds"][0]["url"] == "https://example.com/feed.rss"
@@ -209,7 +211,7 @@ def test_export_state_omits_empty_tags(tmp_path: Path) -> None:
         feed_or_key: tuple | str,
         tag: str | None = None,
         default: str | None = None,
-    ) -> list[Any] | str | None:
+    ) -> list[JsonValue] | str | None:
         if feed_or_key == ():
             return []
 
@@ -222,7 +224,7 @@ def test_export_state_omits_empty_tags(tmp_path: Path) -> None:
     backup_path.mkdir()
     export_state(mock_reader, backup_path)
 
-    data: dict[str, Any] = json.loads((backup_path / "state.json").read_text())
+    data = cast("JsonObject", json.loads((backup_path / "state.json").read_text()))
 
     # Only "url" key should be present (no empty-value tags)
     assert list(data["feeds"][0].keys()) == ["url"]
@@ -570,7 +572,7 @@ def test_embed_backup_end_to_end(monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     # Verify state.json contains embed data
     state_file: Path = backup_path / "state.json"
     assert state_file.exists(), "state.json should exist in backup repo"
-    state_data: dict[str, Any] = json.loads(state_file.read_text(encoding="utf-8"))
+    state_data = cast("JsonObject", json.loads(state_file.read_text(encoding="utf-8")))
 
     # Find our test feed in the state
     test_feed_data = next((feed for feed in state_data["feeds"] if feed["url"] == test_feed_url), None)

@@ -3,18 +3,23 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import datetime
+import hashlib
 import json
 import logging
 import os
 import pprint
 import re
+from collections.abc import Callable
+from contextlib import suppress
 from typing import TYPE_CHECKING
-from typing import Any
 from typing import Literal
+from typing import Protocol
 from typing import cast
 from urllib.parse import ParseResult
+from urllib.parse import parse_qs
 from urllib.parse import urlparse
 
+import httpx
 import tldextract
 from discord_webhook import DiscordEmbed
 from discord_webhook import DiscordWebhook
@@ -32,6 +37,9 @@ from reader import FeedNotFoundError
 from reader import Reader
 from reader import ReaderError
 from reader import StorageError
+from reader.types import EntryUpdateStatus
+from reader.types import UpdatedFeed
+from requests import RequestException
 
 from discord_rss_bot.custom_message import CustomEmbed
 from discord_rss_bot.custom_message import get_custom_message
@@ -50,6 +58,7 @@ from discord_rss_bot.settings import get_reader
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
+    from reader._types import EntryData
     from requests import Response
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -57,9 +66,53 @@ logger: logging.Logger = logging.getLogger(__name__)
 type DeliveryMode = Literal["embed", "text", "screenshot"]
 type ScreenshotLayout = Literal["desktop", "mobile"]
 type ScreenshotFileType = Literal["png", "jpeg"]
+type JsonValue = bool | int | float | str | list[JsonValue] | dict[str, JsonValue] | None
+type JsonObject = dict[str, JsonValue]
+type SentWebhookRecord = dict[str, JsonValue]
+type UpdateCallback = Callable[[], UpdatedFeed | None]
+
+
+class JsonResponseLike(Protocol):
+    """Response interface needed for Discord webhook JSON parsing."""
+
+    @property
+    def status_code(self) -> int:
+        """HTTP status code."""
+        ...
+
+    @property
+    def text(self) -> str:
+        """Response body decoded as text."""
+        ...
+
+    @property
+    def content(self) -> bytes:
+        """Raw response body."""
+        ...
+
+    def json(self) -> JsonValue:
+        """Decode response body as JSON.
+
+        Returns:
+            JsonValue: Decoded JSON response body.
+        """
+        ...
+
 
 MAX_DISCORD_UPLOAD_BYTES: int = 8 * 1024 * 1024
 JPEG_QUALITY_STEPS: tuple[int, ...] = (85, 70, 55, 40)
+SENT_WEBHOOKS_TAG: str = "sent_webhooks"
+SAVE_SENT_WEBHOOKS_TAG: str = "save_sent_webhooks"
+MESSAGE_PAYLOAD_KEYS: tuple[str, ...] = (
+    "allowed_mentions",
+    "attachments",
+    "avatar_url",
+    "content",
+    "embeds",
+    "flags",
+    "tts",
+    "username",
+)
 
 
 def extract_domain(url: str) -> str:  # noqa: PLR0911
@@ -137,30 +190,12 @@ def send_entry_to_discord(entry: Entry, reader: Reader) -> str | None:
         delivery_mode,
     )
 
-    # Hoyolab/c3kay feeds use a custom embed only when embed mode is selected.
-    if delivery_mode == "embed" and is_c3kay_feed(entry.feed.url):
-        entry_link: str | None = entry.link
-        if entry_link:
-            post_id: str | None = extract_post_id_from_hoyolab_url(entry_link)
-            if post_id:
-                post_data: dict[str, Any] | None = fetch_hoyolab_post(post_id)
-                if post_data:
-                    webhook = create_hoyolab_webhook(webhook_url, entry, post_data)
-                    execute_webhook(webhook, entry, reader=reader)
-                    return None
-                logger.warning(
-                    "Failed to create Hoyolab webhook for feed %s, falling back to regular processing",
-                    entry.feed.url,
-                )
-        else:
-            logger.warning("No entry link found for feed %s, falling back to regular processing", entry.feed.url)
-
-    if delivery_mode == "embed":
-        webhook: DiscordWebhook = create_embed_webhook(webhook_url, entry, reader=reader)
-    elif delivery_mode == "screenshot":
-        webhook = create_screenshot_webhook(webhook_url, entry, reader=reader)
-    else:
-        webhook = create_text_webhook(webhook_url, entry, reader=reader, use_default_message_on_empty=False)
+    webhook, _delivery_mode = create_webhook_for_entry(
+        webhook_url,
+        entry,
+        reader,
+        use_default_message_on_empty=False,
+    )
 
     execute_webhook(webhook, entry, reader=reader)
     return None
@@ -242,6 +277,502 @@ def get_screenshot_layout(reader: Reader, feed: Feed) -> ScreenshotLayout:
     if screenshot_layout_raw == "mobile":
         return "mobile"
     return "desktop"
+
+
+def feed_saves_sent_webhooks(reader: Reader, feed: Feed | str) -> bool:
+    """Return whether sent Discord webhook messages should be stored for a feed.
+
+    Missing tags default to enabled so existing feeds start tracking editable Discord messages.
+    """
+    feed_url: str = feed.url if isinstance(feed, Feed) else str(feed)
+    try:
+        value = cast("JsonValue", reader.get_tag(feed, SAVE_SENT_WEBHOOKS_TAG, True))
+    except ReaderError:
+        logger.exception("Error getting %s tag for feed: %s", SAVE_SENT_WEBHOOKS_TAG, feed_url)
+        return True
+
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() not in {"0", "false", "no", "off", "disabled"}
+    if value is None:
+        return True
+    return bool(value)
+
+
+def get_sent_webhook_records(reader: Reader) -> list[SentWebhookRecord]:
+    """Get stored sent webhook records from the global reader tag.
+
+    Returns:
+        list[SentWebhookRecord]: Saved sent webhook records.
+    """
+    raw_records = cast("JsonValue", reader.get_tag((), SENT_WEBHOOKS_TAG, []))
+    if not isinstance(raw_records, list):
+        return []
+
+    records: list[SentWebhookRecord] = [
+        cast("SentWebhookRecord", dict(raw_record)) for raw_record in raw_records if isinstance(raw_record, dict)
+    ]
+    return records
+
+
+def save_sent_webhook_records(reader: Reader, records: list[SentWebhookRecord]) -> None:
+    """Save sent webhook records to the global reader tag."""
+    reader.set_tag((), SENT_WEBHOOKS_TAG, records)  # pyright: ignore[reportArgumentType]
+
+
+def get_webhook_message_payload(webhook: DiscordWebhook) -> JsonObject:
+    """Return the Discord message payload used to compare saved messages.
+
+    The discord-webhook object also includes client/runtime fields in `json`; only fields that affect the Discord
+    message itself are persisted. Empty `content`, `embeds`, and `attachments` are kept so message edits can clear
+    stale content when a feed changes delivery mode.
+
+    Returns:
+        JsonObject: Normalized Discord message payload.
+    """
+    raw_payload = cast("JsonValue", webhook.json)
+    if not isinstance(raw_payload, dict):
+        return {"content": "", "embeds": [], "attachments": []}
+
+    payload: JsonObject = {}
+    webhook_payload = cast("JsonObject", raw_payload)
+    for key in MESSAGE_PAYLOAD_KEYS:
+        if key in webhook_payload:
+            payload[key] = webhook_payload[key]
+
+    payload.setdefault("content", "")
+    payload.setdefault("embeds", [])
+    payload.setdefault("attachments", [])
+    return cast("JsonObject", json.loads(json.dumps(payload, default=str)))
+
+
+def hash_webhook_payload(payload: JsonObject) -> str:
+    """Hash a normalized Discord message payload.
+
+    Returns:
+        str: SHA-256 hash of the payload.
+    """
+    normalized_payload: str = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(normalized_payload.encode()).hexdigest()
+
+
+def json_value_to_int(value: JsonValue, default: int = 0) -> int:
+    """Convert a simple JSON scalar to int.
+
+    Returns:
+        int: Converted integer, or default when the value is not scalar-convertible.
+    """
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int | float | str):
+        try:
+            return int(value)
+        except ValueError:
+            return default
+    return default
+
+
+def get_response_json(response: JsonResponseLike) -> JsonObject:
+    """Best-effort JSON extraction for requests/httpx response objects.
+
+    Returns:
+        JsonObject: Decoded JSON object, or an empty dict.
+    """
+    try:
+        response_json = response.json()
+    except (AttributeError, TypeError, ValueError):
+        response_text: str = response.text
+        if not response_text:
+            response_content: bytes = response.content
+            if isinstance(response_content, bytes):
+                response_text = response_content.decode("utf-8", errors="ignore")
+        if not response_text:
+            return {}
+        try:
+            response_json = json.loads(response_text)
+        except json.JSONDecodeError:
+            return {}
+
+    return cast("JsonObject", dict(response_json)) if isinstance(response_json, dict) else {}
+
+
+def get_discord_message_id_from_response(response_json: JsonObject, webhook: DiscordWebhook) -> str:
+    """Get the Discord message id from a decoded webhook response.
+
+    Returns:
+        str: Discord message id, or an empty string.
+    """
+    message_id: JsonValue = response_json.get("id")
+    if isinstance(message_id, str) and message_id:
+        return message_id
+
+    webhook_id: str | None = webhook.id if isinstance(webhook.id, str) else None
+    return webhook_id if isinstance(webhook_id, str) else ""
+
+
+def get_discord_message_id(response: JsonResponseLike, webhook: DiscordWebhook) -> str:
+    """Get the Discord message id returned by a webhook send/edit response.
+
+    Returns:
+        str: Discord message id, or an empty string.
+    """
+    return get_discord_message_id_from_response(get_response_json(response), webhook)
+
+
+def get_entry_timestamp(value: datetime.datetime | None) -> str:
+    """Return an ISO timestamp when an entry datetime-like value is present.
+
+    Returns:
+        str: ISO timestamp, or an empty string.
+    """
+    if value is not None:
+        return value.isoformat()
+    return ""
+
+
+def upsert_sent_webhook_record(
+    reader: Reader,
+    entry: Entry,
+    webhook_url: str,
+    webhook: DiscordWebhook,
+    response: JsonResponseLike,
+    payload: JsonObject,
+) -> None:
+    """Store the Discord message id and rendered payload for a successfully sent entry."""
+    if not feed_saves_sent_webhooks(reader, entry.feed):
+        return
+
+    response_json: JsonObject = get_response_json(response)
+    message_id: str = get_discord_message_id_from_response(response_json, webhook)
+    if not message_id:
+        logger.debug("Discord response did not include a message id for entry %s; not storing webhook.", entry.id)
+        return
+
+    now: str = datetime.datetime.now(tz=datetime.UTC).isoformat()
+    payload_hash: str = hash_webhook_payload(payload)
+    delivery_mode: DeliveryMode = get_entry_delivery_mode(reader, entry)
+    record: SentWebhookRecord = {
+        "feed_url": entry.feed.url,
+        "feed_title": entry.feed.title or "",
+        "entry_id": entry.id,
+        "entry_title": entry.title or "",
+        "entry_link": entry.link or "",
+        "entry_updated": get_entry_timestamp(entry.updated),
+        "webhook_url": webhook_url,
+        "message_id": message_id,
+        "delivery_mode": delivery_mode,
+        "payload": payload,
+        "payload_hash": payload_hash,
+        "discord_response": response_json,
+        "response_text": response.text[:5000],
+        "first_sent_at": now,
+        "last_sent_at": now,
+        "last_updated_at": now,
+        "last_status_code": response.status_code,
+        "last_error": "",
+        "update_count": 0,
+    }
+
+    records: list[SentWebhookRecord] = get_sent_webhook_records(reader)
+    for index, existing_record in enumerate(records):
+        if (
+            existing_record.get("feed_url") == entry.feed.url
+            and existing_record.get("entry_id") == entry.id
+            and existing_record.get("webhook_url") == webhook_url
+        ):
+            record["first_sent_at"] = existing_record.get("first_sent_at") or now
+            record["update_count"] = json_value_to_int(existing_record.get("update_count"))
+            records[index] = record
+            save_sent_webhook_records(reader, records)
+            return
+
+    records.append(record)
+    save_sent_webhook_records(reader, records)
+
+
+def split_webhook_url_for_message_endpoint(webhook_url: str) -> tuple[str, str | None]:
+    """Split a webhook URL into the base webhook endpoint and optional thread id.
+
+    Returns:
+        tuple[str, str | None]: Clean webhook URL and optional thread id.
+    """
+    parsed_url = urlparse(webhook_url)
+    query = parse_qs(parsed_url.query)
+    thread_id_values: list[str] = query.get("thread_id", [])
+    thread_id: str | None = thread_id_values[0].strip() if thread_id_values else None
+    if not thread_id:
+        thread_id = None
+
+    clean_url: str = parsed_url._replace(query="", fragment="").geturl().rstrip("/")
+    return clean_url, thread_id
+
+
+def edit_sent_webhook_message(
+    webhook_url: str,
+    message_id: str,
+    webhook: DiscordWebhook,
+    payload: JsonObject,
+) -> Response | httpx.Response:
+    """Edit an already-sent Discord webhook message.
+
+    Returns:
+        Response | httpx.Response: Discord API response.
+    """
+    clean_webhook_url, thread_id = split_webhook_url_for_message_endpoint(webhook_url)
+
+    if getattr(webhook, "files", None):
+        webhook.url = clean_webhook_url
+        webhook.id = message_id
+        if thread_id:
+            webhook.thread_id = thread_id
+        return webhook.edit()
+
+    params: dict[str, str] = {"wait": "true"}
+    if thread_id:
+        params["thread_id"] = thread_id
+
+    timeout: int | float = cast("int | float", getattr(webhook, "timeout", None) or 30.0)
+    return httpx.patch(
+        f"{clean_webhook_url}/messages/{message_id}",
+        json=payload,
+        params=params,
+        timeout=timeout,
+    )
+
+
+def create_webhook_for_entry(
+    webhook_url: str,
+    entry: Entry,
+    reader: Reader,
+    *,
+    use_default_message_on_empty: bool,
+) -> tuple[DiscordWebhook, DeliveryMode]:
+    """Create the Discord webhook payload for the entry's effective delivery mode.
+
+    Returns:
+        tuple[DiscordWebhook, DeliveryMode]: Rendered webhook object and delivery mode.
+    """
+    delivery_mode: DeliveryMode = get_entry_delivery_mode(reader, entry)
+
+    if delivery_mode == "embed" and is_c3kay_feed(entry.feed.url):
+        entry_link: str | None = entry.link
+        if entry_link:
+            post_id: str | None = extract_post_id_from_hoyolab_url(entry_link)
+            if post_id:
+                post_data = fetch_hoyolab_post(post_id)
+                if post_data:
+                    return create_hoyolab_webhook(webhook_url, entry, post_data), delivery_mode
+                logger.warning(
+                    "Failed to create Hoyolab webhook for feed %s, falling back to regular processing",
+                    entry.feed.url,
+                )
+        else:
+            logger.warning("No entry link found for feed %s, falling back to regular processing", entry.feed.url)
+
+    if delivery_mode == "embed":
+        return create_embed_webhook(webhook_url, entry, reader=reader), delivery_mode
+    if delivery_mode == "screenshot":
+        return create_screenshot_webhook(webhook_url, entry, reader=reader), delivery_mode
+    return (
+        create_text_webhook(
+            webhook_url,
+            entry,
+            reader=reader,
+            use_default_message_on_empty=use_default_message_on_empty,
+        ),
+        delivery_mode,
+    )
+
+
+def collect_modified_entries_during_update(reader: Reader, update_callback: UpdateCallback) -> list[tuple[str, str]]:
+    """Run a reader update call and collect entries whose stored content was modified.
+
+    Returns:
+        list[tuple[str, str]]: Modified entry `(feed_url, entry_id)` pairs.
+    """
+    modified_entries: list[tuple[str, str]] = []
+    hooks = reader.after_entry_update_hooks
+
+    def collect_modified_entry(_reader: Reader, entry: EntryData, status: EntryUpdateStatus) -> None:
+        status_value: str = getattr(status, "value", str(status))
+        if status == EntryUpdateStatus.MODIFIED or status_value == EntryUpdateStatus.MODIFIED.value:
+            modified_entries.append((entry.feed_url, entry.id))
+
+    hooks.append(collect_modified_entry)
+    try:
+        update_callback()
+    finally:
+        with suppress(ValueError):
+            hooks.remove(collect_modified_entry)
+
+    return list(dict.fromkeys(modified_entries))
+
+
+def update_feeds_and_collect_modified_entries(
+    reader: Reader,
+    *,
+    scheduled: bool,
+    workers: int,
+) -> list[tuple[str, str]]:
+    """Update feeds and return reader entries whose stored content was modified.
+
+    Returns:
+        list[tuple[str, str]]: Modified entry `(feed_url, entry_id)` pairs.
+    """
+    return collect_modified_entries_during_update(
+        reader,
+        lambda: reader.update_feeds(scheduled=scheduled, workers=workers),
+    )
+
+
+def update_feed_and_collect_modified_entries(reader: Reader, feed: Feed | str) -> list[tuple[str, str]]:
+    """Update one feed and return reader entries whose stored content was modified.
+
+    Returns:
+        list[tuple[str, str]]: Modified entry `(feed_url, entry_id)` pairs.
+    """
+    return collect_modified_entries_during_update(reader, lambda: reader.update_feed(feed))
+
+
+def update_sent_webhook_record_for_entry(
+    reader: Reader,
+    entry: Entry,
+    record: SentWebhookRecord,
+) -> tuple[SentWebhookRecord, bool, bool]:
+    """Edit one saved Discord webhook message record for an updated entry.
+
+    Returns:
+        tuple[SentWebhookRecord, bool, bool]: Updated record, whether it changed, and whether Discord was edited.
+    """
+    webhook_url_value: JsonValue = record.get("webhook_url")
+    message_id_value: JsonValue = record.get("message_id")
+    if (
+        not isinstance(webhook_url_value, str)
+        or not isinstance(message_id_value, str)
+        or not webhook_url_value
+        or not message_id_value
+    ):
+        return record, False, False
+
+    webhook, delivery_mode = create_webhook_for_entry(
+        webhook_url_value,
+        entry,
+        reader,
+        use_default_message_on_empty=True,
+    )
+    payload: JsonObject = get_webhook_message_payload(webhook)
+    payload_hash: str = hash_webhook_payload(payload)
+    if payload_hash == record.get("payload_hash"):
+        return record, False, False
+
+    now: str = datetime.datetime.now(tz=datetime.UTC).isoformat()
+    try:
+        response = edit_sent_webhook_message(webhook_url_value, message_id_value, webhook, payload)
+    except (AssertionError, RequestException, httpx.HTTPError, OSError, ValueError) as e:
+        logger.exception("Failed to edit Discord webhook message %s for entry %s", message_id_value, entry.id)
+        return (
+            {
+                **record,
+                "last_update_attempt_at": now,
+                "last_error": str(e),
+            },
+            True,
+            False,
+        )
+
+    status_code: int = response.status_code
+    response_json: JsonObject = get_response_json(response)
+    if status_code in {200, 204}:
+        return (
+            {
+                **record,
+                "feed_title": entry.feed.title or "",
+                "entry_title": entry.title or "",
+                "entry_link": entry.link or "",
+                "entry_updated": get_entry_timestamp(entry.updated),
+                "delivery_mode": delivery_mode,
+                "payload": payload,
+                "payload_hash": payload_hash,
+                "discord_response": response_json,
+                "response_text": response.text[:5000],
+                "last_updated_at": now,
+                "last_status_code": status_code,
+                "last_error": "",
+                "update_count": json_value_to_int(record.get("update_count")) + 1,
+            },
+            True,
+            True,
+        )
+
+    return (
+        {
+            **record,
+            "last_update_attempt_at": now,
+            "last_status_code": status_code,
+            "discord_response": response_json,
+            "response_text": response.text[:5000],
+            "last_error": response.text[:500],
+        },
+        True,
+        False,
+    )
+
+
+def update_sent_webhooks_for_modified_entries(  # noqa: C901
+    reader: Reader,
+    modified_entries: Iterable[tuple[str, str]],
+) -> int:
+    """Edit saved Discord webhook messages for modified reader entries.
+
+    Returns:
+        int: Number of Discord messages successfully edited.
+    """
+    modified_entry_keys: set[tuple[str, str]] = set(modified_entries)
+    if not modified_entry_keys:
+        return 0
+
+    records: list[SentWebhookRecord] = get_sent_webhook_records(reader)
+    if not records:
+        return 0
+
+    records_changed: bool = False
+    updated_count: int = 0
+
+    for feed_url, entry_id in modified_entry_keys:
+        matching_record_indexes: list[int] = [
+            index
+            for index, record in enumerate(records)
+            if record.get("feed_url") == feed_url and record.get("entry_id") == entry_id
+        ]
+        if not matching_record_indexes:
+            continue
+
+        try:
+            entry: Entry = reader.get_entry((feed_url, entry_id))
+        except (FeedNotFoundError, EntryNotFoundError):
+            logger.exception("Saved webhook entry no longer exists: %s %s", feed_url, entry_id)
+            continue
+
+        if not feed_saves_sent_webhooks(reader, entry.feed):
+            continue
+
+        for record_index in matching_record_indexes:
+            updated_record, record_changed, message_was_edited = update_sent_webhook_record_for_entry(
+                reader,
+                entry,
+                records[record_index],
+            )
+            if record_changed:
+                records[record_index] = updated_record
+                records_changed = True
+            if message_was_edited:
+                updated_count += 1
+
+    if records_changed:
+        save_sent_webhook_records(reader, records)
+
+    return updated_count
 
 
 def create_text_webhook(
@@ -496,7 +1027,7 @@ def send_discord_quest_notification(entry: Entry, webhook_url: str, reader: Read
             content=quest_url,
             rate_limit_retry=True,
         )
-        execute_webhook(webhook, entry, reader=reader)
+        execute_webhook(webhook, entry, reader=reader, save_sent_webhook=False)
 
     # Iterate through the content of the entry
     for content in entry.content:
@@ -661,7 +1192,7 @@ def set_entry_as_read(reader: Reader, entry: Entry) -> None:
         logger.exception("Error setting entry to read: %s", entry.id)
 
 
-def send_to_discord(reader: Reader | None = None, feed: Feed | None = None, *, do_once: bool = False) -> None:  # noqa: C901, PLR0912
+def send_to_discord(reader: Reader | None = None, feed: Feed | None = None, *, do_once: bool = False) -> None:
     """Send entries to Discord.
 
     If response was not ok, we will log the error and mark the entry as unread, so it will be sent again next time.
@@ -675,11 +1206,16 @@ def send_to_discord(reader: Reader | None = None, feed: Feed | None = None, *, d
     # Get the default reader if we didn't get a custom one.
     effective_reader: Reader = get_reader() if reader is None else reader
 
-    # Check for new entries for every feed.
-    effective_reader.update_feeds(
+    # Check for new and modified entries for every feed.
+    modified_entries: list[tuple[str, str]] = update_feeds_and_collect_modified_entries(
+        effective_reader,
         scheduled=True,
         workers=os.cpu_count() or 1,
     )
+    try:
+        update_sent_webhooks_for_modified_entries(effective_reader, modified_entries)
+    except (AssertionError, ReaderError, RequestException, httpx.HTTPError, OSError, ValueError):
+        logger.exception("Failed to update saved Discord webhooks for modified feed entries.")
 
     # Loop through the unread entries.
     entries: Iterable[Entry] = effective_reader.get_entries(feed=feed, read=False)
@@ -695,42 +1231,17 @@ def send_to_discord(reader: Reader | None = None, feed: Feed | None = None, *, d
             logger.info("No webhook URL found for feed: %s", entry.feed.url)
             continue
 
-        delivery_mode: DeliveryMode = get_entry_delivery_mode(effective_reader, entry)
-
-        if delivery_mode == "embed":
-            webhook = create_embed_webhook(webhook_url, entry, reader=effective_reader)
-        elif delivery_mode == "screenshot":
-            webhook = create_screenshot_webhook(webhook_url, entry, reader=effective_reader)
-        else:
-            webhook = create_text_webhook(
-                webhook_url,
-                entry,
-                reader=effective_reader,
-                use_default_message_on_empty=True,
-            )
-
         decision = get_entry_filter_decision_from_reader(effective_reader, entry)
         if not decision.should_send:
             logger.info("Entry was skipped: %s (%s)", entry.id, decision.reason)
             continue
 
-        # Use a custom webhook for Hoyolab feeds.
-        if is_c3kay_feed(entry.feed.url):
-            entry_link: str | None = entry.link
-            if entry_link:
-                post_id: str | None = extract_post_id_from_hoyolab_url(entry_link)
-                if post_id:
-                    post_data: dict[str, Any] | None = fetch_hoyolab_post(post_id)
-                    if post_data:
-                        webhook = create_hoyolab_webhook(webhook_url, entry, post_data)
-                        execute_webhook(webhook, entry, reader=effective_reader)
-                        return
-                    logger.warning(
-                        "Failed to create Hoyolab webhook for feed %s, falling back to regular processing",
-                        entry.feed.url,
-                    )
-            else:
-                logger.warning("No entry link found for feed %s, falling back to regular processing", entry.feed.url)
+        webhook, _delivery_mode = create_webhook_for_entry(
+            webhook_url,
+            entry,
+            effective_reader,
+            use_default_message_on_empty=True,
+        )
 
         # Send the entry to Discord because the combined blacklist/whitelist decision allowed it.
         execute_webhook(webhook, entry, reader=effective_reader)
@@ -741,14 +1252,20 @@ def send_to_discord(reader: Reader | None = None, feed: Feed | None = None, *, d
             break
 
 
-def execute_webhook(webhook: DiscordWebhook, entry: Entry, reader: Reader) -> None:
+def execute_webhook(
+    webhook: DiscordWebhook,
+    entry: Entry,
+    reader: Reader,
+    *,
+    save_sent_webhook: bool = True,
+) -> None:
     """Execute the webhook.
 
     Args:
         webhook (DiscordWebhook): The webhook to execute.
         entry (Entry): The entry to send to Discord.
         reader (Reader): The Reader instance to use for checking feed status.
-
+        save_sent_webhook: Whether to save the sent Discord message metadata for future edits.
     """
     # If the feed has been paused or deleted, we will not send the entry to Discord.
     entry_feed: Feed = entry.feed
@@ -762,6 +1279,7 @@ def execute_webhook(webhook: DiscordWebhook, entry: Entry, reader: Reader) -> No
         logger.warning("Feed not found in reader, not sending entry to Discord: %s", entry_feed.url)
         return
 
+    payload: JsonObject = get_webhook_message_payload(webhook)
     response: Response = webhook.execute()
     logger.debug("Discord webhook response for entry %s: status=%s", entry.id, response.status_code)
     if response.status_code not in {200, 204}:
@@ -772,6 +1290,10 @@ def execute_webhook(webhook: DiscordWebhook, entry: Entry, reader: Reader) -> No
         logger.error(msg)
     else:
         logger.info("Sent entry to Discord: %s", entry.id)
+        if save_sent_webhook:
+            webhook_url: str = get_webhook_url(reader, entry)
+            if webhook_url:
+                upsert_sent_webhook_record(reader, entry, webhook_url, webhook, response, payload)
 
 
 def is_youtube_feed(feed_url: str) -> bool:
@@ -867,6 +1389,9 @@ def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:  
 
     # This is the webhook that will be used to send the feed to Discord.
     reader.set_tag(clean_feed_url, "webhook", webhook_url)  # pyright: ignore[reportArgumentType]
+
+    # Store sent Discord message ids by default so modified feed entries can edit the original webhook message.
+    reader.set_tag(clean_feed_url, SAVE_SENT_WEBHOOKS_TAG, True)  # pyright: ignore[reportArgumentType]
 
     # This is the default message that will be sent to Discord.
     reader.set_tag(clean_feed_url, "custom_message", default_custom_message)  # pyright: ignore[reportArgumentType]

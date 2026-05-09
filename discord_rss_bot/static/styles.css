@@ -65,6 +65,14 @@ body {
     word-break: break-word;
 }
 
+.sent-webhooks__entry,
+.sent-webhooks__preview {
+    min-width: 14rem;
+    max-width: 28rem;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
 .filter-page__sidebar {
     height: 100%;
 }

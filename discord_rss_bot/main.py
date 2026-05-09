@@ -15,7 +15,7 @@ from html import escape
 from html import unescape
 from typing import TYPE_CHECKING
 from typing import Annotated
-from typing import Any
+from typing import TypedDict
 from typing import cast
 
 import httpx
@@ -51,12 +51,18 @@ from discord_rss_bot.custom_message import get_embed
 from discord_rss_bot.custom_message import get_first_image
 from discord_rss_bot.custom_message import replace_tags_in_text_message
 from discord_rss_bot.custom_message import save_embed
+from discord_rss_bot.feeds import SAVE_SENT_WEBHOOKS_TAG
+from discord_rss_bot.feeds import SentWebhookRecord
 from discord_rss_bot.feeds import create_feed
 from discord_rss_bot.feeds import extract_domain
+from discord_rss_bot.feeds import feed_saves_sent_webhooks
 from discord_rss_bot.feeds import get_feed_delivery_mode
 from discord_rss_bot.feeds import get_screenshot_layout
+from discord_rss_bot.feeds import get_sent_webhook_records
 from discord_rss_bot.feeds import send_entry_to_discord
 from discord_rss_bot.feeds import send_to_discord
+from discord_rss_bot.feeds import update_feed_and_collect_modified_entries
+from discord_rss_bot.feeds import update_sent_webhooks_for_modified_entries
 from discord_rss_bot.filter.evaluator import FILTER_FIELDS
 from discord_rss_bot.filter.evaluator import EntryFilterDecision
 from discord_rss_bot.filter.evaluator import FilterMatch
@@ -78,7 +84,41 @@ if TYPE_CHECKING:
     from reader.types import JSONType
 
 
-LOGGING_CONFIG: dict[str, Any] = {
+class PreviewFieldRow(TypedDict):
+    label: str
+    value_html: str
+    badges: list[dict[str, str]]
+
+
+class FilterPreviewRow(TypedDict):
+    entry: Entry
+    decision: EntryFilterDecision
+    field_rows: list[PreviewFieldRow]
+    published_label: str
+    status_label: str
+    status_class: str
+    first_image: str
+
+
+class FilterPreviewSummary(TypedDict):
+    total: int
+    sent: int
+    skipped: int
+    blacklist_matches: int
+    whitelist_matches: int
+
+
+class FilterPreviewContext(TypedDict):
+    filter_name: str
+    filter_label: str
+    preview_rendered_count: int
+    preview_rows: list[FilterPreviewRow]
+    preview_limit: int
+    preview_summary: FilterPreviewSummary
+    preview_helper_text: str
+
+
+LOGGING_CONFIG = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
@@ -696,7 +736,7 @@ def build_filter_preview_context(
     feed: Feed,
     filter_name: str,
     form_values: dict[str, str] | None = None,
-) -> dict[str, Any]:
+) -> FilterPreviewContext:
     """Build preview data for the blacklist and whitelist pages.
 
     Args:
@@ -706,7 +746,7 @@ def build_filter_preview_context(
         form_values: Optional unsaved values from the current form.
 
     Returns:
-        dict[str, Any]: Preview context for template rendering.
+        FilterPreviewContext: Preview context for template rendering.
     """
     saved_blacklist_values: dict[str, str] = get_filter_values_from_reader(reader, feed, "blacklist")
     saved_whitelist_values: dict[str, str] = get_filter_values_from_reader(reader, feed, "whitelist")
@@ -724,7 +764,7 @@ def build_filter_preview_context(
         helper_text = "Saved blacklist rules still apply while previewing whitelist changes."
 
     preview_entries: list[Entry] = list(reader.get_entries(feed=feed, limit=FILTER_PREVIEW_LIMIT))
-    preview_rows: list[dict[str, Any]] = []
+    preview_rows: list[FilterPreviewRow] = []
     preview_decisions: dict[str, EntryFilterDecision] = {}
     sent_count = 0
     skipped_count = 0
@@ -782,7 +822,7 @@ def build_filter_preview_context(
     }
 
 
-def build_preview_field_rows(entry: Entry, decision: EntryFilterDecision) -> list[dict[str, Any]]:
+def build_preview_field_rows(entry: Entry, decision: EntryFilterDecision) -> list[PreviewFieldRow]:
     """Build labeled preview fields for the filter UI.
 
     Args:
@@ -790,10 +830,10 @@ def build_preview_field_rows(entry: Entry, decision: EntryFilterDecision) -> lis
         decision: The final decision for the entry.
 
     Returns:
-        list[dict[str, Any]]: Labeled field rows for the preview template.
+        list[PreviewFieldRow]: Labeled field rows for the preview template.
     """
     entry_fields: dict[str, str] = get_entry_fields(entry)
-    field_rows: list[dict[str, Any]] = []
+    field_rows: list[PreviewFieldRow] = []
 
     for field_name in ("title", "author", "summary", "content"):
         badges: list[dict[str, str]] = []
@@ -1284,6 +1324,34 @@ async def post_use_screenshot_desktop(
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
 
+@app.post("/set_feed_save_sent_webhooks")
+async def post_set_feed_save_sent_webhooks(
+    feed_url: Annotated[str, Form()],
+    enabled: Annotated[str, Form()],
+    reader: Annotated[Reader, Depends(get_reader_dependency)],
+) -> RedirectResponse:
+    """Set whether a feed stores sent Discord webhook message records.
+
+    Returns:
+        RedirectResponse: Redirect to the specified feed page.
+
+    Raises:
+        HTTPException: If Feed does not exists.
+    """
+    clean_feed_url: str = feed_url.strip()
+    should_save: bool = enabled.strip().lower() in {"1", "true", "yes", "on", "enabled"}
+
+    try:
+        reader.get_feed(clean_feed_url)
+    except FeedNotFoundError as e:
+        raise HTTPException(status_code=404, detail="Feed not found") from e
+
+    reader.set_tag(clean_feed_url, SAVE_SENT_WEBHOOKS_TAG, should_save)  # pyright: ignore[reportArgumentType]
+    action: str = "Enable" if should_save else "Disable"
+    commit_state_change(reader, f"{action} sent webhook storage for {clean_feed_url}")
+    return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
+
+
 @app.post("/set_update_interval")
 async def post_set_update_interval(
     feed_url: Annotated[str, Form()],
@@ -1600,6 +1668,7 @@ async def get_feed(  # noqa: C901, PLR0912, PLR0914, PLR0915
                 "webhooks": webhooks,
                 "current_webhook_url": current_webhook_url,
                 "current_webhook_name": current_webhook_name,
+                "save_sent_webhooks": feed_saves_sent_webhooks(reader, feed),
             }
             return templates.TemplateResponse(request=request, name="feed.html", context=context)
 
@@ -1659,6 +1728,7 @@ async def get_feed(  # noqa: C901, PLR0912, PLR0914, PLR0915
         "webhooks": webhooks,
         "current_webhook_url": current_webhook_url,
         "current_webhook_name": current_webhook_name,
+        "save_sent_webhooks": feed_saves_sent_webhooks(reader, feed),
     }
     return templates.TemplateResponse(request=request, name="feed.html", context=context)
 
@@ -1926,6 +1996,50 @@ async def get_webhooks(
     return templates.TemplateResponse(request=request, name="webhooks.html", context=context)
 
 
+@app.get("/sent_webhooks", response_class=HTMLResponse)
+async def get_sent_webhooks(
+    request: Request,
+    reader: Annotated[Reader, Depends(get_reader_dependency)],
+    feed_url: str = "",
+    webhook_url: str = "",
+) -> HTMLResponse:
+    """View sent Discord webhook messages saved for future edits.
+
+    Returns:
+        sent_webhooks.html HTML
+    """
+    clean_feed_url: str = urllib.parse.unquote(feed_url.strip())
+    clean_webhook_url: str = urllib.parse.unquote(webhook_url.strip())
+
+    records: list[SentWebhookRecord] = get_sent_webhook_records(reader)
+    if clean_feed_url:
+        records = [record for record in records if record.get("feed_url") == clean_feed_url]
+    if clean_webhook_url:
+        records = [record for record in records if record.get("webhook_url") == clean_webhook_url]
+
+    records.sort(
+        key=lambda record: str(record.get("last_updated_at") or record.get("last_sent_at") or ""),
+        reverse=True,
+    )
+
+    webhooks: list[dict[str, str]] = cast("list[dict[str, str]]", list(reader.get_tag((), "webhooks", [])))
+    webhook_names: dict[str, str] = {
+        hook.get("url", ""): hook.get("name", "") for hook in webhooks if isinstance(hook, dict)
+    }
+    feed_titles: dict[str, str] = {feed.url: (feed.title or feed.url) for feed in reader.get_feeds()}
+
+    context = {
+        "request": request,
+        "records": records,
+        "total_records": len(records),
+        "feed_url": clean_feed_url,
+        "webhook_url": clean_webhook_url,
+        "webhook_names": webhook_names,
+        "feed_titles": feed_titles,
+    }
+    return templates.TemplateResponse(request=request, name="sent_webhooks.html", context=context)
+
+
 @app.get("/", response_class=HTMLResponse)
 def get_index(
     request: Request,
@@ -2040,9 +2154,15 @@ async def update_feed(
         HTTPException: If the feed is not found.
     """
     try:
-        reader.update_feed(urllib.parse.unquote(feed_url))
+        clean_feed_url: str = urllib.parse.unquote(feed_url)
+        modified_entries: list[tuple[str, str]] = update_feed_and_collect_modified_entries(reader, clean_feed_url)
     except FeedNotFoundError as e:
         raise HTTPException(status_code=404, detail="Feed not found") from e
+
+    try:
+        update_sent_webhooks_for_modified_entries(reader, modified_entries)
+    except (AssertionError, ReaderError, httpx.HTTPError, OSError, ValueError):
+        logger.exception("Failed to update saved Discord webhooks for manually updated feed: %s", feed_url)
 
     logger.info("Manually updated feed: %s", feed_url)
     return RedirectResponse(url="/feed?feed_url=" + urllib.parse.quote(feed_url), status_code=303)

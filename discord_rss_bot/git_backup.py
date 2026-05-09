@@ -28,7 +28,6 @@ import shutil
 import subprocess  # noqa: S404
 from pathlib import Path
 from typing import TYPE_CHECKING
-from typing import Any
 
 if TYPE_CHECKING:
     from reader import Reader
@@ -37,11 +36,9 @@ logger: logging.Logger = logging.getLogger(__name__)
 GIT_EXECUTABLE: str = shutil.which("git") or "git"
 
 
-type TAG_VALUE = (
-    dict[str, str | int | float | bool | dict[str, Any] | list[Any] | None]
-    | list[str | int | float | bool | dict[str, Any] | list[Any] | None]
-    | None
-)
+type JsonValue = bool | int | float | str | list[JsonValue] | dict[str, JsonValue] | None
+type JsonObject = dict[str, JsonValue]
+type TagValue = JsonValue
 
 # Tags that are exported per-feed (empty values are omitted).
 _FEED_TAGS: tuple[str, ...] = (
@@ -164,24 +161,24 @@ def export_state(reader: Reader, backup_path: Path) -> None:
         reader: The :class:`reader.Reader` instance to read state from.
         backup_path: Destination directory for the exported ``state.json``.
     """
-    feeds_state: list[dict] = []
+    feeds_state: list[JsonObject] = []
     for feed in reader.get_feeds():
-        feed_data: dict = {"url": feed.url}
+        feed_data: JsonObject = {"url": feed.url}
         for tag in _FEED_TAGS:
             try:
-                value: TAG_VALUE = reader.get_tag(feed, tag, None)
+                value: TagValue = reader.get_tag(feed, tag, None)
                 if value is not None and value != "":  # noqa: PLC1901
                     feed_data[tag] = value
             except Exception:
                 logger.exception("Failed to read tag '%s' for feed '%s' during state export", tag, feed.url)
         feeds_state.append(feed_data)
 
-    webhooks: list[str | int | float | bool | dict[str, Any] | list[Any] | None] = list(
+    webhooks: list[JsonValue] = list(
         reader.get_tag((), "webhooks", []),
     )
 
     # Export global update interval if set
-    global_update_interval: dict[str, Any] | None = None
+    global_update_interval: JsonObject | None = None
     global_update_config = reader.get_tag((), ".reader.update", None)
     if isinstance(global_update_config, dict):
         global_update_interval = global_update_config
@@ -193,7 +190,7 @@ def export_state(reader: Reader, backup_path: Path) -> None:
         if clean_layout in {"desktop", "mobile"}:
             global_screenshot_layout = clean_layout
 
-    state: dict = {"feeds": feeds_state, "webhooks": webhooks}
+    state: JsonObject = {"feeds": feeds_state, "webhooks": webhooks}
     if global_update_interval is not None:
         state["global_update_interval"] = global_update_interval
     if global_screenshot_layout is not None:

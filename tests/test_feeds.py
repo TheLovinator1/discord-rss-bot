@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import os
 import tempfile
+from datetime import UTC
+from datetime import datetime
 from pathlib import Path
 from typing import LiteralString
 from unittest.mock import MagicMock
@@ -17,6 +19,7 @@ from reader import StorageError
 from reader import make_reader
 
 from discord_rss_bot import feeds
+from discord_rss_bot.feeds import JsonObject
 from discord_rss_bot.feeds import capture_full_page_screenshot
 from discord_rss_bot.feeds import create_feed
 from discord_rss_bot.feeds import create_screenshot_webhook
@@ -352,6 +355,19 @@ def test_create_feed_inherits_global_text_delivery_mode() -> None:
 
     reader.set_tag.assert_any_call("https://example.com/feed.xml", "delivery_mode", "text")
     reader.set_tag.assert_any_call("https://example.com/feed.xml", "should_send_embed", False)
+
+
+def test_create_feed_enables_sent_webhook_tracking_by_default() -> None:
+    reader = MagicMock()
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+        "webhooks": [{"name": "Main", "url": "https://discord.com/api/webhooks/123/abc"}],
+        "screenshot_layout": "desktop",
+        "delivery_mode": "embed",
+    }.get(key, default)
+
+    create_feed(reader, "https://example.com/feed.xml", "Main")
+
+    reader.set_tag.assert_any_call("https://example.com/feed.xml", feeds.SAVE_SENT_WEBHOOKS_TAG, True)
 
 
 def test_create_feed_falls_back_to_embed_when_global_delivery_mode_is_invalid() -> None:
@@ -882,3 +898,191 @@ def test_execute_webhook_logs_info_on_success(mock_logger: MagicMock) -> None:
     execute_webhook(webhook, entry, reader)
 
     mock_logger.info.assert_called_once_with("Sent entry to Discord: %s", "entry-9")
+
+
+def test_execute_webhook_records_sent_webhook_message() -> None:
+    webhook_url = "https://discord.com/api/webhooks/123/abc"
+    state: dict[str, feeds.JsonValue] = {}
+
+    def get_tag(_resource: str | tuple[()], key: str, default: feeds.JsonValue = None) -> feeds.JsonValue:
+        if key == feeds.SENT_WEBHOOKS_TAG:
+            return state.get(feeds.SENT_WEBHOOKS_TAG, default)
+        if key == feeds.SAVE_SENT_WEBHOOKS_TAG:
+            return True
+        if key == "webhook":
+            return webhook_url
+        if key == "delivery_mode":
+            return "text"
+        return default
+
+    def set_tag(_resource: str | tuple[()], key: str, value: feeds.JsonValue) -> None:
+        state[key] = value
+
+    reader = MagicMock()
+    reader.get_tag.side_effect = get_tag
+    reader.set_tag.side_effect = set_tag
+
+    entry = MagicMock()
+    entry.id = "entry-1"
+    entry.title = "Entry title"
+    entry.link = "https://example.com/entry-1"
+    entry.updated = datetime(2026, 5, 8, tzinfo=UTC)
+    entry.feed_url = "https://example.com/feed.xml"
+    entry.feed.url = "https://example.com/feed.xml"
+    entry.feed.title = "Example feed"
+    entry.feed.updates_enabled = True
+
+    webhook = MagicMock()
+    webhook.json = {"content": "Entry title", "embeds": [], "attachments": []}
+    response = MagicMock()
+    response.status_code = 200
+    response.text = '{"id": "message-1"}'
+    response.json.return_value = {"id": "message-1"}
+    webhook.execute.return_value = response
+
+    execute_webhook(webhook, entry, reader)
+
+    records = state[feeds.SENT_WEBHOOKS_TAG]
+    assert isinstance(records, list)
+    assert len(records) == 1
+    assert isinstance(records[0], dict)
+    assert records[0]["feed_url"] == "https://example.com/feed.xml"
+    assert records[0]["entry_id"] == "entry-1"
+    assert records[0]["webhook_url"] == webhook_url
+    assert records[0]["message_id"] == "message-1"
+    assert records[0]["last_status_code"] == 200
+    assert records[0]["discord_response"] == {"id": "message-1"}
+    assert records[0]["response_text"] == '{"id": "message-1"}'
+
+    assert isinstance(records[0]["payload"], dict)
+    assert records[0]["payload"]["content"] == "Entry title"
+
+
+def test_execute_webhook_does_not_record_when_feed_tracking_disabled() -> None:
+    webhook_url = "https://discord.com/api/webhooks/123/abc"
+    reader = MagicMock()
+    reader.get_tag.side_effect = lambda _resource, key, default=None: {
+        feeds.SAVE_SENT_WEBHOOKS_TAG: False,
+        "webhook": webhook_url,
+    }.get(key, default)
+
+    entry = MagicMock()
+    entry.id = "entry-2"
+    entry.feed_url = "https://example.com/feed.xml"
+    entry.feed.url = "https://example.com/feed.xml"
+    entry.feed.updates_enabled = True
+
+    webhook = MagicMock()
+    webhook.json = {"content": "Entry title", "embeds": [], "attachments": []}
+    response = MagicMock()
+    response.status_code = 200
+    response.text = '{"id": "message-2"}'
+    response.json.return_value = {"id": "message-2"}
+    webhook.execute.return_value = response
+
+    execute_webhook(webhook, entry, reader)
+
+    reader.set_tag.assert_not_called()
+
+
+@patch("discord_rss_bot.feeds.edit_sent_webhook_message")
+@patch("discord_rss_bot.feeds.create_webhook_for_entry")
+def test_update_sent_webhooks_for_modified_entries_edits_changed_payload(
+    mock_create_webhook_for_entry: MagicMock,
+    mock_edit_sent_webhook_message: MagicMock,
+) -> None:
+    webhook_url = "https://discord.com/api/webhooks/123/abc"
+    old_payload: JsonObject = {"content": "Old title", "embeds": [], "attachments": []}
+    state: dict[str, feeds.JsonValue] = {
+        feeds.SENT_WEBHOOKS_TAG: [
+            {
+                "feed_url": "https://example.com/feed.xml",
+                "entry_id": "entry-3",
+                "webhook_url": webhook_url,
+                "message_id": "message-3",
+                "payload": old_payload,
+                "payload_hash": feeds.hash_webhook_payload(old_payload),
+                "update_count": 0,
+            },  # pyright: ignore[reportAssignmentType, reportArgumentType]
+        ],
+    }
+
+    def get_tag(_resource: str | tuple[()], key: str, default: feeds.JsonValue = None) -> feeds.JsonValue:
+        if key == feeds.SENT_WEBHOOKS_TAG:
+            return state[feeds.SENT_WEBHOOKS_TAG]
+        if key == feeds.SAVE_SENT_WEBHOOKS_TAG:
+            return True
+        return default
+
+    def set_tag(_resource: str | tuple[()], key: str, value: feeds.JsonValue) -> None:
+        state[key] = value
+
+    entry = MagicMock()
+    entry.id = "entry-3"
+    entry.title = "New title"
+    entry.link = "https://example.com/entry-3"
+    entry.updated = datetime(2026, 5, 8, tzinfo=UTC)
+    entry.feed.url = "https://example.com/feed.xml"
+    entry.feed.title = "Example feed"
+
+    reader = MagicMock()
+    reader.get_tag.side_effect = get_tag
+    reader.set_tag.side_effect = set_tag
+    reader.get_entry.return_value = entry
+
+    webhook = MagicMock()
+    webhook.json = {"content": "New title", "embeds": [], "attachments": []}
+    mock_create_webhook_for_entry.return_value = (webhook, "text")
+
+    response = MagicMock()
+    response.status_code = 200
+    response.text = '{"id": "message-3"}'
+    response.json.return_value = {"id": "message-3"}
+    mock_edit_sent_webhook_message.return_value = response
+
+    updated_count = feeds.update_sent_webhooks_for_modified_entries(
+        reader,
+        [("https://example.com/feed.xml", "entry-3")],
+    )
+
+    assert updated_count == 1
+    mock_edit_sent_webhook_message.assert_called_once()
+    records = state[feeds.SENT_WEBHOOKS_TAG]
+    assert isinstance(records, list)
+    assert isinstance(records[0], dict)
+    assert isinstance(records[0]["payload"], dict)
+    assert records[0]["payload"]["content"] == "New title"
+    assert records[0]["discord_response"] == {"id": "message-3"}
+    assert records[0]["response_text"] == '{"id": "message-3"}'
+    assert records[0]["update_count"] == 1
+    assert not records[0]["last_error"]
+
+
+def test_update_feeds_and_collect_modified_entries_only_returns_modified_entries() -> None:
+    class StubReader:
+        def __init__(self) -> None:
+            self.after_entry_update_hooks = []
+
+        def update_feeds(self, *, scheduled: bool, workers: int) -> None:
+            assert scheduled is True
+            assert workers == 1
+            new_entry = MagicMock()
+            new_entry.feed_url = "https://example.com/feed.xml"
+            new_entry.id = "new"
+            modified_entry = MagicMock()
+            modified_entry.feed_url = "https://example.com/feed.xml"
+            modified_entry.id = "modified"
+            for hook in list(self.after_entry_update_hooks):
+                hook(self, new_entry, feeds.EntryUpdateStatus.NEW)
+                hook(self, modified_entry, feeds.EntryUpdateStatus.MODIFIED)
+
+    reader = StubReader()
+
+    modified_entries: list[tuple[str, str]] = feeds.update_feeds_and_collect_modified_entries(
+        reader,  # pyright: ignore[reportArgumentType]
+        scheduled=True,
+        workers=1,
+    )
+
+    assert modified_entries == [("https://example.com/feed.xml", "modified")]
+    assert reader.after_entry_update_hooks == []

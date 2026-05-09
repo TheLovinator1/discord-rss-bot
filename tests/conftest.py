@@ -8,12 +8,25 @@ import warnings
 from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING
-from typing import Any
+from typing import Protocol
+from typing import cast
 
 from bs4 import MarkupResemblesLocatorWarning
 
 if TYPE_CHECKING:
+    from types import ModuleType
+
     import pytest
+
+
+class CachedReaderFactory(Protocol):
+    """Reader factory with lru_cache controls used by tests."""
+
+    def __call__(self) -> None:
+        """Create or return the cached reader."""
+
+    def cache_clear(self) -> None:
+        """Clear the cached reader."""
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -44,21 +57,23 @@ def pytest_sessionstart(session: pytest.Session) -> None:
 
     # If modules were imported before this hook (unlikely), force them to use
     # the worker-specific location.
-    settings_module: Any = sys.modules.get("discord_rss_bot.settings")
+    settings_module: ModuleType | None = sys.modules.get("discord_rss_bot.settings")
     if settings_module is not None:
         settings_module.data_dir = str(worker_data_dir)
-        get_reader: Any = getattr(settings_module, "get_reader", None)
-        if get_reader is not None and hasattr(get_reader, "cache_clear"):
+        get_reader_attr = getattr(settings_module, "get_reader", None)
+        if get_reader_attr is not None and hasattr(get_reader_attr, "cache_clear"):
+            get_reader = cast("CachedReaderFactory", get_reader_attr)
             get_reader.cache_clear()
 
-    main_module: Any = sys.modules.get("discord_rss_bot.main")
+    main_module: ModuleType | None = sys.modules.get("discord_rss_bot.main")
     if main_module is not None and settings_module is not None:
         with suppress(Exception):
             current_reader = getattr(main_module, "reader", None)
             if current_reader is not None:
                 current_reader.close()
-        get_reader: Any = getattr(settings_module, "get_reader", None)
-        if callable(get_reader):
+        get_reader_attr = getattr(settings_module, "get_reader", None)
+        if callable(get_reader_attr):
+            get_reader = cast("CachedReaderFactory", get_reader_attr)
             get_reader()
 
 

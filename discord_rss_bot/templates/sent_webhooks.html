@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}
+    Sent Webhooks | discord-rss-bot
+{% endblock title %}
+{% block description %}
+    Review Discord webhook messages saved for future RSS entry edits.
+{% endblock description %}
+{% block content %}
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div>
+            <h2 class="h3 mb-1">Sent webhooks</h2>
+            <p class="text-muted mb-0">
+                {{ total_records }} saved message{{ '' if total_records == 1 else 's' }}
+                {% if feed_url %}for {{ feed_titles.get(feed_url, feed_url) }}{% endif %}
+                {% if webhook_url %}via {{ webhook_names.get(webhook_url) or 'selected webhook' }}{% endif %}
+            </p>
+        </div>
+        <a class="btn btn-outline-light btn-sm" href="/webhooks">All webhooks</a>
+    </div>
+    {% if records %}
+        <div class="table-responsive">
+            <table class="table table-dark table-striped align-middle">
+                <thead>
+                    <tr>
+                        <th scope="col">Entry</th>
+                        <th scope="col">Webhook</th>
+                        <th scope="col">Discord response</th>
+                        <th scope="col">Mode</th>
+                        <th scope="col">Updated</th>
+                        <th scope="col">Preview</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in records %}
+                        <tr>
+                            <td class="sent-webhooks__entry">
+                                <a class="text-muted"
+                                   href="/feed?feed_url={{ record.feed_url|encode_url }}">
+                                    {{ feed_titles.get(record.feed_url, record.feed_title or record.feed_url) }}
+                                </a>
+                                <div>
+                                    {% if record.entry_link %}
+                                        <a class="text-light" href="{{ record.entry_link }}">{{ record.entry_title or record.entry_id }}</a>
+                                    {% else %}
+                                        <span class="text-light">{{ record.entry_title or record.entry_id }}</span>
+                                    {% endif %}
+                                </div>
+                                <code class="text-muted">{{ record.entry_id }}</code>
+                            </td>
+                            <td>
+                                <span class="text-muted">{{ webhook_names.get(record.webhook_url) or 'Stored webhook' }}</span>
+                            </td>
+                            <td>
+                                <div class="mb-1">
+                                    <span class="badge bg-secondary">HTTP {{ record.last_status_code or 'unknown' }}</span>
+                                </div>
+                                <div class="small">
+                                    Message:
+                                    <code>{{ record.message_id }}</code>
+                                </div>
+                                {% if record.discord_response %}
+                                    <details class="mt-2">
+                                        <summary class="text-muted small">Response JSON</summary>
+                                        <pre class="mb-0 mt-1 feed-page__pre">{{ record.discord_response|tojson(indent=2) }}</pre>
+                                    </details>
+                                {% elif record.response_text %}
+                                    <pre class="mb-0 mt-2 feed-page__pre">{{ record.response_text }}</pre>
+                                {% else %}
+                                    <div class="text-muted small mt-1">No saved response body</div>
+                                {% endif %}
+                                {% if record.last_error %}<div class="text-warning small">{{ record.last_error }}</div>{% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-secondary">{{ record.delivery_mode or 'unknown' }}</span>
+                                {% if record.update_count %}
+                                    <span class="badge bg-info">{{ record.update_count }} edit{{ '' if record.update_count == 1 else 's' }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-muted small">{{ record.last_updated_at or record.last_sent_at or 'Never' }}</td>
+                            <td class="sent-webhooks__preview">
+                                {% if record.payload and record.payload.content %}
+                                    <pre class="mb-0 feed-page__pre">{{ record.payload.content }}</pre>
+                                {% elif record.payload and record.payload.embeds %}
+                                    <span class="text-muted">{{ record.payload.embeds|length }} embed{{ '' if record.payload.embeds|length == 1 else 's' }}</span>
+                                {% else %}
+                                    <span class="text-muted">No text payload</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="alert alert-info" role="alert">No sent webhooks have been saved yet.</div>
+    {% endif %}
+{% endblock content %}
