@@ -717,6 +717,7 @@ def update_sent_webhook_record_for_entry(
     ):
         return record, False, False
 
+    previous_payload: JsonObject = json_object_or_empty(record.get("payload"))
     webhook, delivery_mode = create_webhook_for_entry(
         webhook_url_value,
         entry,
@@ -725,12 +726,23 @@ def update_sent_webhook_record_for_entry(
     )
     payload: JsonObject = preserve_previous_embed_media(
         get_webhook_message_payload(webhook),
-        json_object_or_empty(record.get("payload")),
+        previous_payload,
     )
     edit_payload: JsonObject = get_webhook_message_edit_payload(payload, record)
     payload_hash: str = hash_webhook_payload(payload)
     if payload_hash == record.get("payload_hash"):
         return record, False, False
+    if previous_payload and payload_hash == hash_webhook_payload(previous_payload):
+        return (
+            {
+                **record,
+                "payload": payload,
+                "payload_hash": payload_hash,
+                "delivery_mode": delivery_mode,
+            },
+            True,
+            False,
+        )
 
     now: str = datetime.datetime.now(tz=datetime.UTC).isoformat()
     try:

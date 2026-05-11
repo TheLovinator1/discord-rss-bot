@@ -1129,6 +1129,97 @@ def test_update_sent_webhook_record_preserves_existing_embed_image_when_updated_
     assert updated_record["payload_hash"] == feeds.hash_webhook_payload(updated_payload)
 
 
+@patch("discord_rss_bot.feeds.edit_sent_webhook_message")
+@patch("discord_rss_bot.feeds.create_webhook_for_entry")
+def test_update_sent_webhook_record_skips_edit_when_preserved_image_keeps_payload_unchanged(
+    mock_create_webhook_for_entry: MagicMock,
+    mock_edit_sent_webhook_message: MagicMock,
+) -> None:
+    previous_image: JsonObject = {
+        "url": "https://example.com/original-image.jpg",
+        "proxy_url": None,
+        "height": None,
+        "width": None,
+    }
+    old_payload: JsonObject = {
+        "content": "",
+        "embeds": [{"description": "Same summary", "image": previous_image, "thumbnail": None}],
+        "attachments": [],
+    }
+    record: feeds.SentWebhookRecord = {
+        "feed_url": "https://example.com/feed.xml",
+        "entry_id": "entry-5",
+        "webhook_url": "https://discord.com/api/webhooks/123/abc",
+        "message_id": "message-5",
+        "payload": old_payload,
+        "payload_hash": feeds.hash_webhook_payload(old_payload),
+        "update_count": 0,
+    }
+
+    entry = MagicMock()
+    entry.id = "entry-5"
+
+    reader = MagicMock()
+    webhook = MagicMock()
+    webhook.json = {
+        "content": "",
+        "embeds": [{"description": "Same summary", "image": None, "thumbnail": None}],
+        "attachments": [],
+    }
+    mock_create_webhook_for_entry.return_value = (webhook, "embed")
+
+    updated_record, record_changed, message_was_edited = feeds.update_sent_webhook_record_for_entry(
+        reader,
+        entry,
+        record,
+    )
+
+    assert updated_record == record
+    assert record_changed is False
+    assert message_was_edited is False
+    mock_edit_sent_webhook_message.assert_not_called()
+
+
+@patch("discord_rss_bot.feeds.edit_sent_webhook_message")
+@patch("discord_rss_bot.feeds.create_webhook_for_entry")
+def test_update_sent_webhook_record_backfills_missing_payload_hash_without_editing_discord(
+    mock_create_webhook_for_entry: MagicMock,
+    mock_edit_sent_webhook_message: MagicMock,
+) -> None:
+    old_payload: JsonObject = {
+        "content": "",
+        "embeds": [{"description": "Same summary", "image": None, "thumbnail": None}],
+        "attachments": [],
+    }
+    record: feeds.SentWebhookRecord = {
+        "feed_url": "https://example.com/feed.xml",
+        "entry_id": "entry-6",
+        "webhook_url": "https://discord.com/api/webhooks/123/abc",
+        "message_id": "message-6",
+        "payload": old_payload,
+        "update_count": 0,
+    }
+
+    entry = MagicMock()
+    entry.id = "entry-6"
+
+    reader = MagicMock()
+    webhook = MagicMock()
+    webhook.json = old_payload
+    mock_create_webhook_for_entry.return_value = (webhook, "embed")
+
+    updated_record, record_changed, message_was_edited = feeds.update_sent_webhook_record_for_entry(
+        reader,
+        entry,
+        record,
+    )
+
+    assert record_changed is True
+    assert message_was_edited is False
+    assert updated_record["payload_hash"] == feeds.hash_webhook_payload(old_payload)
+    mock_edit_sent_webhook_message.assert_not_called()
+
+
 def test_update_feeds_and_collect_modified_entries_only_returns_modified_entries() -> None:
     class StubReader:
         def __init__(self) -> None:
