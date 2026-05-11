@@ -7,6 +7,7 @@ from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 from typing import LiteralString
+from typing import cast
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
@@ -1040,13 +1041,15 @@ def test_update_sent_webhooks_for_modified_entries_edits_changed_payload(
     response.json.return_value = {"id": "message-3"}
     mock_edit_sent_webhook_message.return_value = response
 
-    updated_count = feeds.update_sent_webhooks_for_modified_entries(
+    updated_count: int = feeds.update_sent_webhooks_for_modified_entries(
         reader,
         [("https://example.com/feed.xml", "entry-3")],
     )
 
     assert updated_count == 1
     mock_edit_sent_webhook_message.assert_called_once()
+    edit_payload = mock_edit_sent_webhook_message.call_args.args[3]
+    assert edit_payload == {"content": "New title"}
     records = state[feeds.SENT_WEBHOOKS_TAG]
     assert isinstance(records, list)
     assert isinstance(records[0], dict)
@@ -1056,6 +1059,74 @@ def test_update_sent_webhooks_for_modified_entries_edits_changed_payload(
     assert records[0]["response_text"] == '{"id": "message-3"}'
     assert records[0]["update_count"] == 1
     assert not records[0]["last_error"]
+
+
+@patch("discord_rss_bot.feeds.edit_sent_webhook_message")
+@patch("discord_rss_bot.feeds.create_webhook_for_entry")
+def test_update_sent_webhook_record_preserves_existing_embed_image_when_updated_entry_has_no_image(
+    mock_create_webhook_for_entry: MagicMock,
+    mock_edit_sent_webhook_message: MagicMock,
+) -> None:
+    previous_image: JsonObject = {
+        "url": "https://example.com/original-image.jpg",
+        "proxy_url": None,
+        "height": None,
+        "width": None,
+    }
+    old_payload: JsonObject = {
+        "content": "",
+        "embeds": [{"description": "Old summary", "image": previous_image, "thumbnail": None}],
+        "attachments": [],
+    }
+    record: feeds.SentWebhookRecord = {
+        "feed_url": "https://example.com/feed.xml",
+        "entry_id": "entry-4",
+        "webhook_url": "https://discord.com/api/webhooks/123/abc",
+        "message_id": "message-4",
+        "payload": old_payload,
+        "payload_hash": feeds.hash_webhook_payload(old_payload),
+        "update_count": 0,
+    }
+
+    entry = MagicMock()
+    entry.id = "entry-4"
+    entry.title = "New title"
+    entry.link = "https://example.com/entry-4"
+    entry.updated = datetime(2026, 5, 8, tzinfo=UTC)
+    entry.feed.url = "https://example.com/feed.xml"
+    entry.feed.title = "Example feed"
+
+    reader = MagicMock()
+    webhook = MagicMock()
+    webhook.json = {
+        "content": "",
+        "embeds": [{"description": "New summary", "image": None, "thumbnail": None}],
+        "attachments": [],
+    }
+    mock_create_webhook_for_entry.return_value = (webhook, "embed")
+
+    response = MagicMock()
+    response.status_code = 200
+    response.text = '{"id": "message-4"}'
+    response.json.return_value = {"id": "message-4"}
+    mock_edit_sent_webhook_message.return_value = response
+
+    updated_record, record_changed, message_was_edited = feeds.update_sent_webhook_record_for_entry(
+        reader,
+        entry,
+        record,
+    )
+
+    assert record_changed is True
+    assert message_was_edited is True
+    edit_payload = mock_edit_sent_webhook_message.call_args.args[3]
+    assert isinstance(edit_payload["embeds"], list)
+    assert edit_payload["embeds"][0]["image"] == previous_image
+    assert isinstance(updated_record["payload"], dict)
+    updated_payload = cast("JsonObject", updated_record["payload"])
+    updated_embeds = cast("list[JsonObject]", updated_payload["embeds"])
+    assert updated_embeds[0]["image"] == previous_image
+    assert updated_record["payload_hash"] == feeds.hash_webhook_payload(updated_payload)
 
 
 def test_update_feeds_and_collect_modified_entries_only_returns_modified_entries() -> None:

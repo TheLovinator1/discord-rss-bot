@@ -100,7 +100,6 @@ class JsonResponseLike(Protocol):
 
 
 MAX_DISCORD_UPLOAD_BYTES: int = 8 * 1024 * 1024
-JPEG_QUALITY_STEPS: tuple[int, ...] = (85, 70, 55, 40)
 SENT_WEBHOOKS_TAG: str = "sent_webhooks"
 SAVE_SENT_WEBHOOKS_TAG: str = "save_sent_webhooks"
 MESSAGE_PAYLOAD_KEYS: tuple[str, ...] = (
@@ -355,6 +354,69 @@ def hash_webhook_payload(payload: JsonObject) -> str:
     """
     normalized_payload: str = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(normalized_payload.encode()).hexdigest()
+
+
+def json_object_or_empty(value: JsonValue) -> JsonObject:
+    """Return a JSON object value or an empty object."""
+    return cast("JsonObject", value) if isinstance(value, dict) else {}
+
+
+def json_list_or_empty(value: JsonValue) -> list[JsonValue]:
+    """Return a JSON list value or an empty list."""
+    return cast("list[JsonValue]", value) if isinstance(value, list) else []
+
+
+def has_media_url(value: JsonValue) -> bool:
+    """Return whether an embed media field has a usable URL."""
+    return isinstance(value, dict) and isinstance(value.get("url"), str) and bool(value["url"])
+
+
+def preserve_previous_embed_media(payload: JsonObject, previous_payload: JsonObject) -> JsonObject:
+    """Keep existing embed image fields when an entry update cannot extract a replacement.
+
+    Returns:
+        JsonObject: Payload with previous embed media restored when the update lacks replacement media.
+    """
+    embeds: list[JsonValue] = json_list_or_empty(payload.get("embeds"))
+    previous_embeds: list[JsonValue] = json_list_or_empty(previous_payload.get("embeds"))
+    if not embeds or not previous_embeds:
+        return payload
+
+    merged_payload: JsonObject = cast("JsonObject", json.loads(json.dumps(payload, default=str)))
+    merged_embeds: list[JsonValue] = json_list_or_empty(merged_payload.get("embeds"))
+
+    for index, embed_value in enumerate(merged_embeds):
+        if index >= len(previous_embeds) or not isinstance(embed_value, dict):
+            continue
+
+        previous_embed: JsonObject = json_object_or_empty(previous_embeds[index])
+        embed: JsonObject = cast("JsonObject", embed_value)
+        for media_key in ("image", "thumbnail"):
+            previous_media: JsonValue = previous_embed.get(media_key)
+            if has_media_url(previous_media) and not has_media_url(embed.get(media_key)):
+                embed[media_key] = previous_media
+
+    return merged_payload
+
+
+def get_webhook_message_edit_payload(payload: JsonObject, record: SentWebhookRecord) -> JsonObject:
+    """Return the payload to PATCH to Discord for a saved message edit.
+
+    Returns:
+        JsonObject: Payload suitable for a Discord message edit request.
+    """
+    previous_payload: JsonObject = json_object_or_empty(record.get("payload"))
+    edit_payload: JsonObject = preserve_previous_embed_media(payload, previous_payload)
+
+    previous_embeds: list[JsonValue] = json_list_or_empty(previous_payload.get("embeds"))
+    if edit_payload.get("embeds") == [] and not previous_embeds:
+        edit_payload.pop("embeds", None)
+
+    previous_attachments: list[JsonValue] = json_list_or_empty(previous_payload.get("attachments"))
+    if edit_payload.get("attachments") == [] and not previous_attachments:
+        edit_payload.pop("attachments", None)
+
+    return edit_payload
 
 
 def json_value_to_int(value: JsonValue, default: int = 0) -> int:
@@ -661,14 +723,18 @@ def update_sent_webhook_record_for_entry(
         reader,
         use_default_message_on_empty=True,
     )
-    payload: JsonObject = get_webhook_message_payload(webhook)
+    payload: JsonObject = preserve_previous_embed_media(
+        get_webhook_message_payload(webhook),
+        json_object_or_empty(record.get("payload")),
+    )
+    edit_payload: JsonObject = get_webhook_message_edit_payload(payload, record)
     payload_hash: str = hash_webhook_payload(payload)
     if payload_hash == record.get("payload_hash"):
         return record, False, False
 
     now: str = datetime.datetime.now(tz=datetime.UTC).isoformat()
     try:
-        response = edit_sent_webhook_message(webhook_url_value, message_id_value, webhook, payload)
+        response = edit_sent_webhook_message(webhook_url_value, message_id_value, webhook, edit_payload)
     except (AssertionError, RequestException, httpx.HTTPError, OSError, ValueError) as e:
         logger.exception("Failed to edit Discord webhook message %s for entry %s", message_id_value, entry.id)
         return (
@@ -837,7 +903,7 @@ def create_screenshot_webhook(webhook_url: str, entry: Entry, reader: Reader) ->
             len(screenshot_bytes),
         )
 
-        for quality in JPEG_QUALITY_STEPS:
+        for quality in (85, 70, 55, 40):
             jpeg_bytes = capture_full_page_screenshot(
                 entry_link,
                 screenshot_layout=screenshot_layout,
