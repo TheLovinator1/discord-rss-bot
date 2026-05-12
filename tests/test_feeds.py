@@ -39,6 +39,12 @@ from discord_rss_bot.feeds import should_send_embed_check
 from discord_rss_bot.feeds import truncate_webhook_message
 
 
+def get_test_webhook_components(webhook: feeds.DiscordWebhook) -> list[feeds.JsonValue]:
+    components = webhook.json.get("components")
+    assert isinstance(components, list)
+    return components
+
+
 def test_send_to_discord() -> None:
     """Test sending to Discord."""
     # Skip early if no webhook URL is configured to avoid a real network request.
@@ -568,6 +574,131 @@ def test_create_screenshot_webhook_falls_back_to_text_on_failure(
     )
 
 
+@patch("discord_rss_bot.feeds.fetch_ttvdrops_campaign_media_items", return_value=[])
+@patch("discord_rss_bot.feeds.replace_tags_in_embed")
+def test_create_embed_webhook_uses_media_gallery_for_entry_images(
+    mock_replace_tags_in_embed: MagicMock,
+    mock_fetch_ttvdrops_campaign_media_items: MagicMock,
+) -> None:
+    reader = MagicMock()
+    entry = MagicMock()
+    entry.id = "entry-1"
+    entry.title = "Entry title"
+    entry.link = "https://example.com/entry"
+    entry.summary = '<img src="https://example.com/summary.jpg" />'
+    entry.content = [
+        MagicMock(value='<img src="https://example.com/content-1.jpg" />'),
+        MagicMock(value='<img src="https://example.com/content-2.jpg" />'),
+    ]
+    entry.feed.url = "https://example.com/feed.xml"
+    mock_replace_tags_in_embed.return_value = feeds.CustomEmbed(
+        description="Entry body",
+        author_name="Entry title",
+        author_url="https://example.com/entry",
+    )
+
+    webhook = feeds.create_embed_webhook("https://discord.com/api/webhooks/123/abc", entry, reader)
+
+    assert webhook.flags == feeds.MESSAGE_FLAG_IS_COMPONENTS_V2
+    components = get_test_webhook_components(webhook)
+    assert components[0] == {
+        "type": 10,
+        "content": "## [Entry title](https://example.com/entry)\n\nEntry body",
+    }
+    gallery = components[1]
+    assert isinstance(gallery, dict)
+    assert gallery["type"] == 12
+    mock_fetch_ttvdrops_campaign_media_items.assert_called_once_with(entry)
+    assert gallery["items"] == [
+        {"media": {"url": "https://example.com/content-1.jpg"}, "description": "Entry title"},
+        {"media": {"url": "https://example.com/content-2.jpg"}, "description": "Entry title"},
+        {"media": {"url": "https://example.com/summary.jpg"}, "description": "Entry title"},
+    ]
+
+
+@patch("discord_rss_bot.feeds.fetch_ttvdrops_campaign_media_items")
+@patch("discord_rss_bot.feeds.replace_tags_in_embed")
+def test_create_embed_webhook_prefers_ttvdrops_reward_images_and_alt_text(
+    mock_replace_tags_in_embed: MagicMock,
+    mock_fetch_ttvdrops_campaign_media_items: MagicMock,
+) -> None:
+    reader = MagicMock()
+    entry = MagicMock()
+    entry.id = "entry-2"
+    entry.title = "Drop campaign"
+    entry.link = "https://ttvdrops.lovinator.space/twitch/campaigns/93ba35ae-5bfc-43fe-88ac-49a0aabb2fe2/"
+    entry.summary = '<img src="https://example.com/feed-image.jpg" />'
+    entry.content = []
+    entry.feed.url = "https://ttvdrops.lovinator.space/feed.xml"
+    mock_replace_tags_in_embed.return_value = feeds.CustomEmbed(description="Campaign body")
+    mock_fetch_ttvdrops_campaign_media_items.return_value = [
+        {
+            "url": "https://ttvdrops.lovinator.space/media/benefits/images/reward.png",
+            "description": "120 minutes watched: Skulbladi",
+        },
+    ]
+
+    webhook = feeds.create_embed_webhook("https://discord.com/api/webhooks/123/abc", entry, reader)
+
+    gallery = get_test_webhook_components(webhook)[1]
+    assert isinstance(gallery, dict)
+    assert gallery["items"] == [
+        {
+            "media": {"url": "https://ttvdrops.lovinator.space/media/benefits/images/reward.png"},
+            "description": "120 minutes watched: Skulbladi",
+        },
+    ]
+
+
+def test_get_ttvdrops_campaign_api_url_from_campaign_page() -> None:
+    entry = MagicMock()
+    entry.link = "https://ttvdrops.lovinator.space/twitch/campaigns/93ba35ae-5bfc-43fe-88ac-49a0aabb2fe2/"
+    entry.id = "entry-3"
+    entry.feed.url = "https://example.com/feed.xml"
+
+    api_url = feeds.get_ttvdrops_campaign_api_url(entry)
+
+    assert api_url == "https://ttvdrops.lovinator.space/twitch/api/v1/campaigns/93ba35ae-5bfc-43fe-88ac-49a0aabb2fe2/"
+
+
+@patch("discord_rss_bot.feeds.httpx.get")
+def test_fetch_ttvdrops_campaign_media_items_extracts_reward_alt_text(mock_get: MagicMock) -> None:
+    response = MagicMock()
+    response.status_code = 200
+    response.json.return_value = {
+        "image_url": "/media/campaigns/images/campaign.png",
+        "drops": [
+            {
+                "name": "Drop",
+                "required_minutes_watched": 120,
+                "benefits": [
+                    {"name": "Skulbladi", "image_url": "/media/benefits/images/reward.png"},
+                    {"image_url": "javascript:alert(1)"},
+                ],
+            },
+        ],
+    }
+    mock_get.return_value = response
+    entry = MagicMock()
+    entry.link = "https://ttvdrops.lovinator.space/twitch/campaigns/93ba35ae-5bfc-43fe-88ac-49a0aabb2fe2/"
+    entry.id = "entry-4"
+    entry.feed.url = "https://example.com/feed.xml"
+
+    media_items = feeds.fetch_ttvdrops_campaign_media_items(entry)
+
+    assert media_items == [
+        {
+            "url": "https://ttvdrops.lovinator.space/media/benefits/images/reward.png",
+            "description": "120 minutes watched: Skulbladi",
+        },
+    ]
+    mock_get.assert_called_once_with(
+        "https://ttvdrops.lovinator.space/twitch/api/v1/campaigns/93ba35ae-5bfc-43fe-88ac-49a0aabb2fe2/",
+        follow_redirects=True,
+        timeout=10.0,
+    )
+
+
 def test_capture_full_page_screenshot_uses_thread_when_loop_running() -> None:
     """Capture should offload sync Playwright work when called from an active event loop."""
     with patch("discord_rss_bot.feeds._capture_full_page_screenshot_sync", return_value=b"png") as mock_capture_sync:
@@ -871,10 +1002,14 @@ def test_execute_webhook_skips_when_feed_missing() -> None:
 
 
 @patch.object(feeds, "logger")
-def test_execute_webhook_logs_error_on_bad_status(mock_logger: MagicMock) -> None:
+@patch("discord_rss_bot.feeds.send_webhook_message")
+def test_execute_webhook_logs_error_on_bad_status(
+    mock_send_webhook_message: MagicMock,
+    mock_logger: MagicMock,
+) -> None:
     webhook = MagicMock()
     webhook.json = {"content": "test"}
-    webhook.execute.return_value = MagicMock(status_code=500, text="fail")
+    mock_send_webhook_message.return_value = MagicMock(status_code=500, text="fail")
     reader = MagicMock()
     entry = MagicMock()
     entry.id = "entry-8"
@@ -887,9 +1022,13 @@ def test_execute_webhook_logs_error_on_bad_status(mock_logger: MagicMock) -> Non
 
 
 @patch.object(feeds, "logger")
-def test_execute_webhook_logs_info_on_success(mock_logger: MagicMock) -> None:
+@patch("discord_rss_bot.feeds.send_webhook_message")
+def test_execute_webhook_logs_info_on_success(
+    mock_send_webhook_message: MagicMock,
+    mock_logger: MagicMock,
+) -> None:
     webhook = MagicMock()
-    webhook.execute.return_value = MagicMock(status_code=204, text="")
+    mock_send_webhook_message.return_value = MagicMock(status_code=204, text="")
     reader = MagicMock()
     entry = MagicMock()
     entry.id = "entry-9"
@@ -901,7 +1040,8 @@ def test_execute_webhook_logs_info_on_success(mock_logger: MagicMock) -> None:
     mock_logger.info.assert_called_once_with("Sent entry to Discord: %s", "entry-9")
 
 
-def test_execute_webhook_records_sent_webhook_message() -> None:
+@patch("discord_rss_bot.feeds.send_webhook_message")
+def test_execute_webhook_records_sent_webhook_message(mock_send_webhook_message: MagicMock) -> None:
     webhook_url = "https://discord.com/api/webhooks/123/abc"
     state: dict[str, feeds.JsonValue] = {}
 
@@ -939,7 +1079,7 @@ def test_execute_webhook_records_sent_webhook_message() -> None:
     response.status_code = 200
     response.text = '{"id": "message-1"}'
     response.json.return_value = {"id": "message-1"}
-    webhook.execute.return_value = response
+    mock_send_webhook_message.return_value = response
 
     execute_webhook(webhook, entry, reader)
 
@@ -959,7 +1099,8 @@ def test_execute_webhook_records_sent_webhook_message() -> None:
     assert records[0]["payload"]["content"] == "Entry title"
 
 
-def test_execute_webhook_does_not_record_when_feed_tracking_disabled() -> None:
+@patch("discord_rss_bot.feeds.send_webhook_message")
+def test_execute_webhook_does_not_record_when_feed_tracking_disabled(mock_send_webhook_message: MagicMock) -> None:
     webhook_url = "https://discord.com/api/webhooks/123/abc"
     reader = MagicMock()
     reader.get_tag.side_effect = lambda _resource, key, default=None: {
@@ -979,11 +1120,60 @@ def test_execute_webhook_does_not_record_when_feed_tracking_disabled() -> None:
     response.status_code = 200
     response.text = '{"id": "message-2"}'
     response.json.return_value = {"id": "message-2"}
-    webhook.execute.return_value = response
+    mock_send_webhook_message.return_value = response
 
     execute_webhook(webhook, entry, reader)
 
     reader.set_tag.assert_not_called()
+
+
+@patch("discord_rss_bot.feeds.httpx.request")
+def test_send_webhook_message_posts_components_with_httpx(mock_request: MagicMock) -> None:
+    response = MagicMock(status_code=200, text='{"id": "message-1"}')
+    mock_request.return_value = response
+    components: list[feeds.JsonValue] = [
+        {
+            "type": 10,
+            "content": "# Component update",
+        },
+    ]
+    webhook = feeds.DiscordWebhook(
+        url="https://discord.com/api/webhooks/123/abc?thread_id=456",
+        flags=feeds.MESSAGE_FLAG_IS_COMPONENTS_V2,
+        components=components,
+    )
+
+    result = feeds.send_webhook_message(webhook, feeds.get_webhook_request_payload(webhook))
+
+    assert result is response
+    mock_request.assert_called_once()
+    assert mock_request.call_args.args == ("POST", "https://discord.com/api/webhooks/123/abc")
+    assert mock_request.call_args.kwargs["json"] == {
+        "components": components,
+        "flags": feeds.MESSAGE_FLAG_IS_COMPONENTS_V2,
+    }
+    assert mock_request.call_args.kwargs["params"] == {
+        "thread_id": "456",
+        "wait": "true",
+        "with_components": "true",
+    }
+
+
+@patch("discord_rss_bot.feeds.httpx.request")
+def test_send_webhook_message_uploads_files_as_multipart(mock_request: MagicMock) -> None:
+    response = MagicMock(status_code=200, text='{"id": "message-2"}')
+    mock_request.return_value = response
+    webhook = feeds.DiscordWebhook(url="https://discord.com/api/webhooks/123/abc", content="Entry link")
+    webhook.add_file(file=b"image-bytes", filename="entry.png")
+
+    result = feeds.send_webhook_message(webhook, feeds.get_webhook_request_payload(webhook))
+
+    assert result is response
+    mock_request.assert_called_once()
+    assert mock_request.call_args.args == ("POST", "https://discord.com/api/webhooks/123/abc")
+    assert mock_request.call_args.kwargs["data"] == {"payload_json": '{"content": "Entry link"}'}
+    assert mock_request.call_args.kwargs["files"] == [("files[0]", ("entry.png", b"image-bytes"))]
+    assert "json" not in mock_request.call_args.kwargs
 
 
 @patch("discord_rss_bot.feeds.edit_sent_webhook_message")

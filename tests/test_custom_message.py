@@ -13,6 +13,7 @@ from discord_rss_bot.custom_message import get_custom_message
 from discord_rss_bot.custom_message import get_embed
 from discord_rss_bot.custom_message import get_embed_data
 from discord_rss_bot.custom_message import get_first_image
+from discord_rss_bot.custom_message import get_image_urls
 from discord_rss_bot.custom_message import replace_tags_in_embed
 from discord_rss_bot.custom_message import replace_tags_in_text_message
 from discord_rss_bot.custom_message import save_embed
@@ -201,6 +202,34 @@ def test_get_first_image_uses_summary_when_content_image_is_invalid() -> None:
     image = get_first_image(summary, content)
 
     assert image == "https://example.com/from-summary.jpg"
+
+
+def test_get_image_urls_returns_all_valid_images_in_order_without_duplicates() -> None:
+    summary = (
+        '<p><img src="https://example.com/from-summary.jpg" /><img src="https://example.com/from-content-1.jpg" /></p>'
+    )
+    content = (
+        '<p><img src="https://example.com/from-content-1.jpg" />'
+        '<img src="javascript:alert(1)" />'
+        '<img src="https://example.com/from-content-2.jpg" /></p>'
+    )
+
+    images = get_image_urls(summary, content)
+
+    assert images == [
+        "https://example.com/from-content-1.jpg",
+        "https://example.com/from-content-2.jpg",
+        "https://example.com/from-summary.jpg",
+    ]
+
+
+def test_get_image_urls_respects_limit() -> None:
+    summary = '<img src="https://example.com/summary.jpg" />'
+    content = '<img src="https://example.com/one.jpg" /><img src="https://example.com/two.jpg" />'
+
+    images = get_image_urls(summary, content, limit=2)
+
+    assert images == ["https://example.com/one.jpg", "https://example.com/two.jpg"]
 
 
 def test_get_first_image_returns_empty_when_images_have_no_src() -> None:

@@ -196,39 +196,52 @@ def replace_tags_in_text_message(entry: Entry, reader: Reader) -> str:
     return custom_message.replace("\\n", "\n")
 
 
-def get_first_image(summary: str | None, content: str | Sequence[Content] | None) -> str:  # noqa: C901
-    """Get image from summary or content.
+def _extract_entry_text(data: str | list | tuple | Sequence[Content] | None) -> str | None:
+    """Extract text from a reader summary/content value.
+
+    Returns:
+        Extracted text, or None when the input is empty.
+    """
+    if not data:
+        return None
+    if isinstance(data, str):
+        return data
+    if isinstance(data, (list, tuple)):
+        extracted: list[str] = []
+        for item in data:
+            if hasattr(item, "value"):
+                extracted.append(item.value)
+            elif isinstance(item, dict) and "value" in item:
+                extracted.append(item.get("value", ""))
+            else:
+                extracted.append(str(item))
+        return "".join(extracted)
+    return str(data)
+
+
+def get_image_urls(
+    summary: str | None,
+    content: str | Sequence[Content] | None,
+    *,
+    limit: int | None = None,
+) -> list[str]:
+    """Get valid image URLs from content, then summary.
 
     Args:
         summary: The summary from the entry (string, or tuple/list of objects)
         content: The content from the entry (string, or tuple/list of objects)
+        limit: Optional maximum number of URLs to return.
 
     Returns:
-        The first image
+        Valid, de-duplicated image URLs.
     """
+    image_urls: list[str] = []
+    seen_urls: set[str] = set()
 
-    def extract_string(data: str | list | tuple | Sequence[Content] | None) -> str | None:
-        if not data:
-            return None
-        if isinstance(data, str):
-            return data
-        if isinstance(data, (list, tuple)):
-            extracted: list[str] = []
-            for item in data:
-                if hasattr(item, "value"):
-                    extracted.append(item.value)
-                elif isinstance(item, dict) and "value" in item:
-                    extracted.append(item.get("value", ""))
-                else:
-                    extracted.append(str(item))
-            return "".join(extracted)
-        return str(data)
-
-    # Convert potentially complex objects into strings
-    content_str: str | None = extract_string(content)
-    summary_str: str | None = extract_string(summary)
-
-    if content_str and (images := BeautifulSoup(content_str, features="lxml").find_all("img")):
+    def add_images_from_text(text: str | None) -> None:
+        if not text:
+            return
+        images = BeautifulSoup(text, features="lxml").find_all("img")
         for image in images:
             if not isinstance(image, Tag) or "src" not in image.attrs:
                 logger.error("Image is not a Tag or does not have a src attribute.")
@@ -239,21 +252,29 @@ def get_first_image(summary: str | None, content: str | Sequence[Content] | None
                 logger.warning("Invalid URL: %s", src)
                 continue
 
-            return src
-
-    if summary_str and (images := BeautifulSoup(summary_str, features="lxml").find_all("img")):
-        for image in images:
-            if not isinstance(image, Tag) or "src" not in image.attrs:
-                logger.error("Image is not a Tag or does not have a src attribute.")
+            if src in seen_urls:
                 continue
 
-            if not is_url_valid(str(image.attrs["src"])):
-                logger.warning("Invalid URL: %s", image.attrs["src"])
-                continue
+            image_urls.append(src)
+            seen_urls.add(src)
+            if limit is not None and len(image_urls) >= limit:
+                return
 
-            return str(image.attrs["src"])
+    add_images_from_text(_extract_entry_text(content))
+    if limit is None or len(image_urls) < limit:
+        add_images_from_text(_extract_entry_text(summary))
 
-    return ""
+    return image_urls
+
+
+def get_first_image(summary: str | None, content: str | Sequence[Content] | None) -> str:
+    """Get the first image from summary or content.
+
+    Returns:
+        First valid image URL, or an empty string.
+    """
+    image_urls: list[str] = get_image_urls(summary, content, limit=1)
+    return image_urls[0] if image_urls else ""
 
 
 def replace_tags_in_embed(feed: Feed, entry: Entry, reader: Reader) -> CustomEmbed:

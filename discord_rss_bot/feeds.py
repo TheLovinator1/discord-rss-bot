@@ -9,20 +9,21 @@ import logging
 import os
 import pprint
 import re
+import time
 from collections.abc import Callable
 from contextlib import suppress
 from typing import TYPE_CHECKING
+from typing import Any
 from typing import Literal
 from typing import Protocol
 from typing import cast
 from urllib.parse import ParseResult
 from urllib.parse import parse_qs
+from urllib.parse import urljoin
 from urllib.parse import urlparse
 
 import httpx
 import tldextract
-from discord_webhook import DiscordEmbed
-from discord_webhook import DiscordWebhook
 from fastapi import HTTPException
 from markdownify import markdownify
 from playwright.sync_api import Browser
@@ -43,6 +44,7 @@ from requests import RequestException
 
 from discord_rss_bot.custom_message import CustomEmbed
 from discord_rss_bot.custom_message import get_custom_message
+from discord_rss_bot.custom_message import get_image_urls
 from discord_rss_bot.custom_message import replace_tags_in_embed
 from discord_rss_bot.custom_message import replace_tags_in_text_message
 from discord_rss_bot.filter.evaluator import get_entry_filter_decision_from_reader
@@ -54,12 +56,14 @@ from discord_rss_bot.is_url_valid import is_url_valid
 from discord_rss_bot.settings import default_custom_embed
 from discord_rss_bot.settings import default_custom_message
 from discord_rss_bot.settings import get_reader
+from discord_rss_bot.webhook import DiscordEmbed
+from discord_rss_bot.webhook import DiscordWebhook
+from discord_rss_bot.webhook import WebhookFile
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
     from reader._types import EntryData
-    from requests import Response
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -100,15 +104,23 @@ class JsonResponseLike(Protocol):
 
 
 MAX_DISCORD_UPLOAD_BYTES: int = 8 * 1024 * 1024
+MAX_MEDIA_GALLERY_ITEMS: int = 10
+MESSAGE_FLAG_IS_COMPONENTS_V2: int = 1 << 15
+TTVDROPS_HOST: str = "ttvdrops.lovinator.space"
+TTVDROPS_BASE_URL: str = f"https://{TTVDROPS_HOST}"
 SENT_WEBHOOKS_TAG: str = "sent_webhooks"
 SAVE_SENT_WEBHOOKS_TAG: str = "save_sent_webhooks"
 MESSAGE_PAYLOAD_KEYS: tuple[str, ...] = (
     "allowed_mentions",
+    "applied_tags",
     "attachments",
     "avatar_url",
+    "components",
     "content",
     "embeds",
     "flags",
+    "poll",
+    "thread_name",
     "tts",
     "username",
 )
@@ -320,19 +332,19 @@ def save_sent_webhook_records(reader: Reader, records: list[SentWebhookRecord]) 
     reader.set_tag((), SENT_WEBHOOKS_TAG, records)  # pyright: ignore[reportArgumentType]
 
 
-def get_webhook_message_payload(webhook: DiscordWebhook) -> JsonObject:
-    """Return the Discord message payload used to compare saved messages.
+def get_webhook_request_payload(webhook: DiscordWebhook) -> JsonObject:
+    """Return the Discord message payload sent to Discord.
 
-    The discord-webhook object also includes client/runtime fields in `json`; only fields that affect the Discord
-    message itself are persisted. Empty `content`, `embeds`, and `attachments` are kept so message edits can clear
-    stale content when a feed changes delivery mode.
+    Runtime fields on the webhook object are intentionally excluded. Unlike
+    `get_webhook_message_payload`, this does not add empty defaults because
+    Components V2 messages reject otherwise-empty `content` and `embeds` fields.
 
     Returns:
-        JsonObject: Normalized Discord message payload.
+        JsonObject: Discord request payload.
     """
     raw_payload = cast("JsonValue", webhook.json)
     if not isinstance(raw_payload, dict):
-        return {"content": "", "embeds": [], "attachments": []}
+        return {}
 
     payload: JsonObject = {}
     webhook_payload = cast("JsonObject", raw_payload)
@@ -340,6 +352,19 @@ def get_webhook_message_payload(webhook: DiscordWebhook) -> JsonObject:
         if key in webhook_payload:
             payload[key] = webhook_payload[key]
 
+    return cast("JsonObject", json.loads(json.dumps(payload, default=str)))
+
+
+def get_webhook_message_payload(webhook: DiscordWebhook) -> JsonObject:
+    """Return the normalized Discord message payload used to compare saved messages.
+
+    Empty `content`, `embeds`, and `attachments` are kept here so message edits can clear stale content when a feed
+    changes delivery mode. Use `get_webhook_request_payload` for the payload sent to Discord.
+
+    Returns:
+        JsonObject: Normalized Discord message payload.
+    """
+    payload: JsonObject = get_webhook_request_payload(webhook)
     payload.setdefault("content", "")
     payload.setdefault("embeds", [])
     payload.setdefault("attachments", [])
@@ -416,6 +441,13 @@ def get_webhook_message_edit_payload(payload: JsonObject, record: SentWebhookRec
     if edit_payload.get("attachments") == [] and not previous_attachments:
         edit_payload.pop("attachments", None)
 
+    if json_value_to_int(edit_payload.get("flags")) & MESSAGE_FLAG_IS_COMPONENTS_V2:
+        edit_payload.pop("content", None)
+        edit_payload.pop("embeds", None)
+        edit_payload.pop("poll", None)
+        if edit_payload.get("attachments") == []:
+            edit_payload.pop("attachments", None)
+
     return edit_payload
 
 
@@ -469,7 +501,8 @@ def get_discord_message_id_from_response(response_json: JsonObject, webhook: Dis
     if isinstance(message_id, str) and message_id:
         return message_id
 
-    webhook_id: str | None = webhook.id if isinstance(webhook.id, str) else None
+    raw_webhook_id = getattr(webhook, "id", None)
+    webhook_id: str | None = raw_webhook_id if isinstance(raw_webhook_id, str) else None
     return webhook_id if isinstance(webhook_id, str) else ""
 
 
@@ -570,36 +603,166 @@ def split_webhook_url_for_message_endpoint(webhook_url: str) -> tuple[str, str |
     return clean_url, thread_id
 
 
+def payload_has_components(payload: JsonObject) -> bool:
+    """Return whether a Discord payload includes message components."""
+    components: JsonValue = payload.get("components")
+    return isinstance(components, list) and bool(components)
+
+
+def get_webhook_query_params(
+    webhook_url: str,
+    payload: JsonObject,
+    *,
+    webhook: DiscordWebhook | None = None,
+    wait: bool = True,
+) -> tuple[str, dict[str, str]]:
+    """Return a clean webhook URL and query params for a Discord webhook request."""
+    clean_webhook_url, thread_id = split_webhook_url_for_message_endpoint(webhook_url)
+    webhook_thread_id = getattr(webhook, "thread_id", None) if webhook is not None else None
+    if isinstance(webhook_thread_id, str) and webhook_thread_id.strip():
+        thread_id = webhook_thread_id.strip()
+
+    params: dict[str, str] = {}
+    if wait:
+        params["wait"] = "true"
+    if thread_id:
+        params["thread_id"] = thread_id
+    if payload_has_components(payload):
+        params["with_components"] = "true"
+
+    return clean_webhook_url, params
+
+
+def get_webhook_files(webhook: DiscordWebhook) -> list[WebhookFile]:  # noqa: C901
+    """Return files attached to a webhook object in a normalized shape."""
+    raw_files = getattr(webhook, "files", None)
+    files: list[WebhookFile] = []
+
+    if isinstance(raw_files, dict):
+        for filename, content in raw_files.items():
+            if isinstance(filename, str) and isinstance(content, bytes):
+                files.append(WebhookFile(filename=filename, content=content))
+        return files
+
+    if not isinstance(raw_files, list | tuple):
+        return []
+
+    for index, file_value in enumerate(raw_files):
+        if isinstance(file_value, WebhookFile):
+            files.append(file_value)
+            continue
+
+        if not isinstance(file_value, tuple) or len(file_value) < 2:  # noqa: PLR2004
+            continue
+
+        first, second = file_value[0], file_value[1]
+        if isinstance(first, str) and isinstance(second, bytes):
+            files.append(WebhookFile(filename=first, content=second))
+            continue
+
+        if isinstance(second, tuple) and len(second) >= 2:  # noqa: PLR2004
+            nested_file = cast("tuple[object, ...]", second)
+            nested_filename, nested_content = nested_file[0], nested_file[1]
+            if isinstance(nested_filename, str) and isinstance(nested_content, bytes):
+                files.append(WebhookFile(filename=nested_filename, content=nested_content))
+                continue
+
+        if isinstance(second, bytes):
+            files.append(WebhookFile(filename=f"file-{index}", content=second))
+
+    return files
+
+
+def get_retry_after_seconds(response: httpx.Response) -> float | None:
+    """Return Discord's retry delay for a rate-limited response when available."""
+    response_json: JsonObject = get_response_json(response)
+    retry_after: JsonValue = response_json.get("retry_after")
+    if isinstance(retry_after, int | float | str):
+        with suppress(TypeError, ValueError):
+            return float(retry_after)
+
+    retry_after_header: str | None = response.headers.get("retry-after")
+    if retry_after_header:
+        with suppress(TypeError, ValueError):
+            return float(retry_after_header)
+
+    return None
+
+
+def request_discord_webhook(
+    method: str,
+    url: str,
+    *,
+    payload: JsonObject,
+    params: dict[str, str],
+    files: list[WebhookFile] | None,
+    timeout: float,
+    rate_limit_retry: bool,
+) -> httpx.Response:
+    """Send a Discord webhook request with optional multipart files.
+
+    Returns:
+        Discord API response.
+    """
+    request_kwargs: dict[str, Any] = {"params": params, "timeout": timeout}
+    if files:
+        request_kwargs["data"] = {"payload_json": json.dumps(payload, default=str)}
+        request_kwargs["files"] = [
+            (f"files[{index}]", (file.filename, file.content)) for index, file in enumerate(files)
+        ]
+    else:
+        request_kwargs["json"] = payload
+
+    response: httpx.Response = httpx.request(method, url, **request_kwargs)
+    if not rate_limit_retry or response.status_code != 429:  # noqa: PLR2004
+        return response
+
+    retry_after: float | None = get_retry_after_seconds(response)
+    if retry_after is None:
+        return response
+
+    time.sleep(max(0.0, retry_after))
+    return httpx.request(method, url, **request_kwargs)
+
+
+def send_webhook_message(webhook: DiscordWebhook, payload: JsonObject) -> httpx.Response:
+    """Execute a Discord webhook message create request using httpx.
+
+    Returns:
+        Discord API response.
+    """
+    clean_webhook_url, params = get_webhook_query_params(webhook.url, payload, webhook=webhook, wait=True)
+    return request_discord_webhook(
+        "POST",
+        clean_webhook_url,
+        payload=payload,
+        params=params,
+        files=get_webhook_files(webhook),
+        timeout=cast("int | float", getattr(webhook, "timeout", None) or 30.0),
+        rate_limit_retry=bool(getattr(webhook, "rate_limit_retry", False)),
+    )
+
+
 def edit_sent_webhook_message(
     webhook_url: str,
     message_id: str,
     webhook: DiscordWebhook,
     payload: JsonObject,
-) -> Response | httpx.Response:
+) -> httpx.Response:
     """Edit an already-sent Discord webhook message.
 
     Returns:
-        Response | httpx.Response: Discord API response.
+        httpx.Response: Discord API response.
     """
-    clean_webhook_url, thread_id = split_webhook_url_for_message_endpoint(webhook_url)
-
-    if getattr(webhook, "files", None):
-        webhook.url = clean_webhook_url
-        webhook.id = message_id
-        if thread_id:
-            webhook.thread_id = thread_id
-        return webhook.edit()
-
-    params: dict[str, str] = {"wait": "true"}
-    if thread_id:
-        params["thread_id"] = thread_id
-
-    timeout: int | float = cast("int | float", getattr(webhook, "timeout", None) or 30.0)
-    return httpx.patch(
+    clean_webhook_url, params = get_webhook_query_params(webhook_url, payload, webhook=webhook, wait=True)
+    return request_discord_webhook(
+        "PATCH",
         f"{clean_webhook_url}/messages/{message_id}",
-        json=payload,
+        payload=payload,
         params=params,
-        timeout=timeout,
+        files=get_webhook_files(webhook),
+        timeout=cast("int | float", getattr(webhook, "timeout", None) or 30.0),
+        rate_limit_retry=bool(getattr(webhook, "rate_limit_retry", False)),
     )
 
 
@@ -1163,6 +1326,256 @@ def set_title(custom_embed: CustomEmbed, discord_embed: DiscordEmbed) -> None:
     discord_embed.set_title(embed_title) if embed_title else None
 
 
+def add_unique_media_gallery_item(
+    media_items: list[JsonObject],
+    image_url: str,
+    *,
+    description: str,
+    limit: int = MAX_MEDIA_GALLERY_ITEMS,
+) -> None:
+    """Append a valid media gallery item while preserving order and uniqueness."""
+    clean_image_url: str = image_url.strip()
+    if (
+        len(media_items) >= limit
+        or not clean_image_url
+        or any(item.get("url") == clean_image_url for item in media_items)
+    ):
+        return
+    if not is_url_valid(clean_image_url):
+        logger.warning("Invalid media gallery URL: %s", clean_image_url)
+        return
+    media_items.append({"url": clean_image_url, "description": description[:1024]})
+
+
+def normalize_ttvdrops_media_url(image_url: str) -> str:
+    """Return an absolute ttvdrops media URL."""
+    clean_image_url: str = image_url.strip()
+    if not clean_image_url:
+        return ""
+    return urljoin(TTVDROPS_BASE_URL, clean_image_url)
+
+
+def get_ttvdrops_campaign_api_url(entry: Entry) -> str:
+    """Return the ttvdrops campaign API URL for an entry when it can be inferred."""
+    candidate_urls: tuple[str | None, ...] = (
+        entry.link,
+        entry.id,
+        entry.feed.url,
+    )
+
+    for candidate_url in candidate_urls:
+        if not candidate_url:
+            continue
+
+        parsed_url = urlparse(str(candidate_url))
+        if parsed_url.netloc.lower() != TTVDROPS_HOST:
+            continue
+
+        if re.fullmatch(r"/twitch/api/v1/campaigns/[^/]+/?", parsed_url.path):
+            return parsed_url._replace(query="", fragment="").geturl()
+
+        campaign_match = re.fullmatch(r"/twitch/campaigns/([^/]+)/?", parsed_url.path)
+        if campaign_match:
+            campaign_id: str = campaign_match.group(1)
+            return parsed_url._replace(
+                path=f"/twitch/api/v1/campaigns/{campaign_id}/",
+                query="",
+                fragment="",
+            ).geturl()
+
+    return ""
+
+
+def get_ttvdrops_reward_description(drop: JsonObject, reward: JsonObject) -> str:
+    """Return alt text for a ttvdrops reward image.
+
+    Returns:
+        Reward alt text suitable for a Media Gallery description.
+    """
+    reward_name: str = str(reward.get("name") or drop.get("name") or "Reward")
+    required_minutes: int = json_value_to_int(drop.get("required_minutes_watched"))
+    required_subs: int = json_value_to_int(drop.get("required_subs"))
+
+    if required_minutes:
+        return f"{required_minutes} minutes watched: {reward_name}"
+    if required_subs:
+        return f"{required_subs} subscriptions: {reward_name}"
+    return reward_name
+
+
+def extract_ttvdrops_media_gallery_items(value: JsonValue) -> list[JsonObject]:  # noqa: C901
+    """Extract benefit/reward media gallery items from a ttvdrops API response.
+
+    Returns:
+        Media Gallery items with absolute URLs and reward descriptions.
+    """
+    media_items: list[JsonObject] = []
+
+    def add_reward_image(drop: JsonObject, reward: JsonObject) -> None:
+        image_url = reward.get("image_url")
+        if isinstance(image_url, str):
+            add_unique_media_gallery_item(
+                media_items,
+                normalize_ttvdrops_media_url(image_url),
+                description=get_ttvdrops_reward_description(drop, reward),
+            )
+
+    def collect_benefit_images(current_value: JsonValue) -> None:
+        if isinstance(current_value, dict):
+            for key, child_value in current_value.items():
+                if key in {"benefits", "rewards"} and isinstance(child_value, list):
+                    for item in child_value:
+                        if isinstance(item, dict):
+                            add_reward_image(cast("JsonObject", current_value), cast("JsonObject", item))
+                        collect_benefit_images(item)
+                    continue
+
+                collect_benefit_images(child_value)
+            return
+
+        if isinstance(current_value, list):
+            for item in current_value:
+                collect_benefit_images(item)
+
+    collect_benefit_images(value)
+    return media_items
+
+
+def fetch_ttvdrops_campaign_media_items(entry: Entry) -> list[JsonObject]:
+    """Fetch extra campaign media gallery items for ttvdrops entries.
+
+    Returns:
+        Media Gallery items for ttvdrops rewards, or an empty list.
+    """
+    api_url: str = get_ttvdrops_campaign_api_url(entry)
+    if not api_url:
+        return []
+
+    try:
+        response: httpx.Response = httpx.get(api_url, follow_redirects=True, timeout=10.0)
+        if response.status_code != 200:  # noqa: PLR2004
+            logger.warning("Failed to fetch ttvdrops campaign data from %s: %s", api_url, response.text[:500])
+            return []
+
+        response_json = cast("JsonValue", response.json())
+    except (httpx.HTTPError, ValueError, TypeError):
+        logger.exception("Failed to fetch ttvdrops campaign data from %s", api_url)
+        return []
+
+    return extract_ttvdrops_media_gallery_items(response_json)
+
+
+def get_entry_media_gallery_items(entry: Entry, custom_embed: CustomEmbed) -> list[JsonObject]:
+    """Return items for a Discord Media Gallery component.
+
+    Returns:
+        Media Gallery items capped to Discord's item limit.
+    """
+    media_items: list[JsonObject] = []
+    ttvdrops_media_items: list[JsonObject] = fetch_ttvdrops_campaign_media_items(entry)
+    if ttvdrops_media_items:
+        return ttvdrops_media_items[:MAX_MEDIA_GALLERY_ITEMS]
+
+    description: str = entry.title or entry.id
+    for image_url in get_image_urls(entry.summary, entry.content, limit=MAX_MEDIA_GALLERY_ITEMS):
+        add_unique_media_gallery_item(media_items, image_url, description=description)
+
+    add_unique_media_gallery_item(media_items, custom_embed.image_url, description=description)
+    add_unique_media_gallery_item(media_items, custom_embed.thumbnail_url, description=description)
+
+    return media_items[:MAX_MEDIA_GALLERY_ITEMS]
+
+
+def truncate_component_text(content: str) -> str:
+    """Trim a Text Display component to a conservative Discord-safe length.
+
+    Returns:
+        Original or truncated component text.
+    """
+    max_text_display_length: int = 4000
+    if len(content) <= max_text_display_length:
+        return content
+    return f"{content[: max_text_display_length - 3]}..."
+
+
+def get_component_text_display_content(custom_embed: CustomEmbed, entry: Entry) -> str:
+    """Build markdown text for a Components V2 Text Display.
+
+    Returns:
+        Markdown content for a Text Display component.
+    """
+    parts: list[str] = []
+
+    if custom_embed.title:
+        parts.append(f"# {custom_embed.title}")
+
+    if custom_embed.author_name and custom_embed.author_url:
+        parts.append(f"## [{custom_embed.author_name}]({custom_embed.author_url})")
+    elif custom_embed.author_name:
+        parts.append(f"## {custom_embed.author_name}")
+    elif custom_embed.author_url:
+        parts.append(f"<{custom_embed.author_url}>")
+
+    if custom_embed.description:
+        parts.append(custom_embed.description)
+
+    if custom_embed.footer_text:
+        parts.append(f"-# {custom_embed.footer_text}")
+
+    if not parts:
+        fallback_text: str = entry.title or entry.link or entry.id
+        if entry.link and fallback_text != entry.link:
+            fallback_text = f"[{fallback_text}]({entry.link})"
+        parts.append(fallback_text)
+
+    return truncate_component_text("\n\n".join(parts))
+
+
+def create_media_gallery_component(media_items: list[JsonObject]) -> JsonObject:
+    """Build a Discord Media Gallery component.
+
+    Returns:
+        Discord Media Gallery component payload.
+    """
+    return {
+        "type": 12,
+        "items": [
+            {
+                "media": {"url": media_item["url"]},
+                "description": media_item["description"],
+            }
+            for media_item in media_items[:MAX_MEDIA_GALLERY_ITEMS]
+            if isinstance(media_item.get("url"), str) and isinstance(media_item.get("description"), str)
+        ],
+    }
+
+
+def create_components_v2_webhook(
+    webhook_url: str,
+    entry: Entry,
+    custom_embed: CustomEmbed,
+    media_items: list[JsonObject],
+) -> DiscordWebhook:
+    """Create a Components V2 webhook with text and a media gallery.
+
+    Returns:
+        Webhook payload configured for Components V2.
+    """
+    components: list[JsonValue] = [
+        {
+            "type": 10,
+            "content": get_component_text_display_content(custom_embed, entry),
+        },
+        create_media_gallery_component(media_items),
+    ]
+    return DiscordWebhook(
+        url=webhook_url,
+        flags=MESSAGE_FLAG_IS_COMPONENTS_V2,
+        components=components,
+        rate_limit_retry=True,
+    )
+
+
 def create_embed_webhook(  # noqa: C901
     webhook_url: str,
     entry: Entry,
@@ -1183,6 +1596,9 @@ def create_embed_webhook(  # noqa: C901
 
     # Get the embed data from the database.
     custom_embed: CustomEmbed = replace_tags_in_embed(feed=feed, entry=entry, reader=reader)
+    media_gallery_items: list[JsonObject] = get_entry_media_gallery_items(entry, custom_embed)
+    if media_gallery_items:
+        return create_components_v2_webhook(webhook_url, entry, custom_embed, media_gallery_items)
 
     discord_embed: DiscordEmbed = DiscordEmbed()
 
@@ -1357,11 +1773,12 @@ def execute_webhook(
         logger.warning("Feed not found in reader, not sending entry to Discord: %s", entry_feed.url)
         return
 
+    request_payload: JsonObject = get_webhook_request_payload(webhook)
     payload: JsonObject = get_webhook_message_payload(webhook)
-    response: Response = webhook.execute()
+    response: httpx.Response = send_webhook_message(webhook, request_payload)
     logger.debug("Discord webhook response for entry %s: status=%s", entry.id, response.status_code)
     if response.status_code not in {200, 204}:
-        msg: str = f"Error sending entry to Discord: {response.text}\n{pprint.pformat(webhook.json)}"
+        msg: str = f"Error sending entry to Discord: {response.text}\n{pprint.pformat(request_payload)}"
         if entry:
             msg += f"\n{entry}"
 

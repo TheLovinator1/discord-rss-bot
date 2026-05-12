@@ -8,8 +8,9 @@ from typing import TYPE_CHECKING
 from typing import cast
 
 import requests
-from discord_webhook import DiscordEmbed
-from discord_webhook import DiscordWebhook
+
+from discord_rss_bot.webhook import DiscordEmbed
+from discord_rss_bot.webhook import DiscordWebhook
 
 if TYPE_CHECKING:
     from reader import Entry

@@ -1,7 +1,10 @@
 {
   "cSpell.words": [
+    "argnames",
+    "argvalues",
     "autoexport",
     "botuser",
+    "DISCORDTIMESTAMPPLACEHOLDER",
     "domcontentloaded",
     "Genshins",
     "healthcheck",
@@ -14,8 +17,10 @@
     "networkidle",
     "pipx",
     "pyproject",
+    "Skulbladi",
     "thead",
     "thelovinator",
+    "ttvdrops",
     "uvicorn"
   ],
   "python.analysis.typeCheckingMode": "basic"
