@@ -64,6 +64,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
     from reader._types import EntryData
+    from reader.types import JSONType
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -103,13 +104,6 @@ class JsonResponseLike(Protocol):
         ...
 
 
-MAX_DISCORD_UPLOAD_BYTES: int = 8 * 1024 * 1024
-MAX_MEDIA_GALLERY_ITEMS: int = 10
-MESSAGE_FLAG_IS_COMPONENTS_V2: int = 1 << 15
-TTVDROPS_HOST: str = "ttvdrops.lovinator.space"
-TTVDROPS_BASE_URL: str = f"https://{TTVDROPS_HOST}"
-SENT_WEBHOOKS_TAG: str = "sent_webhooks"
-SAVE_SENT_WEBHOOKS_TAG: str = "save_sent_webhooks"
 MESSAGE_PAYLOAD_KEYS: tuple[str, ...] = (
     "allowed_mentions",
     "applied_tags",
@@ -290,6 +284,41 @@ def get_screenshot_layout(reader: Reader, feed: Feed) -> ScreenshotLayout:
     return "desktop"
 
 
+def coerce_media_gallery_image_limit(value: JsonValue) -> int:  # noqa: PLR0911
+    """Return the supported media gallery image limit for a stored tag value."""
+    if isinstance(value, bool):
+        return 1
+    if isinstance(value, int):
+        return min(max(value, 0), 10)
+    if isinstance(value, str) and value.strip().lower() in {"1", "first", "first_image", "first-only"}:
+        return 1
+    if isinstance(value, str) and value.strip().lower() in {"0", "none", "no_images", "off", "disabled"}:
+        return 0
+    if isinstance(value, str):
+        try:
+            parsed_value: int = int(value.strip())
+        except ValueError:
+            return 1
+        return min(max(parsed_value, 0), 10)
+    return 1
+
+
+def get_feed_media_gallery_image_limit(reader: Reader, feed: Feed | str) -> int:
+    """Resolve how many feed images should be sent in Discord media galleries.
+
+    Returns:
+        The configured image limit, normalized to a supported Discord gallery size.
+    """
+    feed_url: str = str(getattr(feed, "url", feed))
+    try:
+        value = cast("JsonValue", reader.get_tag(feed, "media_gallery_image_limit", 1))
+    except ReaderError:
+        logger.exception("Error getting %s tag for feed: %s", "media_gallery_image_limit", feed_url)
+        return 1
+
+    return coerce_media_gallery_image_limit(value)
+
+
 def feed_saves_sent_webhooks(reader: Reader, feed: Feed | str) -> bool:
     """Return whether sent Discord webhook messages should be stored for a feed.
 
@@ -297,9 +326,9 @@ def feed_saves_sent_webhooks(reader: Reader, feed: Feed | str) -> bool:
     """
     feed_url: str = feed.url if isinstance(feed, Feed) else str(feed)
     try:
-        value = cast("JsonValue", reader.get_tag(feed, SAVE_SENT_WEBHOOKS_TAG, True))
+        value = cast("JsonValue", reader.get_tag(feed, "save_sent_webhooks", True))
     except ReaderError:
-        logger.exception("Error getting %s tag for feed: %s", SAVE_SENT_WEBHOOKS_TAG, feed_url)
+        logger.exception("Error getting %s tag for feed: %s", "save_sent_webhooks", feed_url)
         return True
 
     if isinstance(value, bool):
@@ -317,7 +346,7 @@ def get_sent_webhook_records(reader: Reader) -> list[SentWebhookRecord]:
     Returns:
         list[SentWebhookRecord]: Saved sent webhook records.
     """
-    raw_records = cast("JsonValue", reader.get_tag((), SENT_WEBHOOKS_TAG, []))
+    raw_records = cast("JsonValue", reader.get_tag((), "sent_webhooks", []))
     if not isinstance(raw_records, list):
         return []
 
@@ -329,7 +358,7 @@ def get_sent_webhook_records(reader: Reader) -> list[SentWebhookRecord]:
 
 def save_sent_webhook_records(reader: Reader, records: list[SentWebhookRecord]) -> None:
     """Save sent webhook records to the global reader tag."""
-    reader.set_tag((), SENT_WEBHOOKS_TAG, records)  # pyright: ignore[reportArgumentType]
+    reader.set_tag((), "sent_webhooks", records)  # pyright: ignore[reportArgumentType]
 
 
 def get_webhook_request_payload(webhook: DiscordWebhook) -> JsonObject:
@@ -441,7 +470,7 @@ def get_webhook_message_edit_payload(payload: JsonObject, record: SentWebhookRec
     if edit_payload.get("attachments") == [] and not previous_attachments:
         edit_payload.pop("attachments", None)
 
-    if json_value_to_int(edit_payload.get("flags")) & MESSAGE_FLAG_IS_COMPONENTS_V2:
+    if json_value_to_int(edit_payload.get("flags")) & 1 << 15:
         edit_payload.pop("content", None)
         edit_payload.pop("embeds", None)
         edit_payload.pop("poll", None)
@@ -1071,7 +1100,7 @@ def create_screenshot_webhook(webhook_url: str, entry: Entry, reader: Reader) ->
     )
     screenshot_extension: str = "png"
 
-    if screenshot_bytes and len(screenshot_bytes) > MAX_DISCORD_UPLOAD_BYTES:
+    if screenshot_bytes and len(screenshot_bytes) > 8 * 1024 * 1024:
         logger.info(
             "Screenshot for entry %s is too large as PNG (%d bytes). Trying JPEG compression.",
             entry.id,
@@ -1097,7 +1126,7 @@ def create_screenshot_webhook(webhook_url: str, entry: Entry, reader: Reader) ->
             screenshot_bytes = jpeg_bytes
             screenshot_extension = "jpg"
 
-            if len(screenshot_bytes) <= MAX_DISCORD_UPLOAD_BYTES:
+            if len(screenshot_bytes) <= 8 * 1024 * 1024:
                 break
 
     if screenshot_bytes is None:
@@ -1108,7 +1137,7 @@ def create_screenshot_webhook(webhook_url: str, entry: Entry, reader: Reader) ->
         )
         return create_text_webhook(webhook_url, entry, reader=reader, use_default_message_on_empty=True)
 
-    if len(screenshot_bytes) > MAX_DISCORD_UPLOAD_BYTES:
+    if len(screenshot_bytes) > 8 * 1024 * 1024:
         logger.warning(
             "Screenshot for entry %s is still too large after compression (%d bytes). Falling back to text message.",
             entry.id,
@@ -1331,7 +1360,7 @@ def add_unique_media_gallery_item(
     image_url: str,
     *,
     description: str,
-    limit: int = MAX_MEDIA_GALLERY_ITEMS,
+    limit: int = 10,
 ) -> None:
     """Append a valid media gallery item while preserving order and uniqueness."""
     clean_image_url: str = image_url.strip()
@@ -1352,7 +1381,7 @@ def normalize_ttvdrops_media_url(image_url: str) -> str:
     clean_image_url: str = image_url.strip()
     if not clean_image_url:
         return ""
-    return urljoin(TTVDROPS_BASE_URL, clean_image_url)
+    return urljoin("https://ttvdrops.lovinator.space/", clean_image_url)
 
 
 def get_ttvdrops_campaign_api_url(entry: Entry) -> str:
@@ -1368,7 +1397,7 @@ def get_ttvdrops_campaign_api_url(entry: Entry) -> str:
             continue
 
         parsed_url = urlparse(str(candidate_url))
-        if parsed_url.netloc.lower() != TTVDROPS_HOST:
+        if parsed_url.netloc.lower() != "ttvdrops.lovinator.space":
             continue
 
         if re.fullmatch(r"/twitch/api/v1/campaigns/[^/]+/?", parsed_url.path):
@@ -1465,25 +1494,34 @@ def fetch_ttvdrops_campaign_media_items(entry: Entry) -> list[JsonObject]:
     return extract_ttvdrops_media_gallery_items(response_json)
 
 
-def get_entry_media_gallery_items(entry: Entry, custom_embed: CustomEmbed) -> list[JsonObject]:
+def get_entry_media_gallery_items(
+    entry: Entry,
+    custom_embed: CustomEmbed,
+    *,
+    image_limit: int = 10,
+) -> list[JsonObject]:
     """Return items for a Discord Media Gallery component.
 
     Returns:
         Media Gallery items capped to Discord's item limit.
     """
+    image_limit = coerce_media_gallery_image_limit(image_limit)
+    if image_limit == 0:
+        return []
+
     media_items: list[JsonObject] = []
     ttvdrops_media_items: list[JsonObject] = fetch_ttvdrops_campaign_media_items(entry)
     if ttvdrops_media_items:
-        return ttvdrops_media_items[:MAX_MEDIA_GALLERY_ITEMS]
+        return ttvdrops_media_items[:image_limit]
 
     description: str = entry.title or entry.id
-    for image_url in get_image_urls(entry.summary, entry.content, limit=MAX_MEDIA_GALLERY_ITEMS):
+    for image_url in get_image_urls(entry.summary, entry.content, limit=image_limit):
         add_unique_media_gallery_item(media_items, image_url, description=description)
 
     add_unique_media_gallery_item(media_items, custom_embed.image_url, description=description)
     add_unique_media_gallery_item(media_items, custom_embed.thumbnail_url, description=description)
 
-    return media_items[:MAX_MEDIA_GALLERY_ITEMS]
+    return media_items[:image_limit]
 
 
 def truncate_component_text(content: str) -> str:
@@ -1544,7 +1582,7 @@ def create_media_gallery_component(media_items: list[JsonObject]) -> JsonObject:
                 "media": {"url": media_item["url"]},
                 "description": media_item["description"],
             }
-            for media_item in media_items[:MAX_MEDIA_GALLERY_ITEMS]
+            for media_item in media_items[:10]
             if isinstance(media_item.get("url"), str) and isinstance(media_item.get("description"), str)
         ],
     }
@@ -1570,13 +1608,13 @@ def create_components_v2_webhook(
     ]
     return DiscordWebhook(
         url=webhook_url,
-        flags=MESSAGE_FLAG_IS_COMPONENTS_V2,
+        flags=1 << 15,
         components=components,
         rate_limit_retry=True,
     )
 
 
-def create_embed_webhook(  # noqa: C901
+def create_embed_webhook(  # noqa: C901, PLR0912
     webhook_url: str,
     entry: Entry,
     reader: Reader,
@@ -1596,7 +1634,16 @@ def create_embed_webhook(  # noqa: C901
 
     # Get the embed data from the database.
     custom_embed: CustomEmbed = replace_tags_in_embed(feed=feed, entry=entry, reader=reader)
-    media_gallery_items: list[JsonObject] = get_entry_media_gallery_items(entry, custom_embed)
+    media_gallery_image_limit: int = get_feed_media_gallery_image_limit(reader, feed)
+    if media_gallery_image_limit == 0:
+        custom_embed.image_url = ""
+        custom_embed.thumbnail_url = ""
+
+    media_gallery_items: list[JsonObject] = get_entry_media_gallery_items(
+        entry,
+        custom_embed,
+        image_limit=media_gallery_image_limit,
+    )
     if media_gallery_items:
         return create_components_v2_webhook(webhook_url, entry, custom_embed, media_gallery_items)
 
@@ -1886,7 +1933,14 @@ def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:  
     reader.set_tag(clean_feed_url, "webhook", webhook_url)  # pyright: ignore[reportArgumentType]
 
     # Store sent Discord message ids by default so modified feed entries can edit the original webhook message.
-    reader.set_tag(clean_feed_url, SAVE_SENT_WEBHOOKS_TAG, True)  # pyright: ignore[reportArgumentType]
+    reader.set_tag(clean_feed_url, "save_sent_webhooks", True)  # pyright: ignore[reportArgumentType]
+
+    # Keep the existing delivery behavior for new feeds unless changed from the feed page.
+    reader.set_tag(
+        clean_feed_url,
+        "media_gallery_image_limit",
+        cast("JSONType", 1),
+    )
 
     # This is the default message that will be sent to Discord.
     reader.set_tag(clean_feed_url, "custom_message", default_custom_message)  # pyright: ignore[reportArgumentType]

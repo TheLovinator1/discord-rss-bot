@@ -338,6 +338,45 @@ def test_get_screenshot_layout_defaults_to_desktop() -> None:
     assert result == "desktop"
 
 
+@pytest.mark.parametrize(
+    ("tag_value", "expected_limit"),
+    [
+        (0, 0),
+        (1, 1),
+        (7, 7),
+        (-1, 0),
+        (99, 10),
+        ("first", 1),
+        ("off", 0),
+        ("8", 8),
+        ("unknown", 1),
+    ],
+)
+def test_get_feed_media_gallery_image_limit_normalizes_stored_tag(
+    tag_value: feeds.JsonValue,
+    expected_limit: int,
+) -> None:
+    reader = MagicMock()
+    feed = MagicMock()
+    feed.url = "https://example.com/feed.xml"
+    reader.get_tag.return_value = tag_value
+
+    result = feeds.get_feed_media_gallery_image_limit(reader, feed)
+
+    assert result == expected_limit
+
+
+def test_get_feed_media_gallery_image_limit_defaults_to_first_image() -> None:
+    reader = MagicMock()
+    feed = MagicMock()
+    feed.url = "https://example.com/feed.xml"
+    reader.get_tag.side_effect = lambda resource, key, default=None: default  # noqa: ARG005
+
+    result = feeds.get_feed_media_gallery_image_limit(reader, feed)
+
+    assert result == 1
+
+
 def test_create_feed_inherits_global_screenshot_layout() -> None:
     reader = MagicMock()
     reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
@@ -374,7 +413,24 @@ def test_create_feed_enables_sent_webhook_tracking_by_default() -> None:
 
     create_feed(reader, "https://example.com/feed.xml", "Main")
 
-    reader.set_tag.assert_any_call("https://example.com/feed.xml", feeds.SAVE_SENT_WEBHOOKS_TAG, True)
+    reader.set_tag.assert_any_call("https://example.com/feed.xml", "save_sent_webhooks", True)
+
+
+def test_create_feed_sets_default_media_gallery_image_limit() -> None:
+    reader = MagicMock()
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+        "webhooks": [{"name": "Main", "url": "https://discord.com/api/webhooks/123/abc"}],
+        "screenshot_layout": "desktop",
+        "delivery_mode": "embed",
+    }.get(key, default)
+
+    create_feed(reader, "https://example.com/feed.xml", "Main")
+
+    reader.set_tag.assert_any_call(
+        "https://example.com/feed.xml",
+        "media_gallery_image_limit",
+        1,
+    )
 
 
 def test_create_feed_falls_back_to_embed_when_global_delivery_mode_is_invalid() -> None:
@@ -581,6 +637,7 @@ def test_create_embed_webhook_uses_media_gallery_for_entry_images(
     mock_fetch_ttvdrops_campaign_media_items: MagicMock,
 ) -> None:
     reader = MagicMock()
+    reader.get_tag.return_value = 10
     entry = MagicMock()
     entry.id = "entry-1"
     entry.title = "Entry title"
@@ -599,7 +656,7 @@ def test_create_embed_webhook_uses_media_gallery_for_entry_images(
 
     webhook = feeds.create_embed_webhook("https://discord.com/api/webhooks/123/abc", entry, reader)
 
-    assert webhook.flags == feeds.MESSAGE_FLAG_IS_COMPONENTS_V2
+    assert webhook.flags == 1 << 15
     components = get_test_webhook_components(webhook)
     assert components[0] == {
         "type": 10,
@@ -614,6 +671,69 @@ def test_create_embed_webhook_uses_media_gallery_for_entry_images(
         {"media": {"url": "https://example.com/content-2.jpg"}, "description": "Entry title"},
         {"media": {"url": "https://example.com/summary.jpg"}, "description": "Entry title"},
     ]
+
+
+@patch("discord_rss_bot.feeds.fetch_ttvdrops_campaign_media_items", return_value=[])
+@patch("discord_rss_bot.feeds.replace_tags_in_embed")
+def test_create_embed_webhook_can_limit_media_gallery_to_first_image(
+    mock_replace_tags_in_embed: MagicMock,
+    mock_fetch_ttvdrops_campaign_media_items: MagicMock,
+) -> None:
+    reader = MagicMock()
+    reader.get_tag.return_value = 1
+    entry = MagicMock()
+    entry.id = "entry-1"
+    entry.title = "Entry title"
+    entry.link = "https://example.com/entry"
+    entry.summary = '<img src="https://example.com/summary.jpg" />'
+    entry.content = [
+        MagicMock(value='<img src="https://example.com/content-1.jpg" />'),
+        MagicMock(value='<img src="https://example.com/content-2.jpg" />'),
+    ]
+    entry.feed.url = "https://example.com/feed.xml"
+    mock_replace_tags_in_embed.return_value = feeds.CustomEmbed(description="Entry body")
+
+    webhook = feeds.create_embed_webhook("https://discord.com/api/webhooks/123/abc", entry, reader)
+
+    gallery = get_test_webhook_components(webhook)[1]
+    assert isinstance(gallery, dict)
+    mock_fetch_ttvdrops_campaign_media_items.assert_called_once_with(entry)
+    assert gallery["items"] == [
+        {"media": {"url": "https://example.com/content-1.jpg"}, "description": "Entry title"},
+    ]
+
+
+@patch("discord_rss_bot.feeds.fetch_ttvdrops_campaign_media_items", return_value=[])
+@patch("discord_rss_bot.feeds.replace_tags_in_embed")
+def test_create_embed_webhook_can_disable_media_images(
+    mock_replace_tags_in_embed: MagicMock,
+    mock_fetch_ttvdrops_campaign_media_items: MagicMock,
+) -> None:
+    reader = MagicMock()
+    reader.get_tag.return_value = 0
+    entry = MagicMock()
+    entry.id = "entry-1"
+    entry.title = "Entry title"
+    entry.link = "https://example.com/entry"
+    entry.summary = '<img src="https://example.com/summary.jpg" />'
+    entry.content = [MagicMock(value='<img src="https://example.com/content-1.jpg" />')]
+    entry.feed.url = "https://example.com/feed.xml"
+    mock_replace_tags_in_embed.return_value = feeds.CustomEmbed(
+        description="Entry body",
+        image_url="https://example.com/custom-image.jpg",
+        thumbnail_url="https://example.com/custom-thumbnail.jpg",
+    )
+
+    webhook = feeds.create_embed_webhook("https://discord.com/api/webhooks/123/abc", entry, reader)
+
+    assert "components" not in webhook.json
+    assert "embeds" in webhook.json
+    embeds = webhook.json["embeds"]
+    assert isinstance(embeds, list)
+    assert isinstance(embeds[0], dict)
+    assert "image" not in embeds[0]
+    assert "thumbnail" not in embeds[0]
+    mock_fetch_ttvdrops_campaign_media_items.assert_not_called()
 
 
 @patch("discord_rss_bot.feeds.fetch_ttvdrops_campaign_media_items")
@@ -1046,9 +1166,9 @@ def test_execute_webhook_records_sent_webhook_message(mock_send_webhook_message:
     state: dict[str, feeds.JsonValue] = {}
 
     def get_tag(_resource: str | tuple[()], key: str, default: feeds.JsonValue = None) -> feeds.JsonValue:
-        if key == feeds.SENT_WEBHOOKS_TAG:
-            return state.get(feeds.SENT_WEBHOOKS_TAG, default)
-        if key == feeds.SAVE_SENT_WEBHOOKS_TAG:
+        if key == "sent_webhooks":
+            return state.get("sent_webhooks", default)
+        if key == "save_sent_webhooks":
             return True
         if key == "webhook":
             return webhook_url
@@ -1083,7 +1203,7 @@ def test_execute_webhook_records_sent_webhook_message(mock_send_webhook_message:
 
     execute_webhook(webhook, entry, reader)
 
-    records = state[feeds.SENT_WEBHOOKS_TAG]
+    records = state["sent_webhooks"]
     assert isinstance(records, list)
     assert len(records) == 1
     assert isinstance(records[0], dict)
@@ -1104,7 +1224,7 @@ def test_execute_webhook_does_not_record_when_feed_tracking_disabled(mock_send_w
     webhook_url = "https://discord.com/api/webhooks/123/abc"
     reader = MagicMock()
     reader.get_tag.side_effect = lambda _resource, key, default=None: {
-        feeds.SAVE_SENT_WEBHOOKS_TAG: False,
+        "save_sent_webhooks": False,
         "webhook": webhook_url,
     }.get(key, default)
 
@@ -1139,7 +1259,7 @@ def test_send_webhook_message_posts_components_with_httpx(mock_request: MagicMoc
     ]
     webhook = feeds.DiscordWebhook(
         url="https://discord.com/api/webhooks/123/abc?thread_id=456",
-        flags=feeds.MESSAGE_FLAG_IS_COMPONENTS_V2,
+        flags=1 << 15,
         components=components,
     )
 
@@ -1150,7 +1270,7 @@ def test_send_webhook_message_posts_components_with_httpx(mock_request: MagicMoc
     assert mock_request.call_args.args == ("POST", "https://discord.com/api/webhooks/123/abc")
     assert mock_request.call_args.kwargs["json"] == {
         "components": components,
-        "flags": feeds.MESSAGE_FLAG_IS_COMPONENTS_V2,
+        "flags": 1 << 15,
     }
     assert mock_request.call_args.kwargs["params"] == {
         "thread_id": "456",
@@ -1185,7 +1305,7 @@ def test_update_sent_webhooks_for_modified_entries_edits_changed_payload(
     webhook_url = "https://discord.com/api/webhooks/123/abc"
     old_payload: JsonObject = {"content": "Old title", "embeds": [], "attachments": []}
     state: dict[str, feeds.JsonValue] = {
-        feeds.SENT_WEBHOOKS_TAG: [
+        "sent_webhooks": [
             {
                 "feed_url": "https://example.com/feed.xml",
                 "entry_id": "entry-3",
@@ -1199,9 +1319,9 @@ def test_update_sent_webhooks_for_modified_entries_edits_changed_payload(
     }
 
     def get_tag(_resource: str | tuple[()], key: str, default: feeds.JsonValue = None) -> feeds.JsonValue:
-        if key == feeds.SENT_WEBHOOKS_TAG:
-            return state[feeds.SENT_WEBHOOKS_TAG]
-        if key == feeds.SAVE_SENT_WEBHOOKS_TAG:
+        if key == "sent_webhooks":
+            return state["sent_webhooks"]
+        if key == "save_sent_webhooks":
             return True
         return default
 
@@ -1240,7 +1360,7 @@ def test_update_sent_webhooks_for_modified_entries_edits_changed_payload(
     mock_edit_sent_webhook_message.assert_called_once()
     edit_payload = mock_edit_sent_webhook_message.call_args.args[3]
     assert edit_payload == {"content": "New title"}
-    records = state[feeds.SENT_WEBHOOKS_TAG]
+    records = state["sent_webhooks"]
     assert isinstance(records, list)
     assert isinstance(records[0], dict)
     assert isinstance(records[0]["payload"], dict)

@@ -30,6 +30,18 @@
                                     Text
                                 {% endif %}
                             </span>
+                            {% if not "youtube.com/feeds/videos.xml" in feed.url %}
+                                <span class="badge status-chip bg-secondary">
+                                    Images:
+                                    {% if media_gallery_image_limit == 0 %}
+                                        No images
+                                    {% elif media_gallery_image_limit == 1 %}
+                                        First image only
+                                    {% else %}
+                                        Up to {{ media_gallery_image_limit }} images
+                                    {% endif %}
+                                </span>
+                            {% endif %}
                             {% if delivery_mode == "screenshot" %}
                                 <span class="badge status-chip bg-secondary">
                                     Screenshot layout:
@@ -42,6 +54,72 @@
                             {% endif %}
                         </div>
                     </div>
+                    <section class="mt-4 pt-3 border-top border-secondary-subtle">
+                        <h3 class="h6 text-uppercase text-muted mb-2">Feed Summary</h3>
+                        <p class="text-muted mb-2">
+                            This feed
+                            {% if feed.updates_enabled %}
+                                will send new entries
+                            {% else %}
+                                is paused and will not send new entries
+                            {% endif %}
+                            {% if current_webhook_name %}
+                                to <strong>{{ current_webhook_name }}</strong>
+                            {% elif current_webhook_url %}
+                                to a webhook that is no longer saved
+                            {% else %}
+                                after a webhook is attached
+                            {% endif %}
+                            as
+                            {% if delivery_mode == "embed" %}
+                                an embed.
+                            {% elif delivery_mode == "screenshot" %}
+                                a screenshot of the entry link page in {{ screenshot_layout }} mode.
+                            {% else %}
+                                a text message.
+                            {% endif %}
+                        </p>
+                        <ul class="text-muted small mb-0 feed-summary-list">
+                            <li>
+                                Update interval:
+                                {% if feed_interval %}
+                                    {{ feed_interval }} minutes.
+                                {% else %}
+                                    {{ global_interval }} minutes because of the global default.
+                                {% endif %}
+                            </li>
+                            {% if delivery_mode == "embed" %}
+                                <li>
+                                    Embed images:
+                                    {% if media_gallery_image_limit == 0 %}
+                                        none.
+                                    {% elif media_gallery_image_limit == 1 %}
+                                        first image only.
+                                    {% else %}
+                                        up to {{ media_gallery_image_limit }} images.
+                                    {% endif %}
+                                </li>
+                            {% elif delivery_mode == "screenshot" %}
+                                <li>Screenshot layout: {{ screenshot_layout }}.</li>
+                            {% endif %}
+                            <li>
+                                Filters:
+                                {% if has_blacklist_filters and has_whitelist_filters %}
+                                    whitelist and blacklist are active; blacklist wins when both match.
+                                {% elif has_blacklist_filters %}
+                                    blacklist is active.
+                                {% elif has_whitelist_filters %}
+                                    whitelist is active.
+                                {% else %}
+                                    no whitelist or blacklist filters are configured.
+                                {% endif %}
+                            </li>
+                            <li>
+                                Updating the Discord webhook when the feed entry changes is
+                                {{ 'enabled.' if save_sent_webhooks else 'disabled.' }}
+                            </li>
+                        </ul>
+                    </section>
                     {% if feed.last_exception %}
                         <div class="alert alert-danger mt-4 mb-0" role="alert">
                             <h5 class="alert-heading mb-2">{{ feed.last_exception.type_name }}</h5>
@@ -88,23 +166,55 @@
                                                 name="feed_url"
                                                 value="{{ feed.url }}">Send text message instead of embed</button>
                                     </form>
-                                    <form action="/use_screenshot" method="post" class="d-inline">
-                                        <button class="btn btn-outline-light btn-sm"
-                                                name="feed_url"
-                                                value="{{ feed.url }}">
-                                            Send full-page screenshot instead of embed
-                                        </button>
-                                    </form>
                                 {% elif delivery_mode == "screenshot" %}
-                                    <form action="/use_embed" method="post" class="d-inline">
-                                        <button class="btn btn-outline-light btn-sm"
-                                                name="feed_url"
-                                                value="{{ feed.url }}">Send embed instead of screenshot</button>
-                                    </form>
                                     <form action="/use_text" method="post" class="d-inline">
                                         <button class="btn btn-outline-light btn-sm"
                                                 name="feed_url"
                                                 value="{{ feed.url }}">Send text message instead of screenshot</button>
+                                    </form>
+                                {% else %}
+                                    <form action="/use_embed" method="post" class="d-inline">
+                                        <button class="btn btn-outline-light btn-sm"
+                                                name="feed_url"
+                                                value="{{ feed.url }}">Send embed instead of text message</button>
+                                    </form>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                    </section>
+                    {% if not "youtube.com/feeds/videos.xml" in feed.url %}
+                        <section class="mt-4 pt-3 border-top border-secondary-subtle">
+                            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                                <h3 class="h6 text-uppercase text-muted mb-0">Screenshot Delivery</h3>
+                                <span class="badge {{ 'bg-info' if delivery_mode == 'screenshot' else 'bg-secondary' }}">
+                                    {% if delivery_mode == "screenshot" %}
+                                        Active:
+                                        {% if screenshot_layout == "mobile" %}
+                                            Mobile
+                                        {% else %}
+                                            Desktop
+                                        {% endif %}
+                                    {% else %}
+                                        Inactive
+                                    {% endif %}
+                                </span>
+                            </div>
+                            <p class="text-muted mb-3">
+                                Screenshot delivery sends a full-page screenshot of the entry link instead of the normal
+                                embed or text message.
+                            </p>
+                            <div class="d-flex flex-wrap gap-2">
+                                {% if delivery_mode != "screenshot" %}
+                                    <form action="/use_screenshot" method="post" class="d-inline">
+                                        <button class="btn btn-outline-light btn-sm"
+                                                name="feed_url"
+                                                value="{{ feed.url }}">Use screenshot delivery</button>
+                                    </form>
+                                {% else %}
+                                    <form action="/use_embed" method="post" class="d-inline">
+                                        <button class="btn btn-outline-light btn-sm"
+                                                name="feed_url"
+                                                value="{{ feed.url }}">Disable screenshot delivery</button>
                                     </form>
                                     {% if screenshot_layout == "mobile" %}
                                         <form action="/use_screenshot_desktop" method="post" class="d-inline">
@@ -119,26 +229,61 @@
                                                     value="{{ feed.url }}">Use mobile screenshot layout</button>
                                         </form>
                                     {% endif %}
-                                {% else %}
-                                    <form action="/use_embed" method="post" class="d-inline">
-                                        <button class="btn btn-outline-light btn-sm"
-                                                name="feed_url"
-                                                value="{{ feed.url }}">Send embed instead of text message</button>
-                                    </form>
-                                    <form action="/use_screenshot" method="post" class="d-inline">
-                                        <button class="btn btn-outline-light btn-sm"
-                                                name="feed_url"
-                                                value="{{ feed.url }}">
-                                            Send full-page screenshot instead of text message
-                                        </button>
-                                    </form>
                                 {% endif %}
-                                <div class="w-100 mt-1 screenshot-requirement">
-                                    Screenshot mode requires Chromium to be installed for Playwright. Run <code>uv run playwright install chromium</code> once on this machine.
+                            </div>
+                            <div class="mt-2 screenshot-requirement">
+                                Screenshot mode requires Chromium to be installed for Playwright. Run
+                                <code>uv run playwright install chromium</code> once on this machine.
+                            </div>
+                        </section>
+                        <section class="mt-4 pt-3 border-top border-secondary-subtle">
+                            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                                <h3 class="h6 text-uppercase text-muted mb-0">Image Delivery</h3>
+                                <span class="badge {{ 'bg-info' if media_gallery_image_limit < max_media_gallery_items else 'bg-secondary' }}">
+                                    {% if media_gallery_image_limit == 0 %}
+                                        No images
+                                    {% elif media_gallery_image_limit == 1 %}
+                                        First image only
+                                    {% else %}
+                                        Up to {{ media_gallery_image_limit }} images
+                                    {% endif %}
+                                </span>
+                            </div>
+                            <p id="imageDeliveryHelp" class="text-muted mb-3">
+                                Choose 0 to send no entry images, 1 for the first image only,
+                                or up to {{ max_media_gallery_items }} for a Discord media gallery.
+                                This only affects embed delivery.
+                            </p>
+                            <form action="/set_feed_media_gallery_image_limit"
+                                  method="post"
+                                  class="mb-0">
+                                <input type="hidden" name="feed_url" value="{{ feed.url }}" />
+                                <label class="form-label small text-muted mb-2" for="image_limit">
+                                    Images per entry:
+                                    <output name="image_limit_value" for="image_limit">{{ media_gallery_image_limit }}</output>
+                                </label>
+                                <div class="d-flex flex-wrap align-items-center gap-3">
+                                    <div class="flex-grow-1 image-limit-control">
+                                        <input id="image_limit"
+                                               class="form-range"
+                                               type="range"
+                                               name="image_limit"
+                                               min="0"
+                                               max="{{ max_media_gallery_items }}"
+                                               step="1"
+                                               value="{{ media_gallery_image_limit }}"
+                                               aria-describedby="imageDeliveryHelp"
+                                               oninput="this.form.elements.image_limit_value.value = this.value" />
+                                        <div class="d-flex justify-content-between text-muted small">
+                                            <span>0</span>
+                                            <span>{{ max_media_gallery_items }}</span>
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-outline-light btn-sm" type="submit">Save image limit</button>
                                 </div>
-                            {% endif %}
-                        </div>
-                    </section>
+                            </form>
+                        </section>
+                    {% endif %}
                     <section class="mt-4 pt-3 border-top border-secondary-subtle">
                         <h3 class="h6 text-uppercase text-muted mb-3">Customization</h3>
                         <div class="d-flex flex-wrap gap-2">

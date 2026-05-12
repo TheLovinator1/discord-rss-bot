@@ -236,10 +236,12 @@
                 <label for="author_icon_url" class="col-sm-6 col-form-label">Author icon URL</label>
                 <input name="author_icon_url" type="text" class="form-control bg-dark border-dark text-muted"
                     id="author_icon_url" {% if author_icon_url %} value="{{- author_icon_url -}}" {% endif %} />
-                <label for="image_url" class="col-sm-6 col-form-label">Image URL - Add {% raw %}{{image_1}}{% endraw %}
-                    for first image</label>
+                <label for="image_url" class="col-sm-6 col-form-label">Image URL</label>
                 <input name="image_url" type="text" class="form-control bg-dark border-dark text-muted" id="image_url"
                     {% if image_url %} value="{{- image_url -}}" {% endif %} />
+                <div class="form-text">
+                    Use {% raw %}{{image_1}}{% endraw %} to use the first image URL found in the entry. You can also configure how many images gets sent via the feed page.
+                </div>
                 <label for="thumbnail_url" class="col-sm-6 col-form-label">Thumbnail</label>
                 <input name="thumbnail_url" type="text" class="form-control bg-dark border-dark text-muted"
                     id="thumbnail_url" {% if thumbnail_url %} value="{{- thumbnail_url -}}" {% endif %} />

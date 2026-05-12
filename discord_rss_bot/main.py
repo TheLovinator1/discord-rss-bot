@@ -51,12 +51,13 @@ from discord_rss_bot.custom_message import get_embed
 from discord_rss_bot.custom_message import get_first_image
 from discord_rss_bot.custom_message import replace_tags_in_text_message
 from discord_rss_bot.custom_message import save_embed
-from discord_rss_bot.feeds import SAVE_SENT_WEBHOOKS_TAG
 from discord_rss_bot.feeds import SentWebhookRecord
+from discord_rss_bot.feeds import coerce_media_gallery_image_limit
 from discord_rss_bot.feeds import create_feed
 from discord_rss_bot.feeds import extract_domain
 from discord_rss_bot.feeds import feed_saves_sent_webhooks
 from discord_rss_bot.feeds import get_feed_delivery_mode
+from discord_rss_bot.feeds import get_feed_media_gallery_image_limit
 from discord_rss_bot.feeds import get_screenshot_layout
 from discord_rss_bot.feeds import get_sent_webhook_records
 from discord_rss_bot.feeds import send_entry_to_discord
@@ -71,6 +72,7 @@ from discord_rss_bot.filter.evaluator import evaluate_entry_filters
 from discord_rss_bot.filter.evaluator import get_entry_decision_key
 from discord_rss_bot.filter.evaluator import get_entry_fields
 from discord_rss_bot.filter.evaluator import get_filter_values_from_reader
+from discord_rss_bot.filter.evaluator import has_filter_values
 from discord_rss_bot.git_backup import commit_state_change
 from discord_rss_bot.git_backup import get_backup_path
 from discord_rss_bot.is_url_valid import is_url_valid
@@ -1346,9 +1348,41 @@ async def post_set_feed_save_sent_webhooks(
     except FeedNotFoundError as e:
         raise HTTPException(status_code=404, detail="Feed not found") from e
 
-    reader.set_tag(clean_feed_url, SAVE_SENT_WEBHOOKS_TAG, should_save)  # pyright: ignore[reportArgumentType]
+    reader.set_tag(clean_feed_url, "save_sent_webhooks", should_save)  # pyright: ignore[reportArgumentType]
     action: str = "Enable" if should_save else "Disable"
     commit_state_change(reader, f"{action} sent webhook storage for {clean_feed_url}")
+    return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
+
+
+@app.post("/set_feed_media_gallery_image_limit")
+async def post_set_feed_media_gallery_image_limit(
+    feed_url: Annotated[str, Form()],
+    image_limit: Annotated[int, Form()],
+    reader: Annotated[Reader, Depends(get_reader_dependency)],
+) -> RedirectResponse:
+    """Set whether a feed sends one image or a full media gallery.
+
+    Returns:
+        RedirectResponse: Redirect to the feed page.
+
+    Raises:
+        HTTPException: If the feed does not exist.
+    """
+    clean_feed_url: str = feed_url.strip()
+    clean_image_limit: int = coerce_media_gallery_image_limit(image_limit)
+    clean_image_limit_json: JSONType = cast("JSONType", clean_image_limit)
+
+    try:
+        reader.get_feed(clean_feed_url)
+    except FeedNotFoundError as e:
+        raise HTTPException(status_code=404, detail="Feed not found") from e
+
+    reader.set_tag(
+        clean_feed_url,
+        "media_gallery_image_limit",
+        clean_image_limit_json,
+    )
+    commit_state_change(reader, f"Set media gallery image limit to {clean_image_limit} for {clean_feed_url}")
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
 
@@ -1620,6 +1654,9 @@ async def get_feed(  # noqa: C901, PLR0912, PLR0914, PLR0915
             current_webhook_name = hook.get("name", "").strip()
             break
 
+    has_blacklist_filters: bool = has_filter_values(get_filter_values_from_reader(reader, feed, "blacklist"))
+    has_whitelist_filters: bool = has_filter_values(get_filter_values_from_reader(reader, feed, "whitelist"))
+
     # Only show button if more than 10 entries.
     total_entries: int = reader.get_entry_counts(feed=feed).total or 0
     is_show_more_entries_button_visible: bool = total_entries > entries_per_page
@@ -1668,6 +1705,10 @@ async def get_feed(  # noqa: C901, PLR0912, PLR0914, PLR0915
                 "webhooks": webhooks,
                 "current_webhook_url": current_webhook_url,
                 "current_webhook_name": current_webhook_name,
+                "has_blacklist_filters": has_blacklist_filters,
+                "has_whitelist_filters": has_whitelist_filters,
+                "media_gallery_image_limit": get_feed_media_gallery_image_limit(reader, feed),
+                "max_media_gallery_items": 10,
                 "save_sent_webhooks": feed_saves_sent_webhooks(reader, feed),
             }
             return templates.TemplateResponse(request=request, name="feed.html", context=context)
@@ -1728,6 +1769,10 @@ async def get_feed(  # noqa: C901, PLR0912, PLR0914, PLR0915
         "webhooks": webhooks,
         "current_webhook_url": current_webhook_url,
         "current_webhook_name": current_webhook_name,
+        "has_blacklist_filters": has_blacklist_filters,
+        "has_whitelist_filters": has_whitelist_filters,
+        "media_gallery_image_limit": get_feed_media_gallery_image_limit(reader, feed),
+        "max_media_gallery_items": 10,
         "save_sent_webhooks": feed_saves_sent_webhooks(reader, feed),
     }
     return templates.TemplateResponse(request=request, name="feed.html", context=context)

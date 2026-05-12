@@ -229,6 +229,12 @@ def test_get() -> None:
 
     response: Response = client.get(url="/feed", params={"feed_url": encoded_feed_url(feed_url)})
     assert response.status_code == 200, f"/feed failed: {response.text}"
+    assert "Feed Summary" in response.text
+    assert "This feed" in response.text
+    assert "Screenshot Delivery" in response.text
+    assert "Image Delivery" in response.text
+    assert 'type="range"' in response.text
+    assert 'max="10"' in response.text
 
     response: Response = client.get(url="/")
     assert response.status_code == 200, f"/ failed: {response.text}"
@@ -524,6 +530,8 @@ def test_c3kay_feed_delivery_mode_toggle_routes_update_stored_tags() -> None:
     assert reader.get_tag(c3kay_feed_url, "delivery_mode") == "screenshot"
     assert reader.get_tag(c3kay_feed_url, "screenshot_layout") == "mobile"
     assert reader.get_tag(c3kay_feed_url, "should_send_embed") is False
+    assert "Disable screenshot delivery" in response.text
+    assert "Send embed instead of screenshot" not in response.text
 
     response = client.post(url="/use_embed", data={"feed_url": c3kay_feed_url})
     assert response.status_code == 200, f"Failed to set embed mode: {response.text}"
@@ -561,7 +569,42 @@ def test_set_feed_save_sent_webhooks_route_updates_stored_tag() -> None:
             )
 
         assert response.status_code == 303, f"/set_feed_save_sent_webhooks failed: {response.text}"
-        assert stub_reader.tags[stub_reader.feed.url, feeds.SAVE_SENT_WEBHOOKS_TAG] is False
+        assert stub_reader.tags[stub_reader.feed.url, "save_sent_webhooks"] is False
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_set_feed_media_gallery_image_limit_route_updates_stored_tag() -> None:
+    @dataclass(slots=True)
+    class DummyFeed:
+        url: str
+        title: str
+
+    class StubReader:
+        def __init__(self) -> None:
+            self.feed = DummyFeed(url="https://example.com/feed.xml", title="Example")
+            self.tags: dict[tuple[str, str], int] = {}
+
+        def get_feed(self, feed_url: str) -> DummyFeed:
+            assert feed_url == self.feed.url
+            return self.feed
+
+        def set_tag(self, resource: str, key: str, value: int) -> None:
+            self.tags[resource, key] = value
+
+    stub_reader = StubReader()
+    app.dependency_overrides[get_reader_dependency] = lambda: stub_reader
+
+    try:
+        with patch("discord_rss_bot.main.commit_state_change"):
+            response: Response = client.post(
+                url="/set_feed_media_gallery_image_limit",
+                data={"feed_url": stub_reader.feed.url, "image_limit": "7"},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303, f"/set_feed_media_gallery_image_limit failed: {response.text}"
+        assert stub_reader.tags[stub_reader.feed.url, "media_gallery_image_limit"] == 7
     finally:
         app.dependency_overrides = {}
 
@@ -585,7 +628,7 @@ def test_sent_webhooks_view_shows_saved_records() -> None:
             key: str,
             default: feeds.JsonValue = None,
         ) -> feeds.JsonValue:
-            if resource == () and key == feeds.SENT_WEBHOOKS_TAG:
+            if resource == () and key == "sent_webhooks":
                 return [
                     {
                         "feed_url": sent_feed_url,

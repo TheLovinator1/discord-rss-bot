@@ -18,6 +18,11 @@ body {
     max-width: 120px;
 }
 
+.image-limit-control {
+    min-width: 12rem;
+    max-width: 28rem;
+}
+
 .screenshot-requirement {
     color: #9c9c9c;
     font-size: 0.9rem;
@@ -63,6 +68,10 @@ body {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     word-break: break-word;
+}
+
+.feed-summary-list {
+    padding-left: 1.15rem;
 }
 
 .sent-webhooks__entry,
