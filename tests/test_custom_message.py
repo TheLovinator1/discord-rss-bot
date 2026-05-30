@@ -188,6 +188,41 @@ def test_replace_tags_in_text_message_skips_non_string_replacement_values(
     assert rendered == "{{entry_id}}"
 
 
+@patch("discord_rss_bot.custom_message.get_custom_message")
+def test_replace_tags_in_text_message_uses_authors_str(mock_get_custom_message: MagicMock) -> None:
+    mock_get_custom_message.return_value = "{{feed_author}} | {{entry_author}}"
+    entry_ns: SimpleNamespace = make_entry("<p>Summary</p>")
+    entry_ns.feed.author = "Legacy Feed Author"
+    entry_ns.feed.authors_str = "Feed Author One, Feed Author Two"
+    entry_ns.author = "Legacy Entry Author"
+    entry_ns.authors_str = "Entry Author One, Entry Author Two"
+
+    rendered: str = replace_tags_in_text_message(
+        typing.cast("Entry", entry_ns),
+        reader=MagicMock(),
+    )
+
+    assert rendered == "Feed Author One, Feed Author Two | Entry Author One, Entry Author Two"
+
+
+@patch("discord_rss_bot.custom_message.get_embed")
+def test_replace_tags_in_embed_uses_authors_str(mock_get_embed: MagicMock) -> None:
+    mock_get_embed.return_value = CustomEmbed(description="{{feed_author}} | {{entry_author}}")
+    entry_ns: SimpleNamespace = make_entry("<p>Summary</p>")
+    entry_ns.feed.author = "Legacy Feed Author"
+    entry_ns.feed.authors_str = "Feed Author One, Feed Author Two"
+    entry_ns.author = "Legacy Entry Author"
+    entry_ns.authors_str = "Entry Author One, Entry Author Two"
+
+    embed: CustomEmbed = replace_tags_in_embed(
+        entry_ns.feed,
+        typing.cast("Entry", entry_ns),
+        reader=MagicMock(),
+    )
+
+    assert embed.description == "Feed Author One, Feed Author Two | Entry Author One, Entry Author Two"
+
+
 def test_get_first_image_prefers_content_image_over_summary_image() -> None:
     summary = '<p><img src="https://example.com/from-summary.jpg" /></p>'
     content = '<p><img src="https://example.com/from-content.jpg" /></p>'

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import LiteralString
 from typing import cast
 from unittest.mock import MagicMock
+from unittest.mock import call
 from unittest.mock import patch
 
 import pytest
@@ -1398,6 +1399,64 @@ def test_send_webhook_message_uploads_files_as_multipart(mock_request: MagicMock
     assert mock_request.call_args.kwargs["data"] == {"payload_json": '{"content": "Entry link"}'}
     assert mock_request.call_args.kwargs["files"] == [("files[0]", ("entry.png", b"image-bytes"))]
     assert "json" not in mock_request.call_args.kwargs
+
+
+@patch("discord_rss_bot.feeds.time.sleep")
+@patch("discord_rss_bot.feeds.httpx2.request")
+def test_request_discord_webhook_retries_rate_limit_with_httpx2(
+    mock_request: MagicMock,
+    mock_sleep: MagicMock,
+) -> None:
+    rate_limited_response = MagicMock(status_code=429, headers={})
+    rate_limited_response.json.return_value = {"retry_after": 0.25}
+    success_response = MagicMock(status_code=200)
+    mock_request.side_effect = [rate_limited_response, success_response]
+    payload: JsonObject = {"content": "Retry entry"}
+    request_call = call(
+        "POST",
+        "https://discord.com/api/webhooks/123/abc",
+        params={"wait": "true"},
+        timeout=30.0,
+        json=payload,
+    )
+
+    result = feeds.request_discord_webhook(
+        "POST",
+        "https://discord.com/api/webhooks/123/abc",
+        payload=payload,
+        params={"wait": "true"},
+        files=None,
+        timeout=30.0,
+        rate_limit_retry=True,
+    )
+
+    assert result is success_response
+    assert mock_request.call_args_list == [request_call, request_call]
+    mock_sleep.assert_called_once_with(0.25)
+
+
+@patch("discord_rss_bot.feeds.httpx2.request")
+def test_edit_sent_webhook_message_patches_message_with_httpx2(mock_request: MagicMock) -> None:
+    response = MagicMock(status_code=200, text='{"id": "message-3"}')
+    mock_request.return_value = response
+    payload: JsonObject = {"content": "Updated entry"}
+    webhook = feeds.DiscordWebhook(url="https://discord.com/api/webhooks/123/abc")
+
+    result = feeds.edit_sent_webhook_message(
+        "https://discord.com/api/webhooks/123/abc?thread_id=456",
+        "message-3",
+        webhook,
+        payload,
+    )
+
+    assert result is response
+    mock_request.assert_called_once_with(
+        "PATCH",
+        "https://discord.com/api/webhooks/123/abc/messages/message-3",
+        params={"thread_id": "456", "wait": "true"},
+        timeout=30.0,
+        json=payload,
+    )
 
 
 @patch("discord_rss_bot.feeds.edit_sent_webhook_message")

@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
+from typing import cast
 
 from reader import Entry
 from reader import Feed
@@ -12,6 +14,7 @@ from reader import make_reader
 from discord_rss_bot.filter.blacklist import entry_should_be_skipped
 from discord_rss_bot.filter.blacklist import feed_has_blacklist_tags
 from discord_rss_bot.filter.evaluator import evaluate_entry_filters
+from discord_rss_bot.filter.evaluator import get_entry_fields
 from discord_rss_bot.filter.evaluator import get_filter_values_from_reader
 
 if TYPE_CHECKING:
@@ -65,6 +68,23 @@ def check_if_has_tag(reader: Reader, feed: Feed, blacklist_name: str) -> None:
     asset_msg: str = f"Feed should not have any blacklist tags: {blacklist_name}"
     reader.delete_tag(feed, blacklist_name)
     assert feed_has_blacklist_tags(reader=reader, feed=feed) is False, asset_msg
+
+
+def test_get_entry_fields_uses_authors_str() -> None:
+    entry = cast(
+        "Entry",
+        SimpleNamespace(
+            title="Title",
+            summary="Summary",
+            content=[],
+            author="Legacy Author",
+            authors_str="Author One, Author Two",
+        ),
+    )
+
+    fields: dict[str, str] = get_entry_fields(entry)
+
+    assert fields["author"] == "Author One, Author Two"
 
 
 def test_should_be_skipped() -> None:

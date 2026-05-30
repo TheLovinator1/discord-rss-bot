@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from dataclasses import field
 from datetime import UTC
 from datetime import datetime
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 from typing import cast
 from unittest.mock import MagicMock
@@ -421,8 +422,8 @@ def test_blacklist_preview_shows_labeled_field_values_for_substring_match() -> N
                         feed=self.feed,
                         title="World of Warcraft",
                         summary="<p>Massive MMO news update</p>",
-                        author="Blizzard",
-                        authors_str="Blizzard",
+                        author="Legacy Blizzard Author",
+                        authors_str="Blizzard Author One, Blizzard Author Two",
                         link="https://example.com/wow-1",
                         published=datetime(2024, 1, 1, tzinfo=UTC),
                         content=[DummyContent("<p>The expansion launches soon.</p>")],
@@ -464,8 +465,88 @@ def test_blacklist_preview_shows_labeled_field_values_for_substring_match() -> N
         assert '<mark class="filter-preview__match filter-preview__match--danger">orld</mark>' in response.text
         assert "Massive MMO news update" in response.text
         assert "The expansion launches soon." in response.text
+        assert "By Blizzard Author One, Blizzard Author Two |" in response.text
+        assert "Legacy Blizzard Author" not in response.text
     finally:
         app.dependency_overrides = {}
+
+
+def test_author_templates_render_authors_str() -> None:
+    request = SimpleNamespace(url="https://example.com/page", base_url="https://example.com/")
+    feed = SimpleNamespace(
+        title="Example Feed",
+        url="https://example.com/feed.xml",
+        author="Legacy Feed Author",
+        authors_str="Feed Author One, Feed Author Two",
+        added=None,
+        last_exception=None,
+        last_updated=None,
+        link="https://example.com/feed",
+        subtitle="",
+        updated=None,
+        updates_enabled=True,
+        user_title="",
+        version="atom10",
+    )
+    entry = SimpleNamespace(
+        id="entry-1",
+        title="Entry Title",
+        link="https://example.com/entry-1",
+        author="Legacy Entry Author",
+        authors_str="Entry Author One, Entry Author Two",
+        added=None,
+        content=[],
+        important=False,
+        published=None,
+        read=False,
+        read_modified=None,
+        summary="Summary",
+        updated=None,
+    )
+    filter_row = SimpleNamespace(
+        entry=entry,
+        published_label="Never",
+        status_class="success",
+        status_label="Sent",
+        decision=SimpleNamespace(reason="Sent", blacklist_match=None, whitelist_match=None),
+        field_rows=[],
+        first_image="",
+    )
+    preview_summary = SimpleNamespace(
+        total=1,
+        sent=1,
+        skipped=0,
+        blacklist_matches=0,
+        whitelist_matches=0,
+    )
+
+    custom_html: str = main_module.templates.get_template("custom.html").render(
+        request=request,
+        feed=feed,
+        entry=entry,
+        custom_message="",
+    )
+    embed_html: str = main_module.templates.get_template("embed.html").render(
+        request=request,
+        feed=feed,
+        entry=entry,
+    )
+    filter_preview_html: str = main_module.templates.get_template("_filter_preview.html").render(
+        feed=feed,
+        preview_limit=50,
+        preview_summary=preview_summary,
+        preview_helper_text="",
+        preview_rows=[filter_row],
+    )
+
+    for html in (custom_html, embed_html):
+        assert "Feed Author One, Feed Author Two" in html
+        assert "Entry Author One, Entry Author Two" in html
+        assert "Legacy Feed Author" not in html
+        assert "Legacy Entry Author" not in html
+
+    assert "By Entry Author One, Entry Author Two |" in filter_preview_html
+    assert "Legacy Entry Author" not in filter_preview_html
 
 
 def test_settings_page_shows_screenshot_layout_setting() -> None:
@@ -1464,8 +1545,8 @@ def test_create_html_marks_entries_from_another_feed(monkeypatch: pytest.MonkeyP
         original_feed_url: str | None = None
         link: str = "https://example.com/post"
         title: str = "Example title"
-        author: str = "Author"
-        authors_str: str = "Author"
+        author: str = "Legacy Author"
+        authors_str: str = "Author One, Author Two"
         summary: str = "Summary"
         content: list[DummyContent] = field(default_factory=lambda: [DummyContent("Content")])
         published: None = None
@@ -1504,6 +1585,41 @@ def test_create_html_marks_entries_from_another_feed(monkeypatch: pytest.MonkeyP
 
     assert "From another feed: https://example.com/feed-b.xml" in html
     assert "From another feed: https://example.com/feed-a.xml" not in html
+    assert "By Author One, Author Two @" in html
+    assert "By Legacy Author @" not in html
+
+
+@patch("discord_rss_bot.main.httpx2.get")
+def test_get_data_from_hook_url_fetches_metadata_with_httpx2(mock_get: MagicMock) -> None:
+    hook_url = "https://discord.com/api/webhooks/123/token"
+    response = MagicMock(is_success=True)
+    response.text = (
+        '{"type": 1, "id": "123", "name": "Discord Hook", "avatar": "avatar", '
+        '"channel_id": "456", "guild_id": "789", "token": "token"}'
+    )
+    mock_get.return_value = response
+    main_module.get_data_from_hook_url.cache_clear()
+
+    hook_info = main_module.get_data_from_hook_url("Saved Hook", f" {hook_url} ")
+
+    mock_get.assert_called_once_with(hook_url, timeout=10.0)
+    assert hook_info.custom_name == "Saved Hook"
+    assert hook_info.name == "Discord Hook"
+    assert hook_info.channel_id == "456"
+    main_module.get_data_from_hook_url.cache_clear()
+
+
+@patch("discord_rss_bot.main.httpx2.get")
+def test_resolve_final_feed_url_follows_redirects_with_httpx2(mock_get: MagicMock) -> None:
+    response = MagicMock(is_success=True)
+    response.url = "https://example.com/final.xml"
+    mock_get.return_value = response
+
+    resolved_url, error = main_module.resolve_final_feed_url(" https://example.com/original.xml ")
+
+    mock_get.assert_called_once_with("https://example.com/original.xml", follow_redirects=True, timeout=10.0)
+    assert resolved_url == "https://example.com/final.xml"
+    assert error is None
 
 
 def test_webhook_entries_webhook_not_found() -> None:
