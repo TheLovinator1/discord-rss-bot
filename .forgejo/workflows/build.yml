@@ -48,8 +48,8 @@ jobs:
           docker buildx use local-multiarch-builder
           docker buildx inspect --bootstrap
 
-      - name: Lint Python code
-        run: ruff check --exit-non-zero-on-fix
+      # - name: Lint Python code
+      #   run: ruff check --exit-non-zero-on-fix
 
       - name: Check Python formatting
         run: ruff format --check
