@@ -49,10 +49,10 @@ jobs:
           docker buildx inspect --bootstrap
 
       - name: Lint Python code
-        run: ruff check --exit-non-zero-on-fix --verbose
+        run: ruff check --exit-non-zero-on-fix
 
       - name: Check Python formatting
-        run: ruff format --check --verbose
+        run: ruff format --check
 
       - name: Lint Dockerfile
         run: docker build --check .

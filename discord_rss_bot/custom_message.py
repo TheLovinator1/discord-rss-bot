@@ -155,7 +155,7 @@ def replace_tags_in_text_message(entry: Entry, reader: Reader) -> str:
     entry_updated: str = entry.updated.strftime("%Y-%m-%d %H:%M:%S") if entry.updated else "Never"
 
     list_of_replacements: list[dict[str, str]] = [
-        {"{{feed_author}}": feed.author or ""},
+        {"{{feed_author}}": feed.authors_str or ""},
         {"{{feed_added}}": feed_added},
         {"{{feed_last_exception}}": feed_last_exception},
         {"{{feed_last_updated}}": feed_last_updated},
@@ -168,7 +168,7 @@ def replace_tags_in_text_message(entry: Entry, reader: Reader) -> str:
         {"{{feed_user_title}}": feed.user_title or ""},
         {"{{feed_version}}": feed.version or ""},
         {"{{entry_added}}": entry_added},
-        {"{{entry_author}}": entry.author or ""},
+        {"{{entry_author}}": entry.authors_str or ""},
         {"{{entry_content}}": content},
         {"{{entry_content_raw}}": entry.content[0].value if entry.content else ""},
         {"{{entry_id}}": entry.id or ""},
@@ -318,7 +318,7 @@ def replace_tags_in_embed(feed: Feed, entry: Entry, reader: Reader) -> CustomEmb
         embed.title = ""
 
     list_of_replacements: list[dict[str, str]] = [
-        {"{{feed_author}}": feed.author or ""},
+        {"{{feed_author}}": feed.authors_str or ""},
         {"{{feed_added}}": feed_added or ""},
         {"{{feed_last_exception}}": feed_last_exception},
         {"{{feed_last_updated}}": feed_last_updated or ""},
@@ -331,7 +331,7 @@ def replace_tags_in_embed(feed: Feed, entry: Entry, reader: Reader) -> CustomEmb
         {"{{feed_user_title}}": feed.user_title or ""},
         {"{{feed_version}}": feed.version or ""},
         {"{{entry_added}}": entry_added or ""},
-        {"{{entry_author}}": entry.author or ""},
+        {"{{entry_author}}": entry.authors_str or ""},
         {"{{entry_content}}": content or ""},
         {"{{entry_content_raw}}": entry.content[0].value if entry.content else ""},
         {"{{entry_id}}": entry.id},

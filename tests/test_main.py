@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     import pytest
-    from httpx import Response
+    from httpx2 import Response
     from reader import Entry
     from reader import Reader
 
@@ -330,6 +330,7 @@ def test_blacklist_preview_uses_50_entry_limit() -> None:
         title: str
         summary: str
         author: str
+        authors_str: str
         link: str
         published: datetime | None
         content: list[DummyContent] = field(default_factory=lambda: [DummyContent("content")])
@@ -347,6 +348,7 @@ def test_blacklist_preview_uses_50_entry_limit() -> None:
                         title=f"Entry {index}",
                         summary=f"Summary {index}",
                         author="Author",
+                        authors_str="Author",
                         link=f"https://example.com/entry-{index}",
                         published=datetime(2024, 1, 1, tzinfo=UTC),
                     ),
@@ -403,6 +405,7 @@ def test_blacklist_preview_shows_labeled_field_values_for_substring_match() -> N
         title: str
         summary: str
         author: str
+        authors_str: str
         link: str
         published: datetime | None
         content: list[DummyContent] = field(default_factory=list)
@@ -419,6 +422,7 @@ def test_blacklist_preview_shows_labeled_field_values_for_substring_match() -> N
                         title="World of Warcraft",
                         summary="<p>Massive MMO news update</p>",
                         author="Blizzard",
+                        authors_str="Blizzard",
                         link="https://example.com/wow-1",
                         published=datetime(2024, 1, 1, tzinfo=UTC),
                         content=[DummyContent("<p>The expansion launches soon.</p>")],
@@ -1461,6 +1465,7 @@ def test_create_html_marks_entries_from_another_feed(monkeypatch: pytest.MonkeyP
         link: str = "https://example.com/post"
         title: str = "Example title"
         author: str = "Author"
+        authors_str: str = "Author"
         summary: str = "Summary"
         content: list[DummyContent] = field(default_factory=lambda: [DummyContent("Content")])
         published: None = None

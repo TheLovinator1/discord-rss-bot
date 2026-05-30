@@ -792,7 +792,7 @@ def test_get_ttvdrops_campaign_api_url_from_campaign_page() -> None:
         ("https://ttvdrops.lovinator.space/twitch/feed.xml?hide_paid=0&hide_paid=1", False),
     ],
 )
-@patch("discord_rss_bot.feeds.httpx.get")
+@patch("discord_rss_bot.feeds.httpx2.get")
 def test_fetch_ttvdrops_campaign_media_items_extracts_reward_alt_text(
     mock_get: MagicMock,
     feed_url: str,
@@ -1351,8 +1351,8 @@ def test_execute_webhook_does_not_record_when_feed_tracking_disabled(mock_send_w
     reader.set_tag.assert_not_called()
 
 
-@patch("discord_rss_bot.feeds.httpx.request")
-def test_send_webhook_message_posts_components_with_httpx(mock_request: MagicMock) -> None:
+@patch("discord_rss_bot.feeds.httpx2.request")
+def test_send_webhook_message_posts_components_with_httpx2(mock_request: MagicMock) -> None:
     response = MagicMock(status_code=200, text='{"id": "message-1"}')
     mock_request.return_value = response
     components: list[feeds.JsonValue] = [
@@ -1383,7 +1383,7 @@ def test_send_webhook_message_posts_components_with_httpx(mock_request: MagicMoc
     }
 
 
-@patch("discord_rss_bot.feeds.httpx.request")
+@patch("discord_rss_bot.feeds.httpx2.request")
 def test_send_webhook_message_uploads_files_as_multipart(mock_request: MagicMock) -> None:
     response = MagicMock(status_code=200, text='{"id": "message-2"}')
     mock_request.return_value = response
@@ -1462,7 +1462,7 @@ def test_update_sent_webhooks_for_modified_entries_edits_changed_payload(
 
     assert updated_count == 1
     mock_edit_sent_webhook_message.assert_called_once()
-    edit_payload = mock_edit_sent_webhook_message.call_args.args[3]
+    edit_payload = mock_edit_sent_webhook_message.call_args.kwargs["payload"]
     assert edit_payload == {"content": "New title"}
     records = state["sent_webhooks"]
     assert isinstance(records, list)
@@ -1533,7 +1533,7 @@ def test_update_sent_webhook_record_preserves_existing_embed_image_when_updated_
 
     assert record_changed is True
     assert message_was_edited is True
-    edit_payload = mock_edit_sent_webhook_message.call_args.args[3]
+    edit_payload = mock_edit_sent_webhook_message.call_args.kwargs["payload"]
     assert isinstance(edit_payload["embeds"], list)
     assert edit_payload["embeds"][0]["image"] == previous_image
     assert isinstance(updated_record["payload"], dict)

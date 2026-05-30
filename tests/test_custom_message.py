@@ -42,6 +42,7 @@ def make_feed() -> SimpleNamespace:
     return SimpleNamespace(
         added=None,
         author="Feed Author",
+        authors_str="Entry Author",
         last_exception=None,
         last_updated=None,
         link="https://example.com/feed",
@@ -60,6 +61,7 @@ def make_entry(summary: str) -> SimpleNamespace:
     return SimpleNamespace(
         added=None,
         author="Entry Author",
+        authors_str="Entry Author",
         content=[],
         feed=feed,
         feed_url=feed.url,

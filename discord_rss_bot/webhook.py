@@ -82,7 +82,7 @@ class DiscordWebhook:
     """Discord webhook request data.
 
     This intentionally mirrors the subset of `discord-webhook` used by the app
-    while leaving the actual HTTP transport to `httpx`.
+    while leaving the actual HTTP transport to `httpx2`.
     """
 
     def __init__(  # noqa: D107

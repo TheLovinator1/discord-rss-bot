@@ -18,7 +18,7 @@ from typing import Annotated
 from typing import TypedDict
 from typing import cast
 
-import httpx
+import httpx2
 import sentry_sdk
 import uvicorn
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -30,7 +30,8 @@ from fastapi import Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from httpx import Response
+from httpx2 import HTTPError
+from httpx2 import Response
 from markdownify import markdownify
 from reader import Entry
 from reader import EntryNotFoundError
@@ -82,6 +83,7 @@ from discord_rss_bot.settings import get_reader
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
     from collections.abc import Iterable
+    from pathlib import Path
 
     from reader.types import JSONType
 
@@ -1881,7 +1883,7 @@ def create_html_for_feed(  # noqa: C901, PLR0914
 
         html += f"""<div class="p-2 mb-2 border border-dark">
 {blacklisted}{whitelisted}{from_another_feed}<a class="text-muted text-decoration-none" href="{entry.link}"><h2>{entry.title}</h2></a>
-{feed_link}{f"By {entry.author} @" if entry.author else ""}{published} - {to_discord_html}
+{feed_link}{f"By {entry.authors_str} @" if entry.authors_str else ""}{published} - {to_discord_html}
 
 {text}
 {video_embed_html}
@@ -1939,8 +1941,8 @@ def get_data_from_hook_url(hook_name: str, hook_url: str) -> WebhookInfo:
         return our_hook
 
     try:
-        response: Response = httpx.get(clean_hook_url, timeout=10.0)
-    except httpx.HTTPError as e:
+        response: Response = httpx2.get(clean_hook_url, timeout=10.0)
+    except HTTPError as e:
         logger.warning("Failed to fetch webhook metadata for %s: %s", clean_hook_url, e)
         return our_hook
 
@@ -2209,7 +2211,7 @@ async def update_feed(
 
     try:
         update_sent_webhooks_for_modified_entries(reader, modified_entries)
-    except (AssertionError, ReaderError, httpx.HTTPError, OSError, ValueError):
+    except (AssertionError, ReaderError, HTTPError, OSError, ValueError):
         logger.exception("Failed to update saved Discord webhooks for manually updated feed: %s", feed_url)
 
     logger.info("Manually updated feed: %s", feed_url)
@@ -2230,18 +2232,18 @@ async def manual_backup(
     Returns:
         RedirectResponse: Redirect to the index page with a success or error message.
     """
-    backup_path = get_backup_path()
+    backup_path: Path | None = get_backup_path()
     if backup_path is None:
-        message = "Git backup is not configured. Set GIT_BACKUP_PATH environment variable to enable backups."
+        message: str = "Git backup is not configured. Set GIT_BACKUP_PATH environment variable to enable backups."
         logger.warning("Manual git backup attempted but GIT_BACKUP_PATH is not configured")
         return RedirectResponse(url=f"/?message={urllib.parse.quote(message)}", status_code=303)
 
     try:
         commit_state_change(reader, "Manual backup triggered from web UI")
-        message = "Successfully created git backup!"
+        message: str = "Successfully created git backup!"
         logger.info("Manual git backup completed successfully")
     except Exception as e:
-        message = f"Failed to create git backup: {e}"
+        message: str = f"Failed to create git backup: {e}"
         logger.exception("Manual git backup failed")
 
     return RedirectResponse(url=f"/?message={urllib.parse.quote(message)}", status_code=303)
@@ -2419,8 +2421,8 @@ def resolve_final_feed_url(url: str) -> tuple[str, str | None]:
         return clean_url, "URL is invalid"
 
     try:
-        response: Response = httpx.get(clean_url, follow_redirects=True, timeout=10.0)
-    except httpx.HTTPError as e:
+        response: Response = httpx2.get(clean_url, follow_redirects=True, timeout=10.0)
+    except HTTPError as e:
         return clean_url, str(e)
 
     if not response.is_success:

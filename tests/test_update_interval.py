@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from discord_rss_bot.main import app
 
 if TYPE_CHECKING:
-    from httpx import Response
+    from httpx2 import Response
 
 client: TestClient = TestClient(app)
 webhook_name: str = "Test Webhook for Update Interval"

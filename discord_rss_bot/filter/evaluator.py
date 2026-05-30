@@ -245,7 +245,7 @@ def get_entry_fields(entry: Entry) -> dict[str, str]:
         "title": entry.title or "",
         "summary": entry.summary or "",
         "content": content_value,
-        "author": entry.author or "",
+        "author": entry.authors_str or "",
     }
 
 

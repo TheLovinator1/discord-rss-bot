@@ -22,9 +22,11 @@ from urllib.parse import parse_qs
 from urllib.parse import urljoin
 from urllib.parse import urlparse
 
-import httpx
+import httpx2
 import tldextract
 from fastapi import HTTPException
+from httpx2 import HTTPError
+from httpx2 import Response
 from markdownify import markdownify
 from playwright.sync_api import Browser
 from playwright.sync_api import Page
@@ -702,7 +704,7 @@ def get_webhook_files(webhook: DiscordWebhook) -> list[WebhookFile]:  # noqa: C9
     return files
 
 
-def get_retry_after_seconds(response: httpx.Response) -> float | None:
+def get_retry_after_seconds(response: Response) -> float | None:
     """Return Discord's retry delay for a rate-limited response when available."""
     response_json: JsonObject = get_response_json(response)
     retry_after: JsonValue = response_json.get("retry_after")
@@ -727,7 +729,7 @@ def request_discord_webhook(
     files: list[WebhookFile] | None,
     timeout: float,
     rate_limit_retry: bool,
-) -> httpx.Response:
+) -> Response:
     """Send a Discord webhook request with optional multipart files.
 
     Returns:
@@ -742,7 +744,7 @@ def request_discord_webhook(
     else:
         request_kwargs["json"] = payload
 
-    response: httpx.Response = httpx.request(method, url, **request_kwargs)
+    response: Response = httpx2.request(method, url, **request_kwargs)
     if not rate_limit_retry or response.status_code != 429:  # noqa: PLR2004
         return response
 
@@ -751,11 +753,11 @@ def request_discord_webhook(
         return response
 
     time.sleep(max(0.0, retry_after))
-    return httpx.request(method, url, **request_kwargs)
+    return httpx2.request(method, url, **request_kwargs)
 
 
-def send_webhook_message(webhook: DiscordWebhook, payload: JsonObject) -> httpx.Response:
-    """Execute a Discord webhook message create request using httpx.
+def send_webhook_message(webhook: DiscordWebhook, payload: JsonObject) -> Response:
+    """Execute a Discord webhook message create request using httpx2.
 
     Returns:
         Discord API response.
@@ -777,11 +779,11 @@ def edit_sent_webhook_message(
     message_id: str,
     webhook: DiscordWebhook,
     payload: JsonObject,
-) -> httpx.Response:
+) -> Response:
     """Edit an already-sent Discord webhook message.
 
     Returns:
-        httpx.Response: Discord API response.
+        Response: Discord API response.
     """
     clean_webhook_url, params = get_webhook_query_params(webhook_url, payload, webhook=webhook, wait=True)
     return request_discord_webhook(
@@ -938,8 +940,13 @@ def update_sent_webhook_record_for_entry(
 
     now: str = datetime.datetime.now(tz=datetime.UTC).isoformat()
     try:
-        response = edit_sent_webhook_message(webhook_url_value, message_id_value, webhook, edit_payload)
-    except (AssertionError, RequestException, httpx.HTTPError, OSError, ValueError) as e:
+        response: Response = edit_sent_webhook_message(
+            webhook_url=webhook_url_value,
+            message_id=message_id_value,
+            webhook=webhook,
+            payload=edit_payload,
+        )
+    except (AssertionError, RequestException, HTTPError, OSError, ValueError) as e:
         logger.exception("Failed to edit Discord webhook message %s for entry %s", message_id_value, entry.id)
         return (
             {
@@ -1484,13 +1491,13 @@ def fetch_ttvdrops_campaign_media_items(entry: Entry) -> list[JsonObject]:
         return []
 
     try:
-        response: httpx.Response = httpx.get(api_url, follow_redirects=True, timeout=10.0)
+        response: Response = httpx2.get(api_url, follow_redirects=True, timeout=10.0)
         if response.status_code != 200:  # noqa: PLR2004
             logger.warning("Failed to fetch ttvdrops campaign data from %s: %s", api_url, response.text[:500])
             return []
 
         response_json = cast("JsonValue", response.json())
-    except (httpx.HTTPError, ValueError, TypeError):
+    except (HTTPError, ValueError, TypeError):
         logger.exception("Failed to fetch ttvdrops campaign data from %s", api_url)
         return []
 
@@ -1759,7 +1766,7 @@ def send_to_discord(reader: Reader | None = None, feed: Feed | None = None, *, d
     )
     try:
         update_sent_webhooks_for_modified_entries(effective_reader, modified_entries)
-    except (AssertionError, ReaderError, RequestException, httpx.HTTPError, OSError, ValueError):
+    except (AssertionError, ReaderError, RequestException, HTTPError, OSError, ValueError):
         logger.exception("Failed to update saved Discord webhooks for modified feed entries.")
 
     # Loop through the unread entries.
@@ -1826,7 +1833,7 @@ def execute_webhook(
 
     request_payload: JsonObject = get_webhook_request_payload(webhook)
     payload: JsonObject = get_webhook_message_payload(webhook)
-    response: httpx.Response = send_webhook_message(webhook, request_payload)
+    response: Response = send_webhook_message(webhook, request_payload)
     logger.debug("Discord webhook response for entry %s: status=%s", entry.id, response.status_code)
     if response.status_code not in {200, 204}:
         msg: str = f"Error sending entry to Discord: {response.text}\n{pprint.pformat(request_payload)}"

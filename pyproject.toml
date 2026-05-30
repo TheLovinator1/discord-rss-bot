@@ -7,7 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "apscheduler>=3.11.0",
     "fastapi",
-    "httpx",
+    "httpx2",
     "jinja2",
     "lxml",
     "markdownify",

@@ -21,7 +21,7 @@
                                     {% raw %}
                                         {{feed_author}}
                                     {% endraw %}
-                                </code>{{ feed.author }}
+                                </code>{{ feed.authors_str }}
                         </li>
                         <li>
                             <code>
@@ -114,7 +114,7 @@
                                         {% raw %}
                                             {{entry_author}}
                                         {% endraw %}
-                                    </code>{{ entry.author }}
+                                    </code>{{ entry.authors_str }}
                         </li>
                         {% if entry.content %}
                         <li>
