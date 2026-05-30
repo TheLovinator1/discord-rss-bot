@@ -91,7 +91,7 @@ def setup_backup_repo(backup_path: Path) -> bool:
     """Ensure the backup directory exists and contains a git repository.
 
     If the directory does not yet contain a ``.git`` folder a new repository is
-    initialised.  A basic git identity is configured locally so that commits
+    initialized.  A basic git identity is configured locally so that commits
     succeed even in environments where a global ``~/.gitconfig`` is absent.
 
     Args:
@@ -100,12 +100,12 @@ def setup_backup_repo(backup_path: Path) -> bool:
     Returns:
         ``True`` if the repository is ready, ``False`` on any error.
     """
-    try:
+    try:  # noqa: PLW0717
         backup_path.mkdir(parents=True, exist_ok=True)
         git_dir: Path = backup_path / ".git"
         if not git_dir.exists():
             subprocess.run([GIT_EXECUTABLE, "init", str(backup_path)], check=True, capture_output=True)  # noqa: S603
-            logger.info("Initialised git backup repository at %s", backup_path)
+            logger.info("Initialized git backup repository at %s", backup_path)
 
         # Ensure a local identity exists so that `git commit` always works.
         for key, value in (("user.email", "discord-rss-bot@localhost"), ("user.name", "discord-rss-bot")):
@@ -155,7 +155,7 @@ def setup_backup_repo(backup_path: Path) -> bool:
 
 
 def export_state(reader: Reader, backup_path: Path) -> None:
-    """Serialise the current bot state to ``state.json`` inside *backup_path*.
+    """Serialize the current bot state to ``state.json`` inside *backup_path*.
 
     Args:
         reader: The :class:`reader.Reader` instance to read state from.
@@ -190,7 +190,7 @@ def export_state(reader: Reader, backup_path: Path) -> None:
         if clean_layout in {"desktop", "mobile"}:
             global_screenshot_layout = clean_layout
 
-    state: JsonObject = {"feeds": feeds_state, "webhooks": webhooks}
+    state: JsonObject = {"feeds": feeds_state, "webhooks": webhooks}  # pyright: ignore[reportAssignmentType]
     if global_update_interval is not None:
         state["global_update_interval"] = global_update_interval
     if global_screenshot_layout is not None:
@@ -217,7 +217,7 @@ def commit_state_change(reader: Reader, message: str) -> None:
     if not setup_backup_repo(backup_path):
         return
 
-    try:
+    try:  # noqa: PLW0717
         export_state(reader, backup_path)
 
         subprocess.run([GIT_EXECUTABLE, "-C", str(backup_path), "add", "-A"], check=True, capture_output=True)  # noqa: S603

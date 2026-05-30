@@ -133,7 +133,7 @@ def extract_domain(url: str) -> str:  # noqa: PLR0911
     if not url:
         return "Other"
 
-    try:
+    try:  # noqa: PLW0717
         # Special handling for YouTube feeds
         if "youtube.com/feeds/videos.xml" in url:
             return "YouTube"
@@ -1219,13 +1219,13 @@ def _capture_full_page_screenshot_sync(
     Returns:
         bytes | None: PNG bytes on success, otherwise None.
     """
-    try:
+    try:  # noqa: PLW0717
         with sync_playwright() as playwright:
             browser: Browser = playwright.chromium.launch(
                 headless=True,
                 args=["--disable-dev-shm-usage", "--no-sandbox"],
             )
-            try:
+            try:  # noqa: PLW0717
                 if screenshot_layout == "mobile":
                     page = browser.new_page(
                         viewport={"width": 390, "height": 844},
@@ -1432,7 +1432,7 @@ def get_ttvdrops_reward_description(drop: JsonObject, reward: JsonObject) -> str
     return reward_name
 
 
-def extract_ttvdrops_media_gallery_items(value: JsonValue) -> list[JsonObject]:  # noqa: C901
+def extract_ttvdrops_media_gallery_items(value: JsonValue, *, hide_paid: bool = False) -> list[JsonObject]:  # noqa: C901
     """Extract benefit/reward media gallery items from a ttvdrops API response.
 
     Returns:
@@ -1441,6 +1441,9 @@ def extract_ttvdrops_media_gallery_items(value: JsonValue) -> list[JsonObject]: 
     media_items: list[JsonObject] = []
 
     def add_reward_image(drop: JsonObject, reward: JsonObject) -> None:
+        if hide_paid and json_value_to_int(drop.get("required_minutes_watched")) <= 0:
+            return
+
         image_url = reward.get("image_url")
         if isinstance(image_url, str):
             add_unique_media_gallery_item(
@@ -1491,7 +1494,8 @@ def fetch_ttvdrops_campaign_media_items(entry: Entry) -> list[JsonObject]:
         logger.exception("Failed to fetch ttvdrops campaign data from %s", api_url)
         return []
 
-    return extract_ttvdrops_media_gallery_items(response_json)
+    hide_paid: bool = "1" in parse_qs(urlparse(entry.feed.url).query).get("hide_paid", [])
+    return extract_ttvdrops_media_gallery_items(response_json, hide_paid=hide_paid)
 
 
 def get_entry_media_gallery_items(

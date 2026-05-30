@@ -59,7 +59,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
     # the worker-specific location.
     settings_module: ModuleType | None = sys.modules.get("discord_rss_bot.settings")
     if settings_module is not None:
-        settings_module.data_dir = str(worker_data_dir)
+        settings_module.data_dir = str(worker_data_dir)  # pyright: ignore[reportAttributeAccessIssue]
         get_reader_attr = getattr(settings_module, "get_reader", None)
         if get_reader_attr is not None and hasattr(get_reader_attr, "cache_clear"):
             get_reader = cast("CachedReaderFactory", get_reader_attr)

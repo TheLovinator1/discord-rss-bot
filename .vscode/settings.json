@@ -1,5 +1,7 @@
 {
   "cSpell.words": [
+    "appauthor",
+    "appname",
     "argnames",
     "argvalues",
     "autoexport",
@@ -20,6 +22,7 @@
     "overwritable",
     "pipx",
     "pyproject",
+    "retcode",
     "Skulbladi",
     "thead",
     "thelovinator",

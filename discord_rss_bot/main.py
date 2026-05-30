@@ -239,9 +239,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     )
     scheduler.start()
     logger.info("Scheduler started.")
-    yield
-    reader.close()
-    scheduler.shutdown(wait=True)
+
+    try:
+        yield
+    finally:
+        reader.close()
+        scheduler.shutdown(wait=True)
 
 
 app: FastAPI = FastAPI(lifespan=lifespan)

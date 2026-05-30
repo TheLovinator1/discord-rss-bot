@@ -438,7 +438,7 @@ def test_blacklist_preview_shows_labeled_field_values_for_substring_match() -> N
     stub_reader = StubReader()
     app.dependency_overrides[get_reader_dependency] = lambda: stub_reader
 
-    try:
+    try:  # noqa: PLW0717
         with patch("discord_rss_bot.main.create_html_for_feed", return_value="<div>Rendered</div>"):
             response: Response = client.get(
                 url="/blacklist_preview",
@@ -656,7 +656,7 @@ def test_sent_webhooks_view_shows_saved_records() -> None:
 
     app.dependency_overrides[get_reader_dependency] = StubReader
 
-    try:
+    try:  # noqa: PLW0717
         response: Response = client.get(url="/sent_webhooks")
 
         assert response.status_code == 200, f"/sent_webhooks failed: {response.text}"
@@ -1224,7 +1224,7 @@ def test_post_entry_uses_feed_url_to_disambiguate_duplicate_ids() -> None:
     app.dependency_overrides[get_reader_dependency] = StubReader
     no_redirect_client = TestClient(app, follow_redirects=False)
 
-    try:
+    try:  # noqa: PLW0717
         with patch("discord_rss_bot.main.send_entry_to_discord", side_effect=fake_send_entry_to_discord):
             response: Response = no_redirect_client.get(
                 url="/post_entry",
@@ -1960,7 +1960,7 @@ def test_webhook_entries_mass_update_preview_shows_old_and_new_urls() -> None:
             return []
 
     app.dependency_overrides[get_reader_dependency] = StubReader
-    try:
+    try:  # noqa: PLW0717
         with (
             patch(
                 "discord_rss_bot.main.get_data_from_hook_url",
@@ -2040,7 +2040,7 @@ def test_bulk_change_feed_urls_updates_matching_feeds() -> None:
     app.dependency_overrides[get_reader_dependency] = lambda: stub_reader
     no_redirect_client = TestClient(app, follow_redirects=False)
 
-    try:
+    try:  # noqa: PLW0717
         with patch(
             "discord_rss_bot.main.resolve_final_feed_url",
             side_effect=lambda url: (url.replace("old.example.com", "new.example.com"), None),
@@ -2095,7 +2095,7 @@ def test_webhook_entries_mass_update_preview_fragment_endpoint() -> None:
             return self._feeds
 
     app.dependency_overrides[get_reader_dependency] = StubReader
-    try:
+    try:  # noqa: PLW0717
         with patch(
             "discord_rss_bot.main.resolve_final_feed_url",
             side_effect=lambda url: (url.replace("old.example.com", "new.example.com"), None),
@@ -2168,7 +2168,7 @@ def test_bulk_change_feed_urls_force_update_overwrites_conflict() -> None:  # no
     app.dependency_overrides[get_reader_dependency] = lambda: stub_reader
     no_redirect_client = TestClient(app, follow_redirects=False)
 
-    try:
+    try:  # noqa: PLW0717
         with patch(
             "discord_rss_bot.main.resolve_final_feed_url",
             side_effect=lambda url: (url.replace("old.example.com", "new.example.com"), None),
@@ -2242,7 +2242,7 @@ def test_bulk_change_feed_urls_force_update_ignores_resolution_error() -> None:
     app.dependency_overrides[get_reader_dependency] = lambda: stub_reader
     no_redirect_client = TestClient(app, follow_redirects=False)
 
-    try:
+    try:  # noqa: PLW0717
         with patch(
             "discord_rss_bot.main.resolve_final_feed_url",
             return_value=("https://new.example.com/rss/a.xml", "HTTP 404"),

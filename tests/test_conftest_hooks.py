@@ -102,6 +102,6 @@ def test_pytest_collection_modifyitems_noops_when_real_git_backup_tests_enabled(
     config.getoption.return_value = True
 
     items: list[MagicMock] = [MagicMock()]
-    hooks.pytest_collection_modifyitems(config=config, items=items)
+    hooks.pytest_collection_modifyitems(config=config, items=items)  # pyright: ignore[reportArgumentType]
 
     config.getoption.assert_called_once_with("--run-real-git-backup-tests")

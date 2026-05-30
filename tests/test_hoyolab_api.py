@@ -174,7 +174,7 @@ class TestCreateHoyolabWebhook:
 
         entry = make_entry(link=None)
         entry = typing.cast("Entry", entry)
-        webhook = create_hoyolab_webhook("https://discord.test/webhook", entry, post_data)
+        webhook = create_hoyolab_webhook("https://discord.test/webhook", entry, post_data)  # type: ignore
 
         assert webhook is webhook_instance
         mock_webhook_cls.assert_called_once_with(url="https://discord.test/webhook", rate_limit_retry=True)
@@ -222,7 +222,7 @@ class TestCreateHoyolabWebhook:
 
         entry = make_entry()
         entry = typing.cast("Entry", entry)
-        webhook = create_hoyolab_webhook("https://discord.test/webhook", entry, post_data)
+        webhook = create_hoyolab_webhook("https://discord.test/webhook", entry, post_data)  # type: ignore
 
         assert webhook is webhook_instance
         webhook_instance.remove_embeds.assert_not_called()

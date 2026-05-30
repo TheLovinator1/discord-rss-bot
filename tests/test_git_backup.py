@@ -4,7 +4,6 @@ import contextlib
 import json
 import shutil
 import subprocess  # noqa: S404
-from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import cast
 from unittest.mock import MagicMock
@@ -196,8 +195,8 @@ def test_export_state_creates_state_json(tmp_path: Path) -> None:
     data = cast("JsonObject", json.loads(state_file.read_text(encoding="utf-8")))
     assert "feeds" in data
     assert "webhooks" in data
-    assert data["feeds"][0]["url"] == "https://example.com/feed.rss"
-    assert data["feeds"][0]["webhook"] == "https://discord.com/api/webhooks/123/abc"
+    assert data["feeds"][0]["url"] == "https://example.com/feed.rss"  # type: ignore
+    assert data["feeds"][0]["webhook"] == "https://discord.com/api/webhooks/123/abc"  # type: ignore
 
 
 def test_export_state_omits_empty_tags(tmp_path: Path) -> None:
@@ -227,7 +226,7 @@ def test_export_state_omits_empty_tags(tmp_path: Path) -> None:
     data = cast("JsonObject", json.loads((backup_path / "state.json").read_text()))
 
     # Only "url" key should be present (no empty-value tags)
-    assert list(data["feeds"][0].keys()) == ["url"]
+    assert list(data["feeds"][0].keys()) == ["url"]  # type: ignore
 
 
 def test_commit_state_change_noop_when_not_configured(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -575,7 +574,7 @@ def test_embed_backup_end_to_end(monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     state_data = cast("JsonObject", json.loads(state_file.read_text(encoding="utf-8")))
 
     # Find our test feed in the state
-    test_feed_data = next((feed for feed in state_data["feeds"] if feed["url"] == test_feed_url), None)
+    test_feed_data = next((feed for feed in state_data["feeds"] if feed["url"] == test_feed_url), None)  # type: ignore
     assert test_feed_data is not None, f"Test feed not found in state.json: {state_data}"
 
     # The embed settings are stored as a nested dict under custom_embed tag

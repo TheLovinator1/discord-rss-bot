@@ -781,8 +781,24 @@ def test_get_ttvdrops_campaign_api_url_from_campaign_page() -> None:
     assert api_url == "https://ttvdrops.lovinator.space/twitch/api/v1/campaigns/93ba35ae-5bfc-43fe-88ac-49a0aabb2fe2/"
 
 
+@pytest.mark.parametrize(
+    ("feed_url", "include_paid_reward"),
+    [
+        ("https://ttvdrops.lovinator.space/twitch/feed.xml", True),
+        ("https://ttvdrops.lovinator.space/twitch/feed.xml?hide_paid=0", True),
+        ("https://ttvdrops.lovinator.space/twitch/feed.xml?hide_paid=true", True),
+        ("https://ttvdrops.lovinator.space/twitch/feed.xml?hide_paid=1", False),
+        ("https://ttvdrops.lovinator.space/twitch/feed.xml?lang=en&hide_paid=1", False),
+        ("https://ttvdrops.lovinator.space/twitch/feed.xml?hide_paid=0&hide_paid=1", False),
+    ],
+)
 @patch("discord_rss_bot.feeds.httpx.get")
-def test_fetch_ttvdrops_campaign_media_items_extracts_reward_alt_text(mock_get: MagicMock) -> None:
+def test_fetch_ttvdrops_campaign_media_items_extracts_reward_alt_text(
+    mock_get: MagicMock,
+    feed_url: str,
+    *,
+    include_paid_reward: bool,
+) -> None:
     response = MagicMock()
     response.status_code = 200
     response.json.return_value = {
@@ -796,27 +812,115 @@ def test_fetch_ttvdrops_campaign_media_items_extracts_reward_alt_text(mock_get: 
                     {"image_url": "javascript:alert(1)"},
                 ],
             },
+            {
+                "name": "Paid drop",
+                "required_minutes_watched": 0,
+                "required_subs": 2,
+                "benefits": [
+                    {"name": "Pay2win reward", "image_url": "/media/benefits/images/paid-reward.png"},
+                ],
+            },
         ],
     }
     mock_get.return_value = response
     entry = MagicMock()
     entry.link = "https://ttvdrops.lovinator.space/twitch/campaigns/93ba35ae-5bfc-43fe-88ac-49a0aabb2fe2/"
     entry.id = "entry-4"
-    entry.feed.url = "https://example.com/feed.xml"
+    entry.feed.url = feed_url
 
     media_items = feeds.fetch_ttvdrops_campaign_media_items(entry)
 
-    assert media_items == [
+    expected_media_items: list[JsonObject] = [
         {
             "url": "https://ttvdrops.lovinator.space/media/benefits/images/reward.png",
             "description": "120 minutes watched: Skulbladi",
         },
     ]
+    if include_paid_reward:
+        expected_media_items.append(
+            {
+                "url": "https://ttvdrops.lovinator.space/media/benefits/images/paid-reward.png",
+                "description": "2 subscriptions: Pay2win reward",
+            },
+        )
+    assert media_items == expected_media_items
     mock_get.assert_called_once_with(
         "https://ttvdrops.lovinator.space/twitch/api/v1/campaigns/93ba35ae-5bfc-43fe-88ac-49a0aabb2fe2/",
         follow_redirects=True,
         timeout=10.0,
     )
+
+
+def test_extract_ttvdrops_media_gallery_items_includes_paid_rewards_by_default() -> None:
+    media_items = feeds.extract_ttvdrops_media_gallery_items(
+        {
+            "drops": [
+                {
+                    "required_subs": 1,
+                    "benefits": [{"name": "Paid reward", "image_url": "/media/paid.png"}],
+                },
+            ],
+        },
+    )
+
+    assert media_items == [
+        {
+            "url": "https://ttvdrops.lovinator.space/media/paid.png",
+            "description": "1 subscriptions: Paid reward",
+        },
+    ]
+
+
+def test_extract_ttvdrops_media_gallery_items_hide_paid_omits_non_watch_rewards() -> None:
+    media_items = feeds.extract_ttvdrops_media_gallery_items(
+        {
+            "drops": [
+                {
+                    "required_minutes_watched": 30,
+                    "benefits": [{"name": "Watch reward", "image_url": "/media/watch.png"}],
+                },
+                {
+                    "required_minutes_watched": 0,
+                    "required_subs": 1,
+                    "benefits": [{"name": "Paid reward", "image_url": "/media/paid.png"}],
+                },
+                {
+                    "benefits": [{"name": "Unknown reward", "image_url": "/media/unknown.png"}],
+                },
+            ],
+        },
+        hide_paid=True,
+    )
+
+    assert media_items == [
+        {
+            "url": "https://ttvdrops.lovinator.space/media/watch.png",
+            "description": "30 minutes watched: Watch reward",
+        },
+    ]
+
+
+def test_extract_ttvdrops_media_gallery_items_extracts_nested_watch_rewards() -> None:
+    media_items = feeds.extract_ttvdrops_media_gallery_items(
+        {
+            "campaign": {
+                "drops": [
+                    {
+                        "required_minutes_watched": 45,
+                        "rewards": [{"name": "Nested reward", "image_url": "/media/nested.png"}],
+                    },
+                ],
+            },
+        },
+        hide_paid=True,
+    )
+
+    assert media_items == [
+        {
+            "url": "https://ttvdrops.lovinator.space/media/nested.png",
+            "description": "45 minutes watched: Nested reward",
+        },
+    ]
 
 
 def test_capture_full_page_screenshot_uses_thread_when_loop_running() -> None:

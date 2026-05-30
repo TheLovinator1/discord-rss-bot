@@ -76,7 +76,7 @@ def fetch_hoyolab_post(post_id: str) -> JsonObject | None:
         return None
 
     http_ok = 200
-    try:
+    try:  # noqa: PLW0717
         url: str = f"https://bbs-api-os.hoyolab.com/community/post/wapi/getPostFull?post_id={post_id}"
         response: requests.Response = requests.get(url, timeout=10)
 
@@ -143,8 +143,8 @@ def create_hoyolab_webhook(webhook_url: str, entry: Entry, post_data: JsonObject
     )
     if image_list:
         image_url: str = str(image_list[0].get("url", ""))
-        image_height: int = int(image_list[0].get("height", 1080))
-        image_width: int = int(image_list[0].get("width", 1920))
+        image_height: int = int(image_list[0].get("height", "1080"))  # pyright: ignore[reportArgumentType]
+        image_width: int = int(image_list[0].get("width", "1920"))  # pyright: ignore[reportArgumentType]
 
         logger.debug("Image URL: %s, Height: %s, Width: %s", image_url, image_height, image_width)
         discord_embed.set_image(url=image_url, height=image_height, width=image_width)
@@ -185,7 +185,7 @@ def create_hoyolab_webhook(webhook_url: str, entry: Entry, post_data: JsonObject
     # Only show Youtube URL if available
     structured_content: str = str(post.get("structured_content", ""))
     if structured_content:  # noqa: PLR1702
-        try:
+        try:  # noqa: PLW0717
             loaded_structured_content = cast("JsonValue", json.loads(structured_content))
             structured_content_data: list[JsonObject] = (
                 [cast("JsonObject", item) for item in loaded_structured_content if isinstance(item, dict)]
