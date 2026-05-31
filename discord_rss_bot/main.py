@@ -282,20 +282,26 @@ def get_global_delivery_mode(reader: Reader) -> str:
     return global_delivery_mode if global_delivery_mode in {"embed", "text"} else "embed"
 
 
-def get_autodiscover_links(reader: Reader, feed_url: str) -> list[AutodiscoverLink]:
+def get_autodiscover_links(
+    reader: Reader,
+    feed_url: str,
+    stored_links: object | None = None,
+) -> list[AutodiscoverLink]:
     """Return valid autodiscovered links stored for a failed feed update.
 
     Args:
         reader: The Reader instance.
         feed_url: The URL that failed to parse as a feed.
+        stored_links: Optional advertised links preserved before deleting an invalid feed.
 
     Returns:
         Valid discovered feed link dictionaries.
     """
-    try:
-        stored_links = reader.get_tag(feed_url, ".reader.autodiscover", [])
-    except ReaderError:
-        return []
+    if stored_links is None:
+        try:
+            stored_links = reader.get_tag(feed_url, ".reader.autodiscover", [])
+        except ReaderError:
+            return []
 
     if not isinstance(stored_links, list):
         return []
@@ -440,7 +446,7 @@ async def post_create_feed(
     try:
         create_feed(reader, feed_url, webhook_dropdown)
     except FeedUpdateError as exception:
-        autodiscover_links = get_autodiscover_links(reader, clean_feed_url)
+        autodiscover_links = get_autodiscover_links(reader, clean_feed_url, exception.autodiscover_links)
         if not autodiscover_links:
             raise
 

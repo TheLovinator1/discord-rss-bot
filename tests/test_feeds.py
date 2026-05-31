@@ -15,6 +15,7 @@ from unittest.mock import patch
 import pytest
 from reader import EntryNotFoundError
 from reader import Feed
+from reader import FeedExistsError
 from reader import FeedNotFoundError
 from reader import Reader
 from reader import StorageError
@@ -446,6 +447,38 @@ def test_create_feed_falls_back_to_embed_when_global_delivery_mode_is_invalid() 
 
     reader.set_tag.assert_any_call("https://example.com/feed.xml", "delivery_mode", "embed")
     reader.set_tag.assert_any_call("https://example.com/feed.xml", "should_send_embed", True)
+
+
+def test_create_feed_removes_new_feed_when_initial_update_fails() -> None:
+    feed_url = "https://example.com/not-a-feed"
+    autodiscover_links = [{"href": "https://example.com/feed.xml", "type": "application/rss+xml"}]
+    reader = MagicMock()
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+        "webhooks": [{"name": "Main", "url": "https://discord.com/api/webhooks/123/abc"}],
+        ".reader.autodiscover": autodiscover_links,
+    }.get(key, default)
+    reader.update_feed.side_effect = StorageError("invalid feed")
+
+    with pytest.raises(feeds.FeedUpdateError) as exc_info:
+        create_feed(reader, feed_url, "Main")
+
+    reader.delete_feed.assert_called_once_with(feed_url)
+    assert exc_info.value.autodiscover_links == autodiscover_links
+
+
+def test_create_feed_does_not_remove_existing_feed_when_update_fails() -> None:
+    feed_url = "https://example.com/existing-feed.xml"
+    reader = MagicMock()
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+        "webhooks": [{"name": "Main", "url": "https://discord.com/api/webhooks/123/abc"}],
+    }.get(key, default)
+    reader.add_feed.side_effect = FeedExistsError(feed_url)
+    reader.update_feed.side_effect = StorageError("temporary failure")
+
+    with pytest.raises(feeds.FeedUpdateError):
+        create_feed(reader, feed_url, "Main")
+
+    reader.delete_feed.assert_not_called()
 
 
 @patch("discord_rss_bot.feeds.capture_full_page_screenshot")

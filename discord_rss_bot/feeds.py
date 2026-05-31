@@ -82,6 +82,17 @@ type UpdateCallback = Callable[[], UpdatedFeed | None]
 class FeedUpdateError(HTTPException):
     """Raised when the initial update for a newly added feed fails."""
 
+    def __init__(
+        self,
+        *,
+        status_code: int,
+        detail: str,
+        autodiscover_links: object | None = None,
+    ) -> None:
+        """Initialize an initial-update error and preserve advertised feed links."""
+        super().__init__(status_code=status_code, detail=detail)
+        self.autodiscover_links = autodiscover_links
+
 
 class JsonResponseLike(Protocol):
     """Response interface needed for Discord webhook JSON parsing."""
@@ -1894,6 +1905,22 @@ def truncate_webhook_message(webhook_message: str) -> str:
     return webhook_message
 
 
+def get_raw_autodiscover_links(reader: Reader, feed_url: str) -> object | None:
+    """Return advertised feed links stored after a failed initial update."""
+    try:
+        return reader.get_tag(feed_url, ".reader.autodiscover", None)
+    except ReaderError:
+        return None
+
+
+def remove_invalid_new_feed(reader: Reader, feed_url: str) -> None:
+    """Remove a feed inserted before its initial update failed."""
+    try:
+        reader.delete_feed(feed_url)
+    except ReaderError:
+        logger.exception("Failed to remove invalid feed after initial update: %s", feed_url)
+
+
 def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:  # noqa: C901, PLR0912
     """Add a new feed, update it and mark every entry as read.
 
@@ -1908,6 +1935,7 @@ def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:  
     """
     clean_feed_url: str = feed_url.strip()
     webhook_url: str = ""
+    feed_was_added: bool = False
     if hooks := reader.get_tag((), "webhooks", []):
         # Get the webhook URL from the dropdown.
         for hook in hooks:
@@ -1924,6 +1952,7 @@ def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:  
 
     try:
         reader.add_feed(clean_feed_url)
+        feed_was_added = True
     except FeedExistsError:
         # Add the webhook to an already added feed if it doesn't have a webhook instead of trying to create a new.
         if not reader.get_tag(clean_feed_url, "webhook", ""):
@@ -1934,7 +1963,16 @@ def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:  
     try:
         reader.update_feed(clean_feed_url)
     except ReaderError as e:
-        raise FeedUpdateError(status_code=404, detail=f"Error updating feed: {e}") from e
+        autodiscover_links = get_raw_autodiscover_links(reader, clean_feed_url)
+
+        if feed_was_added:
+            remove_invalid_new_feed(reader, clean_feed_url)
+
+        raise FeedUpdateError(
+            status_code=404,
+            detail=f"Error updating feed: {e}",
+            autodiscover_links=autodiscover_links,
+        ) from e
 
     # Mark every entry as read, so we don't send all the old entries to Discord.
     entries: Iterable[Entry] = reader.get_entries(feed=clean_feed_url, read=False)

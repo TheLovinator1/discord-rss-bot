@@ -199,8 +199,6 @@ def test_create_feed_suggests_autodiscovered_links() -> None:
             return [{"name": webhook_name, "url": webhook_url}]
         if resource == () and key == "delivery_mode":
             return "embed"
-        if resource == submitted_url and key == ".reader.autodiscover":
-            return [{"href": discovered_url, "title": "Example feed", "type": "application/rss+xml"}]
         return default
 
     stub_reader.get_tag.side_effect = get_tag
@@ -210,7 +208,17 @@ def test_create_feed_suggests_autodiscovered_links() -> None:
         with patch.object(
             main_module,
             "create_feed",
-            side_effect=feeds.FeedUpdateError(status_code=404, detail="Error updating feed"),
+            side_effect=feeds.FeedUpdateError(
+                status_code=404,
+                detail="Error updating feed",
+                autodiscover_links=[
+                    {
+                        "href": discovered_url,
+                        "title": "Example feed",
+                        "type": "application/rss+xml",
+                    }
+                ],
+            ),
         ):
             response: Response = client.post(
                 url="/add",
@@ -1034,30 +1042,22 @@ def test_change_feed_url_nonexistent_old_url_returns_404() -> None:
 
 def test_change_feed_url_new_url_already_exists_returns_409() -> None:
     """Changing to a URL that is already tracked should return HTTP 409."""
-    second_feed_url = "https://lovinator.space/rss_test_small.xml"
+    second_feed_url = "https://example.com/existing.xml"
 
-    # Ensure both feeds are absent.
-    client.post(url="/remove", data={"feed_url": feed_url})
-    client.post(url="/remove", data={"feed_url": second_feed_url})
+    class StubReader:
+        def change_feed_url(self, _old_url: str, new_url: str) -> None:
+            raise feeds.FeedExistsError(new_url)
 
-    # Ensure webhook exists.
-    client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
-    client.post(url="/add_webhook", data={"webhook_name": webhook_name, "webhook_url": webhook_url})
+    app.dependency_overrides[get_reader_dependency] = StubReader
+    try:
+        response: Response = client.post(
+            url="/change_feed_url",
+            data={"old_feed_url": feed_url, "new_feed_url": second_feed_url},
+        )
+    finally:
+        app.dependency_overrides = {}
 
-    # Add both feeds.
-    client.post(url="/add", data={"feed_url": feed_url, "webhook_dropdown": webhook_name})
-    client.post(url="/add", data={"feed_url": second_feed_url, "webhook_dropdown": webhook_name})
-
-    # Try to rename one to the other.
-    response: Response = client.post(
-        url="/change_feed_url",
-        data={"old_feed_url": feed_url, "new_feed_url": second_feed_url},
-    )
     assert response.status_code == 409, f"Expected 409 when new URL already exists, got {response.status_code}"
-
-    # Cleanup.
-    client.post(url="/remove", data={"feed_url": feed_url})
-    client.post(url="/remove", data={"feed_url": second_feed_url})
 
 
 def test_change_feed_url_same_url_redirects_without_error() -> None:
