@@ -188,6 +188,46 @@ def test_create_feed() -> None:
     assert encoded_feed_url(feed_url) in response.text, f"Feed not found in /: {response.text}"
 
 
+def test_create_feed_suggests_autodiscovered_links() -> None:
+    """A page URL that fails to parse should render its advertised feed links."""
+    submitted_url = "https://example.com/blog"
+    discovered_url = "https://example.com/rss.xml"
+    stub_reader = MagicMock()
+
+    def get_tag(resource: str | tuple[()], key: str, default: TestTagValue = None) -> TestTagValue:
+        if resource == () and key == "webhooks":
+            return [{"name": webhook_name, "url": webhook_url}]
+        if resource == () and key == "delivery_mode":
+            return "embed"
+        if resource == submitted_url and key == ".reader.autodiscover":
+            return [{"href": discovered_url, "title": "Example feed", "type": "application/rss+xml"}]
+        return default
+
+    stub_reader.get_tag.side_effect = get_tag
+    app.dependency_overrides[get_reader_dependency] = lambda: stub_reader
+
+    try:
+        with patch.object(
+            main_module,
+            "create_feed",
+            side_effect=feeds.FeedUpdateError(status_code=404, detail="Error updating feed"),
+        ):
+            response: Response = client.post(
+                url="/add",
+                data={"feed_url": submitted_url, "webhook_dropdown": webhook_name},
+            )
+    finally:
+        app.dependency_overrides = {}
+
+    assert response.status_code == 404
+    assert "Discovered feed links" in response.text
+    assert "Example feed" in response.text
+    assert discovered_url in response.text
+    assert "application/rss+xml" in response.text
+    assert f'value="{submitted_url}"' in response.text
+    assert f'value="{webhook_name}"' in response.text
+
+
 def test_get() -> None:
     """Test the /create_feed page."""
     # Ensure webhook exists for this test regardless of test order.
@@ -572,7 +612,6 @@ def test_add_page_shows_global_default_delivery_mode_hint() -> None:
 
     response = client.get(url="/add")
     assert response.status_code == 200, f"/add failed: {response.text}"
-    assert "New feeds currently default to" in response.text
     assert "text" in response.text
 
 

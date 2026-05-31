@@ -79,6 +79,10 @@ type SentWebhookRecord = dict[str, JsonValue]
 type UpdateCallback = Callable[[], UpdatedFeed | None]
 
 
+class FeedUpdateError(HTTPException):
+    """Raised when the initial update for a newly added feed fails."""
+
+
 class JsonResponseLike(Protocol):
     """Response interface needed for Discord webhook JSON parsing."""
 
@@ -1899,6 +1903,7 @@ def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:  
         webhook_dropdown: The webhook we should send entries to.
 
     Raises:
+        FeedUpdateError: If the initial feed update fails.
         HTTPException: If webhook_dropdown does not equal a webhook or default_custom_message not found.
     """
     clean_feed_url: str = feed_url.strip()
@@ -1929,7 +1934,7 @@ def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:  
     try:
         reader.update_feed(clean_feed_url)
     except ReaderError as e:
-        raise HTTPException(status_code=404, detail=f"Error updating feed: {e}") from e
+        raise FeedUpdateError(status_code=404, detail=f"Error updating feed: {e}") from e
 
     # Mark every entry as read, so we don't send all the old entries to Discord.
     entries: Iterable[Entry] = reader.get_entries(feed=clean_feed_url, read=False)

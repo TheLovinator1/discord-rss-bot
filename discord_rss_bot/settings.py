@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import typing
 from functools import lru_cache
+from importlib.util import find_spec
 from pathlib import Path
 
 from platformdirs import user_data_dir
@@ -31,6 +32,31 @@ default_custom_embed: dict[str, str] = {
 }
 
 
+def has_plugin(plugin_name: str) -> bool:
+    """Return whether the installed reader version provides a built-in plugin.
+
+    We started using .autodiscover, but that is from Reader version 3.25.
+    """
+    try:
+        return find_spec(f"reader.plugins.{plugin_name.removeprefix('.')}") is not None
+    except ModuleNotFoundError:
+        return False
+
+
+def make_app_reader(db_location: Path) -> Reader:
+    """Create a reader with plugins supported by the installed reader version.
+
+    Returns:
+        The configured reader.
+    """
+    plugins_we_want = (".ua_fallback", ".autodiscover")
+    plugins: list[str] = [name for name in plugins_we_want if has_plugin(name)]
+
+    if plugins:
+        return make_reader(url=str(db_location), plugins=plugins)
+    return make_reader(url=str(db_location))
+
+
 @lru_cache(maxsize=1)
 def get_reader(custom_location: Path | None = None) -> Reader:
     """Get the reader.
@@ -42,7 +68,7 @@ def get_reader(custom_location: Path | None = None) -> Reader:
         The reader.
     """
     db_location: Path = custom_location or Path(data_dir) / "db.sqlite"
-    reader: Reader = make_reader(url=str(db_location))
+    reader: Reader = make_app_reader(db_location)
 
     # https://reader.readthedocs.io/en/latest/api.html#reader.types.UpdateConfig
     # Set the default update interval to 15 minutes if not already configured

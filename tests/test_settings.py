@@ -2,13 +2,62 @@ from __future__ import annotations
 
 import pathlib
 import tempfile
+from contextlib import closing
+from contextlib import contextmanager
+from http.server import BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer
 from pathlib import Path
+from threading import Thread
+from typing import TYPE_CHECKING
+from unittest.mock import MagicMock
 
+import pytest
+from reader import ParseError
 from reader import Reader
 
+import discord_rss_bot.settings as settings_module
 from discord_rss_bot.settings import data_dir
 from discord_rss_bot.settings import default_custom_message
 from discord_rss_bot.settings import get_reader
+from discord_rss_bot.settings import has_plugin
+from discord_rss_bot.settings import make_app_reader
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+
+class _AutodiscoverHandler(BaseHTTPRequestHandler):
+    """Serve an HTML page that advertises an RSS feed."""
+
+    def do_GET(self) -> None:
+        """Return HTML instead of a feed so reader attempts autodiscovery."""
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html")
+        self.end_headers()
+        self.wfile.write(
+            b'<html><head><link rel="alternate" href="/rss.xml" '
+            b'type="application/rss+xml" title="Example"></head></html>'
+        )
+
+    def log_message(self, _format: str, *_args: object) -> None:
+        """Suppress HTTP request logging during tests."""
+
+
+@contextmanager
+def _serve_autodiscover_html() -> Iterator[str]:
+    """Serve an HTML page URL while the context is active.
+
+    Yields:
+        The URL of the HTML page.
+    """
+    with ThreadingHTTPServer(("127.0.0.1", 0), _AutodiscoverHandler) as server:
+        server_thread = Thread(target=server.serve_forever, daemon=True)
+        server_thread.start()
+        try:
+            yield f"http://127.0.0.1:{server.server_port}/"
+        finally:
+            server.shutdown()
+            server_thread.join()
 
 
 def test_reader() -> None:
@@ -141,3 +190,89 @@ def test_get_reader_preserves_existing_global_delivery_mode() -> None:
 
         second_reader.close()
         get_reader.cache_clear()
+
+
+def test_get_reader_enables_autodiscover_plugin() -> None:
+    """get_reader should store advertised feed links when HTML parsing fails."""
+    get_reader.cache_clear()
+
+    try:
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            _serve_autodiscover_html() as feed_url,
+            closing(get_reader(custom_location=Path(temp_dir, "autodiscover_db.sqlite"))) as reader,
+        ):
+            reader.add_feed(feed_url)
+
+            with pytest.raises(ParseError):
+                reader.update_feed(feed_url)
+
+            assert reader.get_tag(feed_url, ".reader.autodiscover", None) == [
+                {
+                    "href": f"{feed_url}rss.xml",
+                    "type": "application/rss+xml",
+                    "title": "Example",
+                }
+            ]
+    finally:
+        get_reader.cache_clear()
+
+
+def test_make_app_reader_enables_supported_builtin_plugins(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Supported reader versions should load both built-in plugins explicitly."""
+    reader = object()
+    make_reader = MagicMock(return_value=reader)
+    monkeypatch.setattr(settings_module, "has_plugin", lambda _plugin_name: True)
+    monkeypatch.setattr(settings_module, "make_reader", make_reader)
+
+    assert make_app_reader(Path("db.sqlite")) is reader
+    make_reader.assert_called_once_with(
+        url="db.sqlite",
+        plugins=[".ua_fallback", ".autodiscover"],
+    )
+
+
+@pytest.mark.parametrize(
+    ("available_plugin", "expected_plugin"),
+    [
+        (".ua_fallback", ".ua_fallback"),
+        (".autodiscover", ".autodiscover"),
+    ],
+)
+def test_make_app_reader_loads_only_available_builtin_plugin(
+    monkeypatch: pytest.MonkeyPatch,
+    available_plugin: str,
+    expected_plugin: str,
+) -> None:
+    """Reader construction should not receive unavailable built-in plugins."""
+    reader = object()
+    make_reader = MagicMock(return_value=reader)
+    monkeypatch.setattr(settings_module, "has_plugin", lambda plugin_name: plugin_name == available_plugin)
+    monkeypatch.setattr(settings_module, "make_reader", make_reader)
+
+    assert make_app_reader(Path("db.sqlite")) is reader
+    make_reader.assert_called_once_with(url="db.sqlite", plugins=[expected_plugin])
+
+
+def test_make_app_reader_preserves_defaults_without_builtin_plugins(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Reader versions without built-in plugins should start with their defaults."""
+    reader = object()
+    make_reader = MagicMock(return_value=reader)
+    monkeypatch.setattr(settings_module, "has_plugin", lambda _plugin_name: False)
+    monkeypatch.setattr(settings_module, "make_reader", make_reader)
+
+    assert make_app_reader(Path("db.sqlite")) is reader
+    make_reader.assert_called_once_with(url="db.sqlite")
+
+
+def test_has_plugin_handles_reader_versions_without_plugins_package(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Older reader versions without a plugins package should be supported."""
+
+    def find_spec(_name: str) -> None:
+        raise ModuleNotFoundError
+
+    monkeypatch.setattr(settings_module, "find_spec", find_spec)
+
+    assert has_plugin(".autodiscover") is False

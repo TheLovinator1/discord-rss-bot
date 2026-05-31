@@ -52,6 +52,7 @@ from discord_rss_bot.custom_message import get_embed
 from discord_rss_bot.custom_message import get_first_image
 from discord_rss_bot.custom_message import replace_tags_in_text_message
 from discord_rss_bot.custom_message import save_embed
+from discord_rss_bot.feeds import FeedUpdateError
 from discord_rss_bot.feeds import SentWebhookRecord
 from discord_rss_bot.feeds import coerce_media_gallery_image_limit
 from discord_rss_bot.feeds import create_feed
@@ -120,6 +121,12 @@ class FilterPreviewContext(TypedDict):
     preview_limit: int
     preview_summary: FilterPreviewSummary
     preview_helper_text: str
+
+
+class AutodiscoverLink(TypedDict):
+    href: str
+    type: str | None
+    title: str | None
 
 
 LOGGING_CONFIG = {
@@ -262,6 +269,57 @@ templates.env.globals["get_backup_path"] = get_backup_path  # pyright: ignore[re
 templates.env.globals["has_webhooks"] = has_webhooks  # pyright: ignore[reportArgumentType]
 
 
+def get_global_delivery_mode(reader: Reader) -> str:
+    """Return the normalized default delivery mode for new feeds.
+
+    Args:
+        reader: The Reader instance.
+
+    Returns:
+        The configured delivery mode, falling back to embed.
+    """
+    global_delivery_mode: str = str(reader.get_tag((), "delivery_mode", "embed")).strip().lower()
+    return global_delivery_mode if global_delivery_mode in {"embed", "text"} else "embed"
+
+
+def get_autodiscover_links(reader: Reader, feed_url: str) -> list[AutodiscoverLink]:
+    """Return valid autodiscovered links stored for a failed feed update.
+
+    Args:
+        reader: The Reader instance.
+        feed_url: The URL that failed to parse as a feed.
+
+    Returns:
+        Valid discovered feed link dictionaries.
+    """
+    try:
+        stored_links = reader.get_tag(feed_url, ".reader.autodiscover", [])
+    except ReaderError:
+        return []
+
+    if not isinstance(stored_links, list):
+        return []
+
+    links: list[AutodiscoverLink] = []
+    for stored_link in stored_links:
+        if not isinstance(stored_link, dict):
+            continue
+
+        href = stored_link.get("href")
+        if not isinstance(href, str) or not href:
+            continue
+
+        link_type = stored_link.get("type")
+        title = stored_link.get("title")
+        links.append({
+            "href": href,
+            "type": link_type if isinstance(link_type, str) else None,
+            "title": title if isinstance(title, str) else None,
+        })
+
+    return links
+
+
 @app.post("/add_webhook")
 async def post_add_webhook(
     webhook_name: Annotated[str, Form()],
@@ -357,24 +415,51 @@ async def post_delete_webhook(
     return RedirectResponse(url="/", status_code=303)
 
 
-@app.post("/add")
+@app.post("/add", response_model=None)
 async def post_create_feed(
+    request: Request,
     feed_url: Annotated[str, Form()],
     webhook_dropdown: Annotated[str, Form()],
     reader: Annotated[Reader, Depends(get_reader_dependency)],
-) -> RedirectResponse:
+) -> RedirectResponse | HTMLResponse:
     """Add a feed to the database.
 
     Args:
+        request: The request object.
         feed_url: The feed to add.
         webhook_dropdown: The webhook to use.
         reader: The Reader instance.
 
     Returns:
         RedirectResponse: Redirect to the feed page.
+
+    Raises:
+        FeedUpdateError: If updating the feed fails without discovered feed links.
     """
     clean_feed_url: str = feed_url.strip()
-    create_feed(reader, feed_url, webhook_dropdown)
+    try:
+        create_feed(reader, feed_url, webhook_dropdown)
+    except FeedUpdateError as exception:
+        autodiscover_links = get_autodiscover_links(reader, clean_feed_url)
+        if not autodiscover_links:
+            raise
+
+        context = {
+            "request": request,
+            "webhooks": reader.get_tag((), "webhooks", []),
+            "global_delivery_mode": get_global_delivery_mode(reader),
+            "feed_url": clean_feed_url,
+            "selected_webhook": webhook_dropdown,
+            "messages": exception.detail,
+            "autodiscover_links": autodiscover_links,
+        }
+        return templates.TemplateResponse(
+            request=request,
+            name="add.html",
+            context=context,
+            status_code=exception.status_code,
+        )
+
     commit_state_change(reader, f"Add feed {clean_feed_url}")
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
@@ -1609,14 +1694,10 @@ def get_add(
     Returns:
         HTMLResponse: The add feed page.
     """
-    global_delivery_mode: str = str(reader.get_tag((), "delivery_mode", "embed")).strip().lower()
-    if global_delivery_mode not in {"embed", "text"}:
-        global_delivery_mode = "embed"
-
     context = {
         "request": request,
         "webhooks": reader.get_tag((), "webhooks", []),
-        "global_delivery_mode": global_delivery_mode,
+        "global_delivery_mode": get_global_delivery_mode(reader),
     }
     return templates.TemplateResponse(request=request, name="add.html", context=context)
 

@@ -8,11 +8,6 @@
 {% block content %}
     <div class="p-2 border border-dark">
         <form action="/add" method="post">
-            <div class="mb-3 text-muted">
-                New feeds currently default to
-                <strong>{{ global_delivery_mode }}</strong>
-                delivery mode.
-            </div>
             <!-- Feed URL -->
             <div class="row pb-2">
                 <label for="feed_url" class="col-sm-2 col-form-label">Feed URL</label>
@@ -20,7 +15,8 @@
                     <input name="feed_url"
                            type="text"
                            class="form-control bg-dark border-dark text-muted"
-                           id="feed_url" />
+                           id="feed_url"
+                           value="{{ feed_url }}" />
                 </div>
             </div>
             <!-- Webhook dropdown -->
@@ -30,8 +26,11 @@
                     <select class="col-auto form-select bg-dark border-dark text-muted"
                             id="webhook_dropdown"
                             name="webhook_dropdown">
-                        <option selected>Choose webhook...</option>
-                        {% for hook in webhooks %}<option value="{{ hook.name }}">{{- hook.name -}}</option>{% endfor %}
+                        <option {% if not selected_webhook %}selected{% endif %}>Choose webhook...</option>
+                        {% for hook in webhooks %}
+                            <option value="{{ hook.name }}"
+                                    {% if hook.name == selected_webhook %}selected{% endif %}>{{ hook.name }}</option>
+                        {% endfor %}
                     </select>
                 </div>
             </div>
@@ -41,4 +40,28 @@
             </div>
         </form>
     </div>
+    {% if autodiscover_links %}
+        <section class="card border border-dark shadow-sm text-light rounded-0 mt-3">
+            <div class="card-body p-3 p-md-4">
+                <h2 class="h6 text-uppercase text-muted mb-2">Discovered feed links</h2>
+                <p class="text-muted mb-3">The submitted URL is not a feed. Choose one of the feeds advertised by that page.</p>
+                <div class="d-flex flex-column gap-2">
+                    {% for link in autodiscover_links %}
+                        <form action="/add"
+                              method="post"
+                              class="d-flex flex-column flex-md-row align-items-md-center gap-3 p-3 border border-dark rounded-0">
+                            <input type="hidden" name="feed_url" value="{{ link.href }}" />
+                            <input type="hidden" name="webhook_dropdown" value="{{ selected_webhook }}" />
+                            <div class="flex-grow-1 feed-page__content">
+                                {% if link.title %}<div class="text-light fw-semibold">{{ link.title }}</div>{% endif %}
+                                <code class="d-block text-muted feed-page__wrap">{{ link.href }}</code>
+                                {% if link.type %}<div class="small text-muted mt-1">{{ link.type }}</div>{% endif %}
+                            </div>
+                            <button class="btn btn-outline-light btn-sm ms-md-auto" type="submit">Add feed</button>
+                        </form>
+                    {% endfor %}
+                </div>
+            </div>
+        </section>
+    {% endif %}
 {% endblock content %}
