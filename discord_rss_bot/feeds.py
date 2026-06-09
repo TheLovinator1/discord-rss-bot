@@ -1247,7 +1247,7 @@ def _capture_full_page_screenshot_sync(
                 headless=True,
                 args=["--disable-dev-shm-usage", "--no-sandbox"],
             )
-            try:  # noqa: PLW0717
+            try:
                 if screenshot_layout == "mobile":
                     page = browser.new_page(
                         viewport={"width": 390, "height": 844},

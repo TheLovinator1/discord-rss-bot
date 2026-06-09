@@ -43,7 +43,6 @@ from reader import ReaderError
 from reader import TagNotFoundError
 from starlette.responses import RedirectResponse
 
-from discord_rss_bot import settings
 from discord_rss_bot.custom_filters import entry_is_blacklisted
 from discord_rss_bot.custom_filters import entry_is_whitelisted
 from discord_rss_bot.custom_message import CustomEmbed
@@ -1157,15 +1156,13 @@ async def post_set_custom(
     our_custom_message: JSONType | str = custom_message.strip()
     our_custom_message = typing.cast("JSONType", our_custom_message)
 
-    default_custom_message: JSONType | str = settings.default_custom_message
-    default_custom_message = typing.cast("JSONType", default_custom_message)
-
-    if our_custom_message:
-        reader.set_tag(feed_url, "custom_message", our_custom_message)
-    else:
-        reader.set_tag(feed_url, "custom_message", default_custom_message)
-
     clean_feed_url: str = feed_url.strip()
+    feed: Feed = reader.get_feed(urllib.parse.unquote(clean_feed_url))
+
+    stored_custom_message: str = get_custom_message(reader, feed)
+    if our_custom_message != stored_custom_message:
+        reader.set_tag(feed_url, "custom_message", our_custom_message)
+
     commit_state_change(reader, f"Update custom message for {clean_feed_url}")
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
@@ -1283,28 +1280,26 @@ async def post_embed(  # noqa: C901
     feed: Feed = reader.get_feed(urllib.parse.unquote(clean_feed_url))
 
     custom_embed: CustomEmbed = get_embed(reader, feed)
-    # Only overwrite fields that the user provided. This prevents accidental
-    # clearing of previously saved embed data when the form submits empty
-    # values for fields the user did not change.
-    if title:
+
+    if title != custom_embed.title:
         custom_embed.title = title
-    if description:
+    if description != custom_embed.description:
         custom_embed.description = description
-    if color:
+    if color != custom_embed.color:
         custom_embed.color = color
-    if image_url:
+    if image_url != custom_embed.image_url:
         custom_embed.image_url = image_url
-    if thumbnail_url:
+    if thumbnail_url != custom_embed.thumbnail_url:
         custom_embed.thumbnail_url = thumbnail_url
-    if author_name:
+    if author_name != custom_embed.author_name:
         custom_embed.author_name = author_name
-    if author_url:
+    if author_url != custom_embed.author_url:
         custom_embed.author_url = author_url
-    if author_icon_url:
+    if author_icon_url != custom_embed.author_icon_url:
         custom_embed.author_icon_url = author_icon_url
-    if footer_text:
+    if footer_text != custom_embed.footer_text:
         custom_embed.footer_text = footer_text
-    if footer_icon_url:
+    if footer_icon_url != custom_embed.footer_icon_url:
         custom_embed.footer_icon_url = footer_icon_url
 
     # Save the data.

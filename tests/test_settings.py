@@ -36,7 +36,7 @@ class _AutodiscoverHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(
             b'<html><head><link rel="alternate" href="/rss.xml" '
-            b'type="application/rss+xml" title="Example"></head></html>'
+            b'type="application/rss+xml" title="Example"></head></html>',
         )
 
     def log_message(self, _format: str, *_args: object) -> None:
@@ -212,7 +212,7 @@ def test_get_reader_enables_autodiscover_plugin() -> None:
                     "href": f"{feed_url}rss.xml",
                     "type": "application/rss+xml",
                     "title": "Example",
-                }
+                },
             ]
     finally:
         get_reader.cache_clear()

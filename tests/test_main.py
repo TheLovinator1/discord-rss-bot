@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import json
 import re
 import urllib.parse
 from dataclasses import dataclass
@@ -216,7 +217,7 @@ def test_create_feed_suggests_autodiscovered_links() -> None:
                         "href": discovered_url,
                         "title": "Example feed",
                         "type": "application/rss+xml",
-                    }
+                    },
                 ],
             ),
         ):
@@ -491,7 +492,7 @@ def test_blacklist_preview_shows_labeled_field_values_for_substring_match() -> N
     stub_reader = StubReader()
     app.dependency_overrides[get_reader_dependency] = lambda: stub_reader
 
-    try:  # noqa: PLW0717
+    try:
         with patch("discord_rss_bot.main.create_html_for_feed", return_value="<div>Rendered</div>"):
             response: Response = client.get(
                 url="/blacklist_preview",
@@ -788,7 +789,7 @@ def test_sent_webhooks_view_shows_saved_records() -> None:
 
     app.dependency_overrides[get_reader_dependency] = StubReader
 
-    try:  # noqa: PLW0717
+    try:
         response: Response = client.get(url="/sent_webhooks")
 
         assert response.status_code == 200, f"/sent_webhooks failed: {response.text}"
@@ -1348,7 +1349,7 @@ def test_post_entry_uses_feed_url_to_disambiguate_duplicate_ids() -> None:
     app.dependency_overrides[get_reader_dependency] = StubReader
     no_redirect_client = TestClient(app, follow_redirects=False)
 
-    try:  # noqa: PLW0717
+    try:
         with patch("discord_rss_bot.main.send_entry_to_discord", side_effect=fake_send_entry_to_discord):
             response: Response = no_redirect_client.get(
                 url="/post_entry",
@@ -2120,7 +2121,7 @@ def test_webhook_entries_mass_update_preview_shows_old_and_new_urls() -> None:
             return []
 
     app.dependency_overrides[get_reader_dependency] = StubReader
-    try:  # noqa: PLW0717
+    try:
         with (
             patch(
                 "discord_rss_bot.main.get_data_from_hook_url",
@@ -2200,7 +2201,7 @@ def test_bulk_change_feed_urls_updates_matching_feeds() -> None:
     app.dependency_overrides[get_reader_dependency] = lambda: stub_reader
     no_redirect_client = TestClient(app, follow_redirects=False)
 
-    try:  # noqa: PLW0717
+    try:
         with patch(
             "discord_rss_bot.main.resolve_final_feed_url",
             side_effect=lambda url: (url.replace("old.example.com", "new.example.com"), None),
@@ -2255,7 +2256,7 @@ def test_webhook_entries_mass_update_preview_fragment_endpoint() -> None:
             return self._feeds
 
     app.dependency_overrides[get_reader_dependency] = StubReader
-    try:  # noqa: PLW0717
+    try:
         with patch(
             "discord_rss_bot.main.resolve_final_feed_url",
             side_effect=lambda url: (url.replace("old.example.com", "new.example.com"), None),
@@ -2328,7 +2329,7 @@ def test_bulk_change_feed_urls_force_update_overwrites_conflict() -> None:  # no
     app.dependency_overrides[get_reader_dependency] = lambda: stub_reader
     no_redirect_client = TestClient(app, follow_redirects=False)
 
-    try:  # noqa: PLW0717
+    try:
         with patch(
             "discord_rss_bot.main.resolve_final_feed_url",
             side_effect=lambda url: (url.replace("old.example.com", "new.example.com"), None),
@@ -2402,7 +2403,7 @@ def test_bulk_change_feed_urls_force_update_ignores_resolution_error() -> None:
     app.dependency_overrides[get_reader_dependency] = lambda: stub_reader
     no_redirect_client = TestClient(app, follow_redirects=False)
 
-    try:  # noqa: PLW0717
+    try:
         with patch(
             "discord_rss_bot.main.resolve_final_feed_url",
             return_value=("https://new.example.com/rss/a.xml", "HTTP 404"),
@@ -2453,5 +2454,421 @@ def test_reader_dependency_override_is_used() -> None:
     try:
         response: Response = client.get(url="/add")
         assert response.status_code == 200, f"Expected /add to render with overridden reader: {response.text}"
+    finally:
+        app.dependency_overrides = {}
+
+
+# ---------------------------------------------------------------------------
+# Tests for post_embed — saving embed fields (including clearing to "")
+# ---------------------------------------------------------------------------
+
+
+def _make_stub_reader_for_embed(
+    *,
+    stored_embed: str | None = None,
+) -> MagicMock:
+    """Create a stub reader that tracks embed tag writes.
+
+    Args:
+        stored_embed: JSON string to return from get_tag for the "embed" key,
+            or None to return an empty string (simulating no saved embed).
+
+    Returns:
+        A MagicMock stub reader.
+    """
+    stub = MagicMock()
+    # Simulate get_feed returning a feed-like object.
+    stub.get_feed.return_value = SimpleNamespace(
+        url=feed_url,
+        title="Example Feed",
+    )
+    # Simulate get_tag for the "embed" key.
+    embed_value: str = stored_embed if stored_embed is not None else ""
+    stub.get_tag.return_value = embed_value
+    return stub
+
+
+def test_post_embed_saves_all_fields() -> None:
+    """Saving a fully populated embed should persist every field."""
+    stub = _make_stub_reader_for_embed()
+    app.dependency_overrides[get_reader_dependency] = lambda: stub
+
+    try:
+        with patch("discord_rss_bot.main.commit_state_change"):
+            response: Response = client.post(
+                url="/embed",
+                data={
+                    "feed_url": feed_url,
+                    "title": "Custom Title",
+                    "description": "Custom Description",
+                    "color": "#ff0000",
+                    "author_name": "Author Name",
+                    "author_url": "https://example.com/author",
+                    "author_icon_url": "https://example.com/author.png",
+                    "image_url": "https://example.com/image.png",
+                    "thumbnail_url": "https://example.com/thumb.png",
+                    "footer_text": "Footer Text",
+                    "footer_icon_url": "https://example.com/footer.png",
+                },
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303, f"Expected 303 redirect, got {response.status_code}: {response.text}"
+
+        # Verify set_tag was called with the correct serialized embed.
+        stub.set_tag.assert_called_once()
+        _feed_arg, key_arg, json_arg = stub.set_tag.call_args.args
+        assert key_arg == "embed"
+
+        saved: dict[str, str] = json.loads(json_arg)
+        assert saved["title"] == "Custom Title"
+        assert saved["description"] == "Custom Description"
+        assert saved["color"] == "#ff0000"
+        assert saved["author_name"] == "Author Name"
+        assert saved["author_url"] == "https://example.com/author"
+        assert saved["author_icon_url"] == "https://example.com/author.png"
+        assert saved["image_url"] == "https://example.com/image.png"
+        assert saved["thumbnail_url"] == "https://example.com/thumb.png"
+        assert saved["footer_text"] == "Footer Text"
+        assert saved["footer_icon_url"] == "https://example.com/footer.png"
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_post_embed_allows_clearing_description() -> None:
+    """Clearing the description field (submitting "") should persist the empty string."""
+    # Simulate an existing embed with a non-empty description.
+
+    existing = json.dumps({
+        "title": "",
+        "description": "{{entry_text}}",
+        "color": "#469ad9",
+        "author_name": "{{entry_title}}",
+        "author_url": "{{entry_link}}",
+        "author_icon_url": "",
+        "image_url": "{{image_1}}",
+        "thumbnail_url": "",
+        "footer_text": "",
+        "footer_icon_url": "",
+    })
+    stub = _make_stub_reader_for_embed(stored_embed=existing)
+    app.dependency_overrides[get_reader_dependency] = lambda: stub
+
+    try:
+        with patch("discord_rss_bot.main.commit_state_change"):
+            response: Response = client.post(
+                url="/embed",
+                data={
+                    "feed_url": feed_url,
+                    # User clears the description — submits empty string.
+                    "description": "",
+                    # All other fields re-submit their stored values
+                    # (as the form template would pre-fill them).
+                    "title": "",
+                    "color": "#469ad9",
+                    "author_name": "{{entry_title}}",
+                    "author_url": "{{entry_link}}",
+                    "author_icon_url": "",
+                    "image_url": "{{image_1}}",
+                    "thumbnail_url": "",
+                    "footer_text": "",
+                    "footer_icon_url": "",
+                },
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303, f"Expected 303 redirect, got {response.status_code}: {response.text}"
+        stub.set_tag.assert_called_once()
+        _feed_arg, key_arg, json_arg = stub.set_tag.call_args.args
+        assert key_arg == "embed"
+
+        saved: dict[str, str] = json.loads(json_arg)
+        # The description should be cleared to "".
+        assert not saved["description"], f"Expected empty description, got {saved['description']!r}"
+        # Other fields should retain their values.
+        assert saved["author_name"] == "{{entry_title}}"
+        assert saved["author_url"] == "{{entry_link}}"
+        assert saved["image_url"] == "{{image_1}}"
+        assert saved["color"] == "#469ad9"
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_post_embed_allows_clearing_all_fields() -> None:
+    """Submitting all fields as empty strings should persist them all as empty."""
+    existing = json.dumps({
+        "title": "Old Title",
+        "description": "Old Description",
+        "color": "#469ad9",
+        "author_name": "Old Author",
+        "author_url": "https://old.example.com",
+        "author_icon_url": "https://old.example.com/icon.png",
+        "image_url": "https://old.example.com/img.png",
+        "thumbnail_url": "https://old.example.com/thumb.png",
+        "footer_text": "Old Footer",
+        "footer_icon_url": "https://old.example.com/footer.png",
+    })
+    stub = _make_stub_reader_for_embed(stored_embed=existing)
+    app.dependency_overrides[get_reader_dependency] = lambda: stub
+
+    try:
+        with patch("discord_rss_bot.main.commit_state_change"):
+            response: Response = client.post(
+                url="/embed",
+                data={
+                    "feed_url": feed_url,
+                    "title": "",
+                    "description": "",
+                    "color": "",
+                    "author_name": "",
+                    "author_url": "",
+                    "author_icon_url": "",
+                    "image_url": "",
+                    "thumbnail_url": "",
+                    "footer_text": "",
+                    "footer_icon_url": "",
+                },
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303, f"Expected 303 redirect, got {response.status_code}: {response.text}"
+        stub.set_tag.assert_called_once()
+        _feed_arg, _key_arg, json_arg = stub.set_tag.call_args.args
+        saved: dict[str, str] = json.loads(json_arg)
+
+        assert not saved["title"]
+        assert not saved["description"]
+        assert not saved["color"]
+        assert not saved["author_name"]
+        assert not saved["author_url"]
+        assert not saved["author_icon_url"]
+        assert not saved["image_url"]
+        assert not saved["thumbnail_url"]
+        assert not saved["footer_text"]
+        assert not saved["footer_icon_url"]
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_post_embed_untouched_fields_retain_values() -> None:
+    """Changing only one field should leave all other fields unchanged."""
+    existing = json.dumps({
+        "title": "Keep Me",
+        "description": "{{entry_text}}",
+        "color": "#00ff00",
+        "author_name": "Author",
+        "author_url": "https://a.example.com",
+        "author_icon_url": "",
+        "image_url": "",
+        "thumbnail_url": "",
+        "footer_text": "Old Footer",
+        "footer_icon_url": "",
+    })
+    stub = _make_stub_reader_for_embed(stored_embed=existing)
+    app.dependency_overrides[get_reader_dependency] = lambda: stub
+
+    try:
+        with patch("discord_rss_bot.main.commit_state_change"):
+            response: Response = client.post(
+                url="/embed",
+                data={
+                    "feed_url": feed_url,
+                    # Only change the title; all other fields re-submit
+                    # their stored values (as the form pre-fills them).
+                    "title": "New Title",
+                    "description": "{{entry_text}}",
+                    "color": "#00ff00",
+                    "author_name": "Author",
+                    "author_url": "https://a.example.com",
+                    "author_icon_url": "",
+                    "image_url": "",
+                    "thumbnail_url": "",
+                    "footer_text": "Old Footer",
+                    "footer_icon_url": "",
+                },
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303, f"Expected 303 redirect, got {response.status_code}: {response.text}"
+        stub.set_tag.assert_called_once()
+        _feed_arg, _key_arg, json_arg = stub.set_tag.call_args.args
+        saved: dict[str, str] = json.loads(json_arg)
+
+        # The title should be changed.
+        assert saved["title"] == "New Title"
+        # All other fields should remain unchanged.
+        assert saved["description"] == "{{entry_text}}"
+        assert saved["color"] == "#00ff00"
+        assert saved["author_name"] == "Author"
+        assert saved["author_url"] == "https://a.example.com"
+        assert saved["footer_text"] == "Old Footer"
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_post_embed_saves_empty_description_when_no_prior_embed_exists() -> None:
+    """Clearing description should work even when no embed was previously saved."""
+    stub = _make_stub_reader_for_embed(stored_embed=None)
+    app.dependency_overrides[get_reader_dependency] = lambda: stub
+
+    try:
+        with patch("discord_rss_bot.main.commit_state_change"):
+            response: Response = client.post(
+                url="/embed",
+                data={
+                    "feed_url": feed_url,
+                    # User only fills in a title, leaves description empty.
+                    "title": "Just a Title",
+                    "description": "",
+                    "color": "#469ad9",
+                    "author_name": "",
+                    "author_url": "",
+                    "author_icon_url": "",
+                    "image_url": "",
+                    "thumbnail_url": "",
+                    "footer_text": "",
+                    "footer_icon_url": "",
+                },
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303, f"Expected 303 redirect, got {response.status_code}: {response.text}"
+        stub.set_tag.assert_called_once()
+        _feed_arg, _key_arg, json_arg = stub.set_tag.call_args.args
+
+        saved: dict[str, str] = json.loads(json_arg)
+        assert saved["title"] == "Just a Title"
+        assert not saved["description"], f"Expected empty description, got {saved['description']!r}"
+    finally:
+        app.dependency_overrides = {}
+
+
+def _make_stub_reader_for_custom(
+    *,
+    stored_custom_message: str = "",
+) -> MagicMock:
+    """Create a stub reader that tracks custom_message tag writes.
+
+    Args:
+        stored_custom_message: Value to return from get_tag for the
+            "custom_message" key.
+
+    Returns:
+        A MagicMock stub reader.
+    """
+    stub = MagicMock()
+    stub.get_feed.return_value = SimpleNamespace(
+        url=feed_url,
+        title="Example Feed",
+    )
+
+    def get_tag(resource: str | object, key: str, default: str = "") -> str:
+        if key == "custom_message":
+            return stored_custom_message
+        return default
+
+    stub.get_tag.side_effect = get_tag
+    return stub
+
+
+def test_post_set_custom_saves_message() -> None:
+    """Saving a custom message should persist it."""
+    stub = _make_stub_reader_for_custom()
+    app.dependency_overrides[get_reader_dependency] = lambda: stub
+
+    try:
+        with patch("discord_rss_bot.main.commit_state_change"):
+            response: Response = client.post(
+                url="/custom",
+                data={
+                    "feed_url": feed_url,
+                    "custom_message": "Hello {{entry_title}}!",
+                },
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303, f"Expected 303 redirect, got {response.status_code}: {response.text}"
+        stub.set_tag.assert_called_once()
+        _feed_arg, key_arg, value_arg = stub.set_tag.call_args.args
+        assert key_arg == "custom_message"
+        assert value_arg == "Hello {{entry_title}}!"
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_post_set_custom_allows_clearing_message() -> None:
+    """Clearing the custom message (submitting "") should persist the empty string."""
+    stub = _make_stub_reader_for_custom(
+        stored_custom_message="{{entry_title}}\n{{entry_link}}",
+    )
+    app.dependency_overrides[get_reader_dependency] = lambda: stub
+
+    try:
+        with patch("discord_rss_bot.main.commit_state_change"):
+            response: Response = client.post(
+                url="/custom",
+                data={
+                    "feed_url": feed_url,
+                    # User clears the custom message.
+                    "custom_message": "",
+                },
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303, f"Expected 303 redirect, got {response.status_code}: {response.text}"
+        stub.set_tag.assert_called_once()
+        _feed_arg, key_arg, value_arg = stub.set_tag.call_args.args
+        assert key_arg == "custom_message"
+        assert not value_arg, f"Expected empty custom_message to be saved, got {value_arg!r}"
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_post_set_custom_unchanged_message_does_not_write() -> None:
+    """Submitting the same value should not trigger a set_tag call."""
+    existing = "{{entry_title}}\n{{entry_link}}"
+    stub = _make_stub_reader_for_custom(stored_custom_message=existing)
+    app.dependency_overrides[get_reader_dependency] = lambda: stub
+
+    try:
+        with patch("discord_rss_bot.main.commit_state_change"):
+            response: Response = client.post(
+                url="/custom",
+                data={
+                    "feed_url": feed_url,
+                    "custom_message": existing,
+                },
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303, f"Expected 303 redirect, got {response.status_code}: {response.text}"
+        stub.set_tag.assert_not_called()
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_post_set_custom_clearing_from_default_message() -> None:
+    """Clearing a message that matches the default should save "" not re-apply the default."""
+    stub = _make_stub_reader_for_custom(
+        stored_custom_message="{{entry_title}}\n{{entry_link}}",
+    )
+    app.dependency_overrides[get_reader_dependency] = lambda: stub
+
+    try:
+        with patch("discord_rss_bot.main.commit_state_change"):
+            response: Response = client.post(
+                url="/custom",
+                data={
+                    "feed_url": feed_url,
+                    "custom_message": "",
+                },
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303, f"Expected 303 redirect, got {response.status_code}: {response.text}"
+        stub.set_tag.assert_called_once()
+        _feed_arg, _key_arg, value_arg = stub.set_tag.call_args.args
+        # Must be "" not the default.
+        assert not value_arg, f"Expected empty string to be saved, got {value_arg!r}"
     finally:
         app.dependency_overrides = {}
