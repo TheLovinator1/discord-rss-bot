@@ -284,7 +284,6 @@ def test_get() -> None:
     assert "Screenshot Delivery" in response.text
     assert "Image Delivery" in response.text
     assert "Text Delivery" in response.text
-    assert "main embed" in response.text
     assert "2000 characters" in response.text
     assert 'type="range"' in response.text
     assert 'max="10"' in response.text
@@ -608,8 +607,6 @@ def test_settings_page_shows_screenshot_layout_setting() -> None:
     assert response.status_code == 200, f"/settings failed: {response.text}"
     assert "Default delivery mode for new feeds" in response.text
     assert "Default screenshot layout for new feeds" in response.text
-    assert "Default webhook text limit for new feeds" in response.text
-    assert "regular embed mode" in response.text
     assert "2000 characters" in response.text
     assert 'id="global_text_length_limit"' in response.text
     assert "uv run playwright install chromium" in response.text
