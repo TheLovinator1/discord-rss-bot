@@ -12,6 +12,7 @@ import re
 import time
 from collections.abc import Callable
 from contextlib import suppress
+from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Literal
@@ -184,6 +185,123 @@ def extract_domain(url: str) -> str:  # noqa: PLR0911
     except (ValueError, AttributeError, TypeError) as e:
         logger.warning("Error extracting domain from %s: %s", url, e)
         return "Other"
+
+
+STEAM_STORE_APP_ID_PATH_PREFIXES: tuple[tuple[str, ...], ...] = (
+    ("feeds", "news", "app"),
+    ("news", "app"),
+    ("app",),
+)
+
+
+def is_steam_feed_url(url: str) -> bool:
+    """Return whether a feed URL belongs to Steam."""
+    if not url:
+        return False
+
+    try:
+        parsed_url: ParseResult = urlparse(url)
+    except ValueError:
+        return False
+
+    normalized_netloc: str = parsed_url.netloc.lower().removeprefix("www.")
+    return normalized_netloc in frozenset({"store.steampowered.com", "steamcommunity.com"})
+
+
+def _extract_steam_app_id_from_path(normalized_netloc: str, path_segments: list[str]) -> str | None:
+    if normalized_netloc == "store.steampowered.com":
+        for prefix in STEAM_STORE_APP_ID_PATH_PREFIXES:
+            prefix_length: int = len(prefix)
+            if len(path_segments) > prefix_length and tuple(path_segments[:prefix_length]) == prefix:
+                app_id: str = path_segments[prefix_length]
+                if app_id.isdigit():
+                    return app_id
+
+    if normalized_netloc == "steamcommunity.com" and len(path_segments) > 1:
+        app_type: str = path_segments[0]
+        app_id = path_segments[1]
+        if app_type in frozenset({"games", "app"}) and app_id.isdigit():
+            return app_id
+
+    return None
+
+
+def _extract_steam_app_id_from_query(parsed_url: ParseResult) -> str | None:
+    query_params: dict[str, list[str]] = parse_qs(parsed_url.query)
+    for key in ("appid", "app_id", "appids"):
+        for value in query_params.get(key, []):
+            cleaned_value: str = value.strip()
+            if cleaned_value.isdigit():
+                return cleaned_value
+    return None
+
+
+def extract_steam_app_id_from_url(url: str) -> str | None:
+    """Extract a Steam application ID from a Steam URL when present.
+
+    Args:
+        url: The Steam URL to inspect.
+
+    Returns:
+        str | None: The application ID when present in the path or query string, otherwise None.
+    """
+    if not url:
+        return None
+
+    try:
+        parsed_url: ParseResult = urlparse(url)
+    except ValueError:
+        return None
+
+    normalized_netloc: str = parsed_url.netloc.lower().removeprefix("www.")
+    path_segments: list[str] = [segment for segment in parsed_url.path.split("/") if segment]
+    return _extract_steam_app_id_from_path(normalized_netloc, path_segments) or _extract_steam_app_id_from_query(
+        parsed_url
+    )
+
+
+def get_local_steam_game_icon_file(app_id: str) -> WebhookFile | None:
+    """Return a local Steam game icon file for Discord upload when available."""
+    icon_path: Path = Path(__file__).resolve().parent.parent / "icons" / f"{app_id}.png"
+    if not icon_path.is_file():
+        return None
+
+    try:
+        icon_bytes: bytes = icon_path.read_bytes()
+    except OSError:
+        logger.exception("Failed to read local Steam icon for app %s from %s", app_id, icon_path)
+        return None
+
+    if not icon_bytes:
+        logger.warning("Local Steam icon file is empty for app %s: %s", app_id, icon_path)
+        return None
+
+    content_hash: str = hashlib.sha256(icon_bytes).hexdigest()[:12]
+    return WebhookFile(
+        filename=f"steam-app-{app_id}-{content_hash}.png",
+        content=icon_bytes,
+    )
+
+
+def get_steam_game_thumbnail(entry: Entry) -> tuple[str | None, WebhookFile | None]:
+    """Return the preferred Steam thumbnail source for an entry.
+
+    Returns:
+        tuple[str | None, WebhookFile | None]: Thumbnail URL and optional uploaded file.
+    """
+    feed_url: str = str(getattr(entry.feed, "url", "") or "")
+    if not is_steam_feed_url(feed_url):
+        return None, None
+
+    app_id: str | None = extract_steam_app_id_from_url(feed_url) or extract_steam_app_id_from_url(str(entry.link or ""))
+    if not app_id:
+        return None, None
+
+    local_icon_file: WebhookFile | None = get_local_steam_game_icon_file(app_id)
+    if local_icon_file:
+        return f"attachment://{local_icon_file.filename}", local_icon_file
+
+    return f"https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/capsule_sm_120.jpg", None
 
 
 def send_entry_to_discord(entry: Entry, reader: Reader) -> str | None:
@@ -1719,6 +1837,10 @@ def create_embed_webhook(  # noqa: C901, PLR0912
     custom_embed: CustomEmbed = replace_tags_in_embed(feed=feed, entry=entry, reader=reader)
     media_gallery_image_limit: int = get_feed_media_gallery_image_limit(reader, feed)
     webhook_text_length_limit: int = get_feed_webhook_text_length_limit(reader, feed)
+    steam_game_thumbnail_url: str | None = None
+    steam_game_thumbnail_file: WebhookFile | None = None
+    if custom_embed.show_steam_game_icon_in_thumbnail:
+        steam_game_thumbnail_url, steam_game_thumbnail_file = get_steam_game_thumbnail(entry)
     if media_gallery_image_limit == 0:
         custom_embed.image_url = ""
         custom_embed.thumbnail_url = ""
@@ -1771,8 +1893,9 @@ def create_embed_webhook(  # noqa: C901, PLR0912
             icon_url=custom_embed.author_icon_url,
         )
 
-    if custom_embed.thumbnail_url:
-        discord_embed.set_thumbnail(url=custom_embed.thumbnail_url)
+    embed_thumbnail_url: str = steam_game_thumbnail_url or custom_embed.thumbnail_url
+    if embed_thumbnail_url:
+        discord_embed.set_thumbnail(url=embed_thumbnail_url)
 
     if custom_embed.image_url:
         discord_embed.set_image(url=custom_embed.image_url)
@@ -1785,6 +1908,9 @@ def create_embed_webhook(  # noqa: C901, PLR0912
 
     if custom_embed.footer_icon_url and not custom_embed.footer_text:
         discord_embed.set_footer(text="-", icon_url=custom_embed.footer_icon_url)
+
+    if steam_game_thumbnail_file:
+        webhook.add_file(file=steam_game_thumbnail_file.content, filename=steam_game_thumbnail_file.filename)
 
     webhook.add_embed(discord_embed)
     return webhook

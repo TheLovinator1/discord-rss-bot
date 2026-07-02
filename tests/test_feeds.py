@@ -380,6 +380,21 @@ def test_get_feed_media_gallery_image_limit_defaults_to_first_image() -> None:
 
 
 @pytest.mark.parametrize(
+    ("url", "expected_app_id"),
+    [
+        ("https://store.steampowered.com/feeds/news/app/570/?cc=us&l=english", "570"),
+        ("https://store.steampowered.com/news/app/440/view/1234567890", "440"),
+        ("https://store.steampowered.com/app/730/CounterStrike_2/", "730"),
+        ("https://steamcommunity.com/games/570/rss/", "570"),
+        ("https://steamcommunity.com/app/730/announcements/detail/1234567890", "730"),
+        ("https://example.com/feed.xml", None),
+    ],
+)
+def test_extract_steam_app_id_from_url(url: str, expected_app_id: str | None) -> None:
+    assert feeds.extract_steam_app_id_from_url(url) == expected_app_id
+
+
+@pytest.mark.parametrize(
     ("tag_value", "expected_limit"),
     [
         (1, 1),
@@ -911,6 +926,122 @@ def test_create_embed_webhook_can_disable_media_images(
 
 @patch("discord_rss_bot.feeds.fetch_ttvdrops_campaign_media_items", return_value=[])
 @patch("discord_rss_bot.feeds.replace_tags_in_embed")
+def test_create_embed_webhook_can_use_steam_game_icon_thumbnail(
+    mock_replace_tags_in_embed: MagicMock,
+    mock_fetch_ttvdrops_campaign_media_items: MagicMock,
+) -> None:
+    reader = MagicMock()
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+        "media_gallery_image_limit": 0,
+        "webhook_text_length_limit": 4000,
+    }.get(key, default)
+    entry = MagicMock()
+    entry.id = "entry-steam-1"
+    entry.title = "Dota 2 patch notes"
+    entry.link = "https://steamcommunity.com/games/570/announcements/detail/1234567890"
+    entry.summary = ""
+    entry.content = []
+    entry.feed.url = "https://store.steampowered.com/feeds/news/app/570/?cc=us&l=english"
+    mock_replace_tags_in_embed.return_value = feeds.CustomEmbed(
+        description="Steam news",
+        thumbnail_url="https://example.com/custom-thumb.jpg",
+        show_steam_game_icon_in_thumbnail=True,
+    )
+
+    with patch("discord_rss_bot.feeds.Path.is_file", return_value=False):
+        webhook = feeds.create_embed_webhook("https://discord.com/api/webhooks/123/abc", entry, reader)
+
+    assert "components" not in webhook.json
+    embeds = webhook.json.get("embeds")
+    assert isinstance(embeds, list)
+    assert isinstance(embeds[0], dict)
+    assert embeds[0]["thumbnail"] == {
+        "url": "https://cdn.cloudflare.steamstatic.com/steam/apps/570/capsule_sm_120.jpg",
+    }
+    assert webhook.files == []
+    mock_fetch_ttvdrops_campaign_media_items.assert_not_called()
+
+
+@patch("discord_rss_bot.feeds.fetch_ttvdrops_campaign_media_items", return_value=[])
+@patch("discord_rss_bot.feeds.replace_tags_in_embed")
+def test_create_embed_webhook_prefers_local_steam_game_icon_thumbnail(
+    mock_replace_tags_in_embed: MagicMock,
+    mock_fetch_ttvdrops_campaign_media_items: MagicMock,
+) -> None:
+    local_icon_bytes = b"local-steam-icon"
+
+    reader = MagicMock()
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+        "media_gallery_image_limit": 0,
+        "webhook_text_length_limit": 4000,
+    }.get(key, default)
+    entry = MagicMock()
+    entry.id = "entry-steam-local-1"
+    entry.title = "Dota 2 patch notes"
+    entry.link = "https://steamcommunity.com/games/570/announcements/detail/1234567890"
+    entry.summary = ""
+    entry.content = []
+    entry.feed.url = "https://store.steampowered.com/feeds/news/app/570/?cc=us&l=english"
+    mock_replace_tags_in_embed.return_value = feeds.CustomEmbed(
+        description="Steam news",
+        thumbnail_url="https://example.com/custom-thumb.jpg",
+        show_steam_game_icon_in_thumbnail=True,
+    )
+
+    with (
+        patch("discord_rss_bot.feeds.Path.is_file", return_value=True),
+        patch("discord_rss_bot.feeds.Path.read_bytes", return_value=local_icon_bytes),
+    ):
+        webhook = feeds.create_embed_webhook("https://discord.com/api/webhooks/123/abc", entry, reader)
+
+    embeds = webhook.json.get("embeds")
+    assert isinstance(embeds, list)
+    assert isinstance(embeds[0], dict)
+    assert len(webhook.files) == 1
+    uploaded_icon = webhook.files[0]
+    assert uploaded_icon.content == local_icon_bytes
+    assert uploaded_icon.filename.startswith("steam-app-570-")
+    assert uploaded_icon.filename.endswith(".png")
+    assert embeds[0]["thumbnail"] == {"url": f"attachment://{uploaded_icon.filename}"}
+    mock_fetch_ttvdrops_campaign_media_items.assert_not_called()
+
+
+@patch("discord_rss_bot.feeds.fetch_ttvdrops_campaign_media_items", return_value=[])
+@patch("discord_rss_bot.feeds.replace_tags_in_embed")
+def test_create_embed_webhook_does_not_inject_steam_thumbnail_when_app_id_is_missing(
+    mock_replace_tags_in_embed: MagicMock,
+    mock_fetch_ttvdrops_campaign_media_items: MagicMock,
+) -> None:
+    reader = MagicMock()
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+        "media_gallery_image_limit": 0,
+        "webhook_text_length_limit": 4000,
+    }.get(key, default)
+    entry = MagicMock()
+    entry.id = "entry-steam-2"
+    entry.title = "Steam group post"
+    entry.link = "https://steamcommunity.com/groups/example/announcements/detail/1234567890"
+    entry.summary = ""
+    entry.content = []
+    entry.feed.url = "https://steamcommunity.com/groups/example/rss/"
+    mock_replace_tags_in_embed.return_value = feeds.CustomEmbed(
+        description="Steam group news",
+        thumbnail_url="https://example.com/custom-thumb.jpg",
+        show_steam_game_icon_in_thumbnail=True,
+    )
+
+    webhook = feeds.create_embed_webhook("https://discord.com/api/webhooks/123/abc", entry, reader)
+
+    assert "components" not in webhook.json
+    embeds = webhook.json.get("embeds")
+    assert isinstance(embeds, list)
+    assert isinstance(embeds[0], dict)
+    assert "thumbnail" not in embeds[0]
+    mock_fetch_ttvdrops_campaign_media_items.assert_not_called()
+
+
+@patch("discord_rss_bot.feeds.fetch_ttvdrops_campaign_media_items", return_value=[])
+@patch("discord_rss_bot.feeds.replace_tags_in_embed")
 def test_create_embed_webhook_uses_feed_text_length_limit_for_regular_embed_description(
     mock_replace_tags_in_embed: MagicMock,
     mock_fetch_ttvdrops_campaign_media_items: MagicMock,
@@ -936,8 +1067,8 @@ def test_create_embed_webhook_uses_feed_text_length_limit_for_regular_embed_desc
     assert isinstance(embeds, list)
     assert isinstance(embeds[0], dict)
     assert isinstance(embeds[0].get("description"), str)
-    assert len(embeds[0]["description"]) == 20
-    assert embeds[0]["description"].endswith("...")
+    assert len(embeds[0]["description"]) == 20  # pyright: ignore[reportArgumentType]
+    assert embeds[0]["description"].endswith("...")  # pyright: ignore[reportOptionalMemberAccess, reportAttributeAccessIssue]
     mock_fetch_ttvdrops_campaign_media_items.assert_not_called()
 
 

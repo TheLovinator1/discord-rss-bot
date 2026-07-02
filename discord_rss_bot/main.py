@@ -63,6 +63,7 @@ from discord_rss_bot.feeds import get_feed_media_gallery_image_limit
 from discord_rss_bot.feeds import get_feed_webhook_text_length_limit
 from discord_rss_bot.feeds import get_screenshot_layout
 from discord_rss_bot.feeds import get_sent_webhook_records
+from discord_rss_bot.feeds import is_steam_feed_url
 from discord_rss_bot.feeds import send_entry_to_discord
 from discord_rss_bot.feeds import send_to_discord
 from discord_rss_bot.feeds import update_feed_and_collect_modified_entries
@@ -1221,7 +1222,7 @@ async def get_embed_page(
     # Get previous data, this is used when creating the form.
     embed: CustomEmbed = get_embed(reader, feed)
 
-    context: dict[str, Request | Feed | str | Entry | CustomEmbed] = {
+    context: dict[str, Request | Feed | str | Entry | CustomEmbed | bool] = {
         "request": request,
         "feed": feed,
         "title": embed.title,
@@ -1234,6 +1235,7 @@ async def get_embed_page(
         "author_icon_url": embed.author_icon_url,
         "footer_text": embed.footer_text,
         "footer_icon_url": embed.footer_icon_url,
+        "show_steam_game_icon_in_thumbnail": embed.show_steam_game_icon_in_thumbnail,
     }
     if custom_embed := get_embed(reader, feed):
         context["custom_embed"] = custom_embed
@@ -1258,6 +1260,7 @@ async def post_embed(  # noqa: C901
     author_icon_url: Annotated[str, Form()] = "",
     footer_text: Annotated[str, Form()] = "",
     footer_icon_url: Annotated[str, Form()] = "",
+    show_steam_game_icon_in_thumbnail: Annotated[bool, Form()] = False,
 ) -> RedirectResponse:
     """Set the embed settings.
 
@@ -1273,6 +1276,7 @@ async def post_embed(  # noqa: C901
         author_icon_url: The author icon url of the embed.
         footer_text: The footer text of the embed.
         footer_icon_url: The footer icon url of the embed.
+        show_steam_game_icon_in_thumbnail: Whether to use the Steam game icon as the embed thumbnail.
         reader: The Reader instance.
 
     Returns:
@@ -1303,6 +1307,8 @@ async def post_embed(  # noqa: C901
         custom_embed.footer_text = footer_text
     if footer_icon_url != custom_embed.footer_icon_url:
         custom_embed.footer_icon_url = footer_icon_url
+    if show_steam_game_icon_in_thumbnail != custom_embed.show_steam_game_icon_in_thumbnail:
+        custom_embed.show_steam_game_icon_in_thumbnail = show_steam_game_icon_in_thumbnail
 
     # Save the data.
     save_embed(reader, feed, custom_embed)
@@ -1855,6 +1861,7 @@ async def get_feed(  # noqa: C901, PLR0912, PLR0914, PLR0915
                 "webhook_text_length_limit": get_feed_webhook_text_length_limit(reader, feed),
                 "max_webhook_text_length_limit": 4000,
                 "save_sent_webhooks": feed_saves_sent_webhooks(reader, feed),
+                "is_steam_feed": is_steam_feed_url(feed.url),
             }
             return templates.TemplateResponse(request=request, name="feed.html", context=context)
 
@@ -1921,6 +1928,7 @@ async def get_feed(  # noqa: C901, PLR0912, PLR0914, PLR0915
         "webhook_text_length_limit": get_feed_webhook_text_length_limit(reader, feed),
         "max_webhook_text_length_limit": 4000,
         "save_sent_webhooks": feed_saves_sent_webhooks(reader, feed),
+        "is_steam_feed": is_steam_feed_url(feed.url),
     }
     return templates.TemplateResponse(request=request, name="feed.html", context=context)
 

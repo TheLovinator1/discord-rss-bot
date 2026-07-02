@@ -245,6 +245,17 @@
                 <label for="thumbnail_url" class="col-sm-6 col-form-label">Thumbnail</label>
                 <input name="thumbnail_url" type="text" class="form-control bg-dark border-dark text-muted"
                     id="thumbnail_url" {% if thumbnail_url %} value="{{- thumbnail_url -}}" {% endif %} />
+                <div class="form-check mt-2">
+                    <input
+                        class="form-check-input"
+                        type="checkbox"
+                        id="show_steam_game_icon_in_thumbnail"
+                        name="show_steam_game_icon_in_thumbnail"
+                        value="true"
+                        {% if show_steam_game_icon_in_thumbnail %}checked{% endif %}
+                    />
+                    <label class="form-check-label" for="show_steam_game_icon_in_thumbnail"> Use Steam game icon as thumbnail when available </label>
+                </div>
                 <label for="footer_text" class="col-sm-6 col-form-label">Footer text</label>
                 <input name="footer_text" type="text" class="form-control bg-dark border-dark text-muted"
                     id="footer_text" {% if footer_text %} value="{{- footer_text -}}" {% endif %} />

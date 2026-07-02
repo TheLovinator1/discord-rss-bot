@@ -355,6 +355,7 @@ def test_save_embed_serializes_embed_and_writes_feed_tag() -> None:
         thumbnail_url="https://example.com/thumb.png",
         footer_text="Footer",
         footer_icon_url="https://example.com/footer.png",
+        show_steam_game_icon_in_thumbnail=True,
     )
 
     save_embed(reader=reader, feed=feed, embed=embed)
@@ -365,6 +366,7 @@ def test_save_embed_serializes_embed_and_writes_feed_tag() -> None:
     parsed = typing.cast("dict[str, str]", __import__("json").loads(call_args[2]))
     assert parsed["title"] == "Title"
     assert parsed["footer_icon_url"] == "https://example.com/footer.png"
+    assert parsed["show_steam_game_icon_in_thumbnail"] is True
 
 
 def test_get_embed_returns_default_embed_when_tag_is_empty() -> None:
@@ -420,8 +422,10 @@ def test_get_embed_data_coerces_values_to_strings() -> None:
             "thumbnail_url": 8,
             "footer_text": 9,
             "footer_icon_url": 10,
+            "show_steam_game_icon_in_thumbnail": "true",
         },
     )
 
     assert embed.title == "1"
     assert embed.footer_icon_url == "10"
+    assert embed.show_steam_game_icon_in_thumbnail is True

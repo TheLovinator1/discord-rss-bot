@@ -303,6 +303,60 @@ def test_get() -> None:
     assert response.status_code == 200, f"/whitelist failed: {response.text}"
 
 
+def test_feed_page_shows_steam_thumbnail_hint_for_steam_feeds() -> None:
+    @dataclass(slots=True)
+    class DummyFeed:
+        url: str
+        title: str
+        updates_enabled: bool = True
+        last_exception: None = None
+        added: None = None
+        last_updated: None = None
+        last_retrieved: None = None
+        update_after: None = None
+
+    class StubReader:
+        def __init__(self) -> None:
+            self.feed = DummyFeed(
+                url="https://store.steampowered.com/feeds/news/app/570/?cc=US&l=english",
+                title="Dota 2",
+            )
+
+        def get_feed(self, feed_url: str) -> DummyFeed:
+            assert feed_url == self.feed.url
+            return self.feed
+
+        def get_tag(self, _resource: object, key: str, default: TestTagValue = None) -> TestTagValue:
+            return {
+                "webhooks": [],
+                "delivery_mode": "embed",
+                "screenshot_layout": "desktop",
+                "media_gallery_image_limit": 0,
+                "webhook_text_length_limit": 4000,
+                "save_sent_webhooks": True,
+            }.get(key, default)
+
+        def get_entry_counts(self, **_kwargs: TestKwargValue) -> SimpleNamespace:
+            return SimpleNamespace(total=0)
+
+        def get_entries(self, **_kwargs: TestKwargValue) -> list[Entry]:
+            return []
+
+        def get_feed_counts(self, **_kwargs: TestKwargValue) -> SimpleNamespace:
+            return SimpleNamespace()
+
+    stub = StubReader()
+    app.dependency_overrides[get_reader_dependency] = lambda: stub
+
+    try:
+        with patch("discord_rss_bot.main.create_html_for_feed", return_value=""):
+            response: Response = client.get(url="/feed", params={"feed_url": stub.feed.url})
+
+        assert response.status_code == 200, f"/feed failed: {response.text}"
+    finally:
+        app.dependency_overrides = {}
+
+
 def test_blacklist_page_uses_live_preview_layout() -> None:
     ensure_preview_feed_exists()
 
@@ -2562,6 +2616,7 @@ def test_post_embed_saves_all_fields() -> None:
                     "thumbnail_url": "https://example.com/thumb.png",
                     "footer_text": "Footer Text",
                     "footer_icon_url": "https://example.com/footer.png",
+                    "show_steam_game_icon_in_thumbnail": "true",
                 },
                 follow_redirects=False,
             )
@@ -2584,6 +2639,7 @@ def test_post_embed_saves_all_fields() -> None:
         assert saved["thumbnail_url"] == "https://example.com/thumb.png"
         assert saved["footer_text"] == "Footer Text"
         assert saved["footer_icon_url"] == "https://example.com/footer.png"
+        assert saved["show_steam_game_icon_in_thumbnail"] is True
     finally:
         app.dependency_overrides = {}
 
@@ -2603,6 +2659,7 @@ def test_post_embed_allows_clearing_description() -> None:
         "thumbnail_url": "",
         "footer_text": "",
         "footer_icon_url": "",
+        "show_steam_game_icon_in_thumbnail": False,
     })
     stub = _make_stub_reader_for_embed(stored_embed=existing)
     app.dependency_overrides[get_reader_dependency] = lambda: stub
@@ -2660,6 +2717,7 @@ def test_post_embed_allows_clearing_all_fields() -> None:
         "thumbnail_url": "https://old.example.com/thumb.png",
         "footer_text": "Old Footer",
         "footer_icon_url": "https://old.example.com/footer.png",
+        "show_steam_game_icon_in_thumbnail": True,
     })
     stub = _make_stub_reader_for_embed(stored_embed=existing)
     app.dependency_overrides[get_reader_dependency] = lambda: stub
@@ -2699,6 +2757,7 @@ def test_post_embed_allows_clearing_all_fields() -> None:
         assert not saved["thumbnail_url"]
         assert not saved["footer_text"]
         assert not saved["footer_icon_url"]
+        assert saved["show_steam_game_icon_in_thumbnail"] is False
     finally:
         app.dependency_overrides = {}
 
@@ -2716,6 +2775,7 @@ def test_post_embed_untouched_fields_retain_values() -> None:
         "thumbnail_url": "",
         "footer_text": "Old Footer",
         "footer_icon_url": "",
+        "show_steam_game_icon_in_thumbnail": False,
     })
     stub = _make_stub_reader_for_embed(stored_embed=existing)
     app.dependency_overrides[get_reader_dependency] = lambda: stub
@@ -2755,6 +2815,7 @@ def test_post_embed_untouched_fields_retain_values() -> None:
         assert saved["author_name"] == "Author"
         assert saved["author_url"] == "https://a.example.com"
         assert saved["footer_text"] == "Old Footer"
+        assert saved["show_steam_game_icon_in_thumbnail"] is False
     finally:
         app.dependency_overrides = {}
 
@@ -2792,6 +2853,7 @@ def test_post_embed_saves_empty_description_when_no_prior_embed_exists() -> None
         saved: dict[str, str] = json.loads(json_arg)
         assert saved["title"] == "Just a Title"
         assert not saved["description"], f"Expected empty description, got {saved['description']!r}"
+        assert saved["show_steam_game_icon_in_thumbnail"] is False
     finally:
         app.dependency_overrides = {}
 

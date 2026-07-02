@@ -38,6 +38,7 @@ class CustomEmbed:
     thumbnail_url: str = ""
     footer_text: str = ""
     footer_icon_url: str = ""
+    show_steam_game_icon_in_thumbnail: bool = False
 
 
 def try_to_replace(custom_message: str, template: str, replace_with: str) -> str:
@@ -398,7 +399,7 @@ def save_embed(reader: Reader, feed: Feed, embed: CustomEmbed) -> None:
         feed: The feed to set the tag in.
         embed: The embed to set.
     """
-    embed_dict: dict[str, str | int] = {
+    embed_dict: dict[str, str | int | bool] = {
         "title": embed.title,
         "description": embed.description,
         "color": embed.color,
@@ -409,6 +410,7 @@ def save_embed(reader: Reader, feed: Feed, embed: CustomEmbed) -> None:
         "thumbnail_url": embed.thumbnail_url,
         "footer_text": embed.footer_text,
         "footer_icon_url": embed.footer_icon_url,
+        "show_steam_game_icon_in_thumbnail": embed.show_steam_game_icon_in_thumbnail,
     }
     reader.set_tag(feed, "embed", json.dumps(embed_dict))  # pyright: ignore[reportArgumentType]
 
@@ -428,7 +430,7 @@ def get_embed(reader: Reader, feed: Feed) -> CustomEmbed:
     if embed:
         if not isinstance(embed, str):
             return get_embed_data(embed)  # pyright: ignore[reportArgumentType]
-        embed_data: dict[str, str | int] = json.loads(embed)
+        embed_data: dict[str, str | int | bool] = json.loads(embed)
         return get_embed_data(embed_data)
 
     return CustomEmbed(
@@ -442,10 +444,22 @@ def get_embed(reader: Reader, feed: Feed) -> CustomEmbed:
         thumbnail_url="",
         footer_text="",
         footer_icon_url="",
+        show_steam_game_icon_in_thumbnail=False,
     )
 
 
-def get_embed_data(embed_data: dict[str, str | int]) -> CustomEmbed:
+def coerce_embed_bool(value: object) -> bool:
+    """Normalize stored embed booleans from JSON or form-like values."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return value != 0
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "on", "yes"}
+    return False
+
+
+def get_embed_data(embed_data: dict[str, str | int | bool]) -> CustomEmbed:
     """Get embed data from embed_data.
 
     Args:
@@ -464,6 +478,9 @@ def get_embed_data(embed_data: dict[str, str | int]) -> CustomEmbed:
     thumbnail_url: str = str(embed_data.get("thumbnail_url", ""))
     footer_text: str = str(embed_data.get("footer_text", ""))
     footer_icon_url: str = str(embed_data.get("footer_icon_url", ""))
+    show_steam_game_icon_in_thumbnail: bool = coerce_embed_bool(
+        embed_data.get("show_steam_game_icon_in_thumbnail", False),
+    )
 
     return CustomEmbed(
         title=title,
@@ -476,4 +493,5 @@ def get_embed_data(embed_data: dict[str, str | int]) -> CustomEmbed:
         thumbnail_url=thumbnail_url,
         footer_text=footer_text,
         footer_icon_url=footer_icon_url,
+        show_steam_game_icon_in_thumbnail=show_steam_game_icon_in_thumbnail,
     )
