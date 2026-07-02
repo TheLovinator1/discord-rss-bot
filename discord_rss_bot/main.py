@@ -54,11 +54,13 @@ from discord_rss_bot.custom_message import save_embed
 from discord_rss_bot.feeds import FeedUpdateError
 from discord_rss_bot.feeds import SentWebhookRecord
 from discord_rss_bot.feeds import coerce_media_gallery_image_limit
+from discord_rss_bot.feeds import coerce_webhook_text_length_limit
 from discord_rss_bot.feeds import create_feed
 from discord_rss_bot.feeds import extract_domain
 from discord_rss_bot.feeds import feed_saves_sent_webhooks
 from discord_rss_bot.feeds import get_feed_delivery_mode
 from discord_rss_bot.feeds import get_feed_media_gallery_image_limit
+from discord_rss_bot.feeds import get_feed_webhook_text_length_limit
 from discord_rss_bot.feeds import get_screenshot_layout
 from discord_rss_bot.feeds import get_sent_webhook_records
 from discord_rss_bot.feeds import send_entry_to_discord
@@ -1477,6 +1479,38 @@ async def post_set_feed_media_gallery_image_limit(
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
 
+@app.post("/set_feed_webhook_text_length_limit")
+async def post_set_feed_webhook_text_length_limit(
+    feed_url: Annotated[str, Form()],
+    text_length_limit: Annotated[int, Form()],
+    reader: Annotated[Reader, Depends(get_reader_dependency)],
+) -> RedirectResponse:
+    """Set the maximum webhook text length for a feed.
+
+    Returns:
+        RedirectResponse: Redirect to the feed page.
+
+    Raises:
+        HTTPException: If the feed does not exist.
+    """
+    clean_feed_url: str = feed_url.strip()
+    clean_text_length_limit: int = coerce_webhook_text_length_limit(text_length_limit)
+    clean_text_length_limit_json: JSONType = cast("JSONType", clean_text_length_limit)
+
+    try:
+        reader.get_feed(clean_feed_url)
+    except FeedNotFoundError as e:
+        raise HTTPException(status_code=404, detail="Feed not found") from e
+
+    reader.set_tag(
+        clean_feed_url,
+        "webhook_text_length_limit",
+        clean_text_length_limit_json,
+    )
+    commit_state_change(reader, f"Set webhook text length limit to {clean_text_length_limit} for {clean_feed_url}")
+    return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
+
+
 @app.post("/set_update_interval")
 async def post_set_update_interval(
     feed_url: Annotated[str, Form()],
@@ -1681,6 +1715,28 @@ async def post_set_global_delivery_mode(
     return RedirectResponse(url="/settings", status_code=303)
 
 
+@app.post("/set_global_webhook_text_length_limit")
+async def post_set_global_webhook_text_length_limit(
+    text_length_limit: Annotated[int, Form()],
+    reader: Annotated[Reader, Depends(get_reader_dependency)],
+) -> RedirectResponse:
+    """Set the global default webhook text length limit for newly added feeds.
+
+    Args:
+        text_length_limit: The max webhook text length.
+        reader: The Reader instance.
+
+    Returns:
+        RedirectResponse: Redirect to the settings page.
+    """
+    clean_text_length_limit: int = coerce_webhook_text_length_limit(text_length_limit)
+    clean_text_length_limit_json: JSONType = cast("JSONType", clean_text_length_limit)
+
+    reader.set_tag((), "webhook_text_length_limit", clean_text_length_limit_json)  # pyright: ignore[reportArgumentType]
+    commit_state_change(reader, f"Set global webhook text length limit to {clean_text_length_limit}")
+    return RedirectResponse(url="/settings", status_code=303)
+
+
 @app.get("/add", response_class=HTMLResponse)
 def get_add(
     request: Request,
@@ -1796,6 +1852,8 @@ async def get_feed(  # noqa: C901, PLR0912, PLR0914, PLR0915
                 "has_whitelist_filters": has_whitelist_filters,
                 "media_gallery_image_limit": get_feed_media_gallery_image_limit(reader, feed),
                 "max_media_gallery_items": 10,
+                "webhook_text_length_limit": get_feed_webhook_text_length_limit(reader, feed),
+                "max_webhook_text_length_limit": 4000,
                 "save_sent_webhooks": feed_saves_sent_webhooks(reader, feed),
             }
             return templates.TemplateResponse(request=request, name="feed.html", context=context)
@@ -1860,6 +1918,8 @@ async def get_feed(  # noqa: C901, PLR0912, PLR0914, PLR0915
         "has_whitelist_filters": has_whitelist_filters,
         "media_gallery_image_limit": get_feed_media_gallery_image_limit(reader, feed),
         "max_media_gallery_items": 10,
+        "webhook_text_length_limit": get_feed_webhook_text_length_limit(reader, feed),
+        "max_webhook_text_length_limit": 4000,
         "save_sent_webhooks": feed_saves_sent_webhooks(reader, feed),
     }
     return templates.TemplateResponse(request=request, name="feed.html", context=context)
@@ -2071,6 +2131,10 @@ async def get_settings(
     if global_delivery_mode not in {"embed", "text"}:
         global_delivery_mode = "embed"
 
+    global_webhook_text_length_limit: int = coerce_webhook_text_length_limit(
+        reader.get_tag((), "webhook_text_length_limit", 4000)
+    )
+
     # Get all feeds with their intervals
     feeds: Iterable[Feed] = reader.get_feeds()
     feed_intervals = []
@@ -2094,6 +2158,8 @@ async def get_settings(
         "global_interval": global_interval,
         "global_delivery_mode": global_delivery_mode,
         "global_screenshot_layout": global_screenshot_layout,
+        "global_webhook_text_length_limit": global_webhook_text_length_limit,
+        "max_webhook_text_length_limit": 4000,
         "feed_intervals": feed_intervals,
     }
     return templates.TemplateResponse(request=request, name="settings.html", context=context)

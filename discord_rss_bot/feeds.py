@@ -301,6 +301,38 @@ def get_screenshot_layout(reader: Reader, feed: Feed) -> ScreenshotLayout:
     return "desktop"
 
 
+def coerce_webhook_text_length_limit(value: JsonValue) -> int:
+    """Return the supported webhook text length limit for a stored tag value."""
+    if isinstance(value, bool):
+        return 4000
+    if isinstance(value, int):
+        return min(max(value, 1), 4000)
+    if isinstance(value, str):
+        try:
+            parsed_value: int = int(value.strip())
+        except ValueError:
+            return 4000
+        return min(max(parsed_value, 1), 4000)
+    return 4000
+
+
+def get_feed_webhook_text_length_limit(reader: Reader, feed: Feed | str) -> int:
+    """Resolve how much webhook text a feed may send to Discord.
+
+    Returns:
+        The configured webhook text length limit, normalized to a supported Discord length.
+    """
+    feed_url: str = str(getattr(feed, "url", feed))
+    try:
+        value = reader.get_tag(feed, "webhook_text_length_limit", 4000)
+
+    except ReaderError:
+        logger.exception("Error getting %s tag for feed: %s", "webhook_text_length_limit", feed_url)
+        return 4000
+
+    return coerce_webhook_text_length_limit(value)
+
+
 def coerce_media_gallery_image_limit(value: JsonValue) -> int:  # noqa: PLR0911
     """Return the supported media gallery image limit for a stored tag value."""
     if isinstance(value, bool):
@@ -1090,7 +1122,11 @@ def create_text_webhook(
     if not webhook_message:
         webhook_message = "No message found."
 
-    webhook_message = truncate_webhook_message(webhook_message)
+    webhook_text_length_limit: int = get_feed_webhook_text_length_limit(reader, entry.feed)
+    webhook_message = truncate_webhook_message(
+        webhook_message,
+        max_content_length=webhook_text_length_limit,
+    )
     return DiscordWebhook(url=webhook_url, content=webhook_message, rate_limit_retry=True)
 
 
@@ -1345,21 +1381,26 @@ def send_discord_quest_notification(entry: Entry, webhook_url: str, reader: Read
     logger.info("No quest notification found in entry: %s", entry.id)
 
 
-def set_description(custom_embed: CustomEmbed, discord_embed: DiscordEmbed) -> None:
+def set_description(
+    custom_embed: CustomEmbed,
+    discord_embed: DiscordEmbed,
+    *,
+    max_description_length: int = 2000,
+) -> None:
     """Set the description of the embed.
 
     Args:
         custom_embed (custom_message.CustomEmbed): The custom embed to get the description from.
         discord_embed (DiscordEmbed): The Discord embed to set the description on.
+        max_description_length: The maximum embed description length to send.
     """
-    # Its actually 2048, but we will use 2000 to be safe.
-    max_description_length: int = 2000
+    # Discord allows 2048, but we keep a small safety margin by default.
     embed_description: str = custom_embed.description
-    embed_description = (
-        f"{embed_description[:max_description_length]}..."
-        if len(embed_description) > max_description_length
-        else embed_description
-    )
+    if len(embed_description) > max_description_length:
+        if max_description_length <= 3:  # noqa: PLR2004
+            embed_description = embed_description[:max_description_length]
+        else:
+            embed_description = f"{embed_description[: max_description_length - 3]}..."
     discord_embed.set_description(embed_description) if embed_description else None
 
 
@@ -1550,19 +1591,29 @@ def get_entry_media_gallery_items(
     return media_items[:image_limit]
 
 
-def truncate_component_text(content: str) -> str:
+def truncate_component_text(
+    content: str,
+    *,
+    max_text_display_length: int = 4000,
+) -> str:
     """Trim a Text Display component to a conservative Discord-safe length.
 
     Returns:
         Original or truncated component text.
     """
-    max_text_display_length: int = 4000
     if len(content) <= max_text_display_length:
         return content
+    if max_text_display_length <= 3:  # noqa: PLR2004
+        return content[:max_text_display_length]
     return f"{content[: max_text_display_length - 3]}..."
 
 
-def get_component_text_display_content(custom_embed: CustomEmbed, entry: Entry) -> str:
+def get_component_text_display_content(
+    custom_embed: CustomEmbed,
+    entry: Entry,
+    *,
+    max_text_length: int = 4000,
+) -> str:
     """Build markdown text for a Components V2 Text Display.
 
     Returns:
@@ -1592,7 +1643,7 @@ def get_component_text_display_content(custom_embed: CustomEmbed, entry: Entry) 
             fallback_text = f"[{fallback_text}]({entry.link})"
         parts.append(fallback_text)
 
-    return truncate_component_text("\n\n".join(parts))
+    return truncate_component_text("\n\n".join(parts), max_text_display_length=max_text_length)
 
 
 def create_media_gallery_component(media_items: list[JsonObject]) -> JsonObject:
@@ -1619,6 +1670,8 @@ def create_components_v2_webhook(
     entry: Entry,
     custom_embed: CustomEmbed,
     media_items: list[JsonObject],
+    *,
+    max_text_length: int,
 ) -> DiscordWebhook:
     """Create a Components V2 webhook with text and a media gallery.
 
@@ -1628,7 +1681,11 @@ def create_components_v2_webhook(
     components: list[JsonValue] = [
         {
             "type": 10,
-            "content": get_component_text_display_content(custom_embed, entry),
+            "content": get_component_text_display_content(
+                custom_embed,
+                entry,
+                max_text_length=max_text_length,
+            ),
         },
         create_media_gallery_component(media_items),
     ]
@@ -1661,6 +1718,7 @@ def create_embed_webhook(  # noqa: C901, PLR0912
     # Get the embed data from the database.
     custom_embed: CustomEmbed = replace_tags_in_embed(feed=feed, entry=entry, reader=reader)
     media_gallery_image_limit: int = get_feed_media_gallery_image_limit(reader, feed)
+    webhook_text_length_limit: int = get_feed_webhook_text_length_limit(reader, feed)
     if media_gallery_image_limit == 0:
         custom_embed.image_url = ""
         custom_embed.thumbnail_url = ""
@@ -1671,11 +1729,21 @@ def create_embed_webhook(  # noqa: C901, PLR0912
         image_limit=media_gallery_image_limit,
     )
     if media_gallery_items:
-        return create_components_v2_webhook(webhook_url, entry, custom_embed, media_gallery_items)
+        return create_components_v2_webhook(
+            webhook_url,
+            entry,
+            custom_embed,
+            media_gallery_items,
+            max_text_length=webhook_text_length_limit,
+        )
 
     discord_embed: DiscordEmbed = DiscordEmbed()
 
-    set_description(custom_embed=custom_embed, discord_embed=discord_embed)
+    set_description(
+        custom_embed=custom_embed,
+        discord_embed=discord_embed,
+        max_description_length=min(webhook_text_length_limit, 2000),
+    )
     set_title(custom_embed=custom_embed, discord_embed=discord_embed)
 
     custom_embed_author_url: str | None = custom_embed.author_url
@@ -1889,20 +1957,28 @@ def should_send_embed_check(reader: Reader, entry: Entry) -> bool:
     return get_entry_delivery_mode(reader, entry) == "embed"
 
 
-def truncate_webhook_message(webhook_message: str) -> str:
+def truncate_webhook_message(
+    webhook_message: str,
+    *,
+    max_content_length: int = 4000,
+) -> str:
     """Truncate the webhook message if it is too long.
 
     Args:
         webhook_message (str): The webhook message to truncate.
+        max_content_length: The maximum number of characters Discord should receive.
 
     Returns:
         str: The truncated webhook message.
     """
-    max_content_length: int = 4000
-    if len(webhook_message) > max_content_length:
-        half_length = (max_content_length - 3) // 2  # Subtracting 3 for the "..." in the middle
-        webhook_message = f"{webhook_message[:half_length]}...{webhook_message[-half_length:]}"
-    return webhook_message
+    if len(webhook_message) <= max_content_length:
+        return webhook_message
+    if max_content_length <= 3:  # noqa: PLR2004
+        return webhook_message[:max_content_length]
+
+    head_length = (max_content_length - 3) // 2
+    tail_length = max_content_length - 3 - head_length
+    return f"{webhook_message[:head_length]}...{webhook_message[-tail_length:]}"
 
 
 def get_raw_autodiscover_links(reader: Reader, feed_url: str) -> object | None:
@@ -1994,6 +2070,14 @@ def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:  
         clean_feed_url,
         "media_gallery_image_limit",
         cast("JSONType", 1),
+    )
+    global_webhook_text_length_limit: int = coerce_webhook_text_length_limit(
+        cast("JsonValue", reader.get_tag((), "webhook_text_length_limit", 4000)),
+    )
+    reader.set_tag(
+        clean_feed_url,
+        "webhook_text_length_limit",
+        cast("JSONType", global_webhook_text_length_limit),
     )
 
     # This is the default message that will be sent to Discord.

@@ -192,6 +192,48 @@ def test_get_reader_preserves_existing_global_delivery_mode() -> None:
         get_reader.cache_clear()
 
 
+def test_get_reader_sets_default_global_webhook_text_length_limit() -> None:
+    """get_reader should initialize global webhook text length limit to 4000 when missing."""
+    get_reader.cache_clear()
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        Path.mkdir(Path(temp_dir), exist_ok=True)
+
+        custom_loc: pathlib.Path = pathlib.Path(temp_dir, "webhook_text_length_limit_default_db.sqlite")
+        reader: Reader = get_reader(custom_location=custom_loc)
+
+        webhook_text_length_limit = reader.get_tag((), "webhook_text_length_limit", None)
+        assert webhook_text_length_limit == 4000, (
+            f"Expected default global webhook text length limit to be 4000, got: {webhook_text_length_limit}"
+        )
+
+        reader.close()
+        get_reader.cache_clear()
+
+
+def test_get_reader_preserves_existing_global_webhook_text_length_limit() -> None:
+    """get_reader should not overwrite an existing global webhook text length limit value."""
+    get_reader.cache_clear()
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        Path.mkdir(Path(temp_dir), exist_ok=True)
+
+        custom_loc: pathlib.Path = pathlib.Path(temp_dir, "webhook_text_length_limit_existing_db.sqlite")
+        first_reader: Reader = get_reader(custom_location=custom_loc)
+        first_reader.set_tag((), "webhook_text_length_limit", 2500)  # pyright: ignore[reportArgumentType]
+        first_reader.close()
+        get_reader.cache_clear()
+
+        second_reader: Reader = get_reader(custom_location=custom_loc)
+        webhook_text_length_limit = second_reader.get_tag((), "webhook_text_length_limit", None)
+        assert webhook_text_length_limit == 2500, (
+            f"Expected existing global webhook text length limit to stay 2500, got: {webhook_text_length_limit}"
+        )
+
+        second_reader.close()
+        get_reader.cache_clear()
+
+
 def test_get_reader_enables_autodiscover_plugin() -> None:
     """get_reader should store advertised feed links when HTML parsing fails."""
     get_reader.cache_clear()

@@ -3,7 +3,7 @@
     Settings | discord-rss-bot
 {% endblock title %}
 {% block description %}
-    Adjust default update intervals, delivery modes, and screenshot layout for feeds managed by your bot.
+    Adjust default update intervals, delivery modes, screenshot layout, and webhook text limits for feeds managed by your bot.
 {% endblock description %}
 {% block content %}
     <section>
@@ -75,6 +75,28 @@
                 </div>
                 <div class="form-text screenshot-requirement mt-1">
                     Screenshot mode requires Chromium to be installed for Playwright. Run <code>uv run playwright install chromium</code> once on this machine.
+                </div>
+            </div>
+        </form>
+        <form action="/set_global_webhook_text_length_limit"
+              method="post"
+              class="mt-4">
+            <div class="settings-form-row mb-2">
+                <label for="global_text_length_limit" class="form-label mb-1">Default text limit for new feeds</label>
+                <div class="input-group input-group-lg">
+                    <input id="global_text_length_limit"
+                           type="number"
+                           class="form-control settings-input"
+                           name="text_length_limit"
+                           min="1"
+                           max="{{ max_webhook_text_length_limit }}"
+                           value="{{ global_webhook_text_length_limit }}"
+                           required />
+                    <button class="btn btn-primary px-4" type="submit">Save</button>
+                </div>
+                <div class="form-text text-muted mt-2">
+                    New feeds inherit this value. Existing feeds keep their current
+                    per-feed text limit. Text mode allows values up to 4000 characters. Embeds are capped at 2000 characters.
                 </div>
             </div>
         </form>

@@ -85,4 +85,8 @@ def get_reader(custom_location: Path | None = None) -> Reader:
     if reader.get_tag((), "delivery_mode", None) is None:
         reader.set_tag((), "delivery_mode", "embed")  # pyright: ignore[reportArgumentType]
 
+    # Set the default webhook text length limit for new feeds if not already configured.
+    if reader.get_tag((), "webhook_text_length_limit", None) is None:
+        reader.set_tag((), "webhook_text_length_limit", 4000)  # pyright: ignore[reportArgumentType]
+
     return reader

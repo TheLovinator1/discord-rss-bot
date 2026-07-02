@@ -52,6 +52,7 @@
                                     {% endif %}
                                 </span>
                             {% endif %}
+                            <span class="badge status-chip bg-secondary">Text limit: {{ webhook_text_length_limit }} chars</span>
                         </div>
                     </div>
                     <section class="mt-4 pt-3 border-top border-secondary-subtle">
@@ -102,6 +103,7 @@
                             {% elif delivery_mode == "screenshot" %}
                                 <li>Screenshot layout: {{ screenshot_layout }}.</li>
                             {% endif %}
+                            <li>Webhook text is truncated to {{ webhook_text_length_limit }} characters.</li>
                             <li>
                                 Filters:
                                 {% if has_blacklist_filters and has_whitelist_filters %}
@@ -284,6 +286,38 @@
                             </form>
                         </section>
                     {% endif %}
+                    <section class="mt-4 pt-3 border-top border-secondary-subtle">
+                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                            <h3 class="h6 text-uppercase text-muted mb-0">Text Delivery</h3>
+                            <span class="badge {{ 'bg-info' if webhook_text_length_limit < max_webhook_text_length_limit else 'bg-secondary' }}">
+                                Max {{ webhook_text_length_limit }} characters
+                            </span>
+                        </div>
+                        <p id="textDeliveryHelp" class="text-muted mb-3">
+                            Limit message length. Text mode allows values up to 4000 characters. Embeds are capped at 2000 characters.
+                        </p>
+                        <form action="/set_feed_webhook_text_length_limit"
+                              method="post"
+                              class="mb-0">
+                            <input type="hidden" name="feed_url" value="{{ feed.url }}" />
+                            <div class="d-flex flex-wrap align-items-end gap-3">
+                                <div>
+                                    <label class="form-label small text-muted mb-2" for="text_length_limit">Max characters</label>
+                                    <input id="text_length_limit"
+                                           class="form-control form-control-sm bg-dark border-dark text-light"
+                                           type="number"
+                                           name="text_length_limit"
+                                           min="1"
+                                           max="{{ max_webhook_text_length_limit }}"
+                                           step="1"
+                                           value="{{ webhook_text_length_limit }}"
+                                           aria-describedby="textDeliveryHelp"
+                                           required />
+                                </div>
+                                <button class="btn btn-outline-light btn-sm" type="submit">Save text limit</button>
+                            </div>
+                        </form>
+                    </section>
                     <section class="mt-4 pt-3 border-top border-secondary-subtle">
                         <h3 class="h6 text-uppercase text-muted mb-3">Customization</h3>
                         <div class="d-flex flex-wrap gap-2">

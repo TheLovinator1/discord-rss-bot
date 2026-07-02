@@ -379,6 +379,43 @@ def test_get_feed_media_gallery_image_limit_defaults_to_first_image() -> None:
     assert result == 1
 
 
+@pytest.mark.parametrize(
+    ("tag_value", "expected_limit"),
+    [
+        (1, 1),
+        (25, 25),
+        (-1, 1),
+        (99_999, 4000),
+        ("200", 200),
+        ("0", 1),
+        ("unknown", 4000),
+    ],
+)
+def test_get_feed_webhook_text_length_limit_normalizes_stored_tag(
+    tag_value: feeds.JsonValue,
+    expected_limit: int,
+) -> None:
+    reader = MagicMock()
+    feed = MagicMock()
+    feed.url = "https://example.com/feed.xml"
+    reader.get_tag.return_value = tag_value
+
+    result = feeds.get_feed_webhook_text_length_limit(reader, feed)
+
+    assert result == expected_limit
+
+
+def test_get_feed_webhook_text_length_limit_defaults_to_discord_limit() -> None:
+    reader = MagicMock()
+    feed = MagicMock()
+    feed.url = "https://example.com/feed.xml"
+    reader.get_tag.side_effect = lambda resource, key, default=None: default  # noqa: ARG005
+
+    result = feeds.get_feed_webhook_text_length_limit(reader, feed)
+
+    assert result == 4000
+
+
 def test_create_feed_inherits_global_screenshot_layout() -> None:
     reader = MagicMock()
     reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
@@ -432,6 +469,41 @@ def test_create_feed_sets_default_media_gallery_image_limit() -> None:
         "https://example.com/feed.xml",
         "media_gallery_image_limit",
         1,
+    )
+
+
+def test_create_feed_sets_default_webhook_text_length_limit() -> None:
+    reader = MagicMock()
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+        "webhooks": [{"name": "Main", "url": "https://discord.com/api/webhooks/123/abc"}],
+        "screenshot_layout": "desktop",
+        "delivery_mode": "embed",
+    }.get(key, default)
+
+    create_feed(reader, "https://example.com/feed.xml", "Main")
+
+    reader.set_tag.assert_any_call(
+        "https://example.com/feed.xml",
+        "webhook_text_length_limit",
+        4000,
+    )
+
+
+def test_create_feed_inherits_global_webhook_text_length_limit() -> None:
+    reader = MagicMock()
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+        "webhooks": [{"name": "Main", "url": "https://discord.com/api/webhooks/123/abc"}],
+        "screenshot_layout": "desktop",
+        "delivery_mode": "embed",
+        "webhook_text_length_limit": 2500,
+    }.get(key, default)
+
+    create_feed(reader, "https://example.com/feed.xml", "Main")
+
+    reader.set_tag.assert_any_call(
+        "https://example.com/feed.xml",
+        "webhook_text_length_limit",
+        2500,
     )
 
 
@@ -664,6 +736,32 @@ def test_create_screenshot_webhook_falls_back_to_text_on_failure(
     )
 
 
+@patch("discord_rss_bot.feeds.replace_tags_in_text_message")
+def test_create_text_webhook_uses_feed_text_length_limit(mock_replace_tags_in_text_message: MagicMock) -> None:
+    mock_replace_tags_in_text_message.return_value = "start-" + ("x" * 40) + "-end"
+
+    entry = MagicMock()
+    entry.feed.url = "https://example.com/feed.xml"
+    reader = MagicMock()
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+        "custom_message": "{{entry_title}}",
+        "webhook_text_length_limit": 20,
+    }.get(key, default)
+
+    webhook = feeds.create_text_webhook(
+        "https://discord.com/api/webhooks/123/abc",
+        entry,
+        reader,
+        use_default_message_on_empty=False,
+    )
+
+    assert webhook.content is not None
+    assert len(webhook.content) == 20
+    assert webhook.content.startswith("start-")
+    assert webhook.content.endswith("-end")
+    assert "..." in webhook.content
+
+
 @patch("discord_rss_bot.feeds.fetch_ttvdrops_campaign_media_items", return_value=[])
 @patch("discord_rss_bot.feeds.replace_tags_in_embed")
 def test_create_embed_webhook_uses_media_gallery_for_entry_images(
@@ -671,7 +769,10 @@ def test_create_embed_webhook_uses_media_gallery_for_entry_images(
     mock_fetch_ttvdrops_campaign_media_items: MagicMock,
 ) -> None:
     reader = MagicMock()
-    reader.get_tag.return_value = 10
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+        "media_gallery_image_limit": 10,
+        "webhook_text_length_limit": 4000,
+    }.get(key, default)
     entry = MagicMock()
     entry.id = "entry-1"
     entry.title = "Entry title"
@@ -709,12 +810,47 @@ def test_create_embed_webhook_uses_media_gallery_for_entry_images(
 
 @patch("discord_rss_bot.feeds.fetch_ttvdrops_campaign_media_items", return_value=[])
 @patch("discord_rss_bot.feeds.replace_tags_in_embed")
+def test_create_embed_webhook_uses_feed_text_length_limit_for_media_gallery(
+    mock_replace_tags_in_embed: MagicMock,
+    mock_fetch_ttvdrops_campaign_media_items: MagicMock,
+) -> None:
+    reader = MagicMock()
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+        "media_gallery_image_limit": 10,
+        "webhook_text_length_limit": 20,
+    }.get(key, default)
+    entry = MagicMock()
+    entry.id = "entry-1"
+    entry.title = "Entry title"
+    entry.link = "https://example.com/entry"
+    entry.summary = '<img src="https://example.com/summary.jpg" />'
+    entry.content = [MagicMock(value='<img src="https://example.com/content-1.jpg" />')]
+    entry.feed.url = "https://example.com/feed.xml"
+    mock_replace_tags_in_embed.return_value = feeds.CustomEmbed(description="x" * 100)
+
+    webhook = feeds.create_embed_webhook("https://discord.com/api/webhooks/123/abc", entry, reader)
+
+    assert webhook.flags == 1 << 15
+    components = get_test_webhook_components(webhook)
+    text_component = components[0]
+    assert isinstance(text_component, dict)
+    assert isinstance(text_component["content"], str)
+    assert len(text_component["content"]) == 20
+    assert text_component["content"].endswith("...")
+    mock_fetch_ttvdrops_campaign_media_items.assert_called_once_with(entry)
+
+
+@patch("discord_rss_bot.feeds.fetch_ttvdrops_campaign_media_items", return_value=[])
+@patch("discord_rss_bot.feeds.replace_tags_in_embed")
 def test_create_embed_webhook_can_limit_media_gallery_to_first_image(
     mock_replace_tags_in_embed: MagicMock,
     mock_fetch_ttvdrops_campaign_media_items: MagicMock,
 ) -> None:
     reader = MagicMock()
-    reader.get_tag.return_value = 1
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+        "media_gallery_image_limit": 1,
+        "webhook_text_length_limit": 4000,
+    }.get(key, default)
     entry = MagicMock()
     entry.id = "entry-1"
     entry.title = "Entry title"
@@ -744,7 +880,10 @@ def test_create_embed_webhook_can_disable_media_images(
     mock_fetch_ttvdrops_campaign_media_items: MagicMock,
 ) -> None:
     reader = MagicMock()
-    reader.get_tag.return_value = 0
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+        "media_gallery_image_limit": 0,
+        "webhook_text_length_limit": 4000,
+    }.get(key, default)
     entry = MagicMock()
     entry.id = "entry-1"
     entry.title = "Entry title"
@@ -767,6 +906,38 @@ def test_create_embed_webhook_can_disable_media_images(
     assert isinstance(embeds[0], dict)
     assert "image" not in embeds[0]
     assert "thumbnail" not in embeds[0]
+    mock_fetch_ttvdrops_campaign_media_items.assert_not_called()
+
+
+@patch("discord_rss_bot.feeds.fetch_ttvdrops_campaign_media_items", return_value=[])
+@patch("discord_rss_bot.feeds.replace_tags_in_embed")
+def test_create_embed_webhook_uses_feed_text_length_limit_for_regular_embed_description(
+    mock_replace_tags_in_embed: MagicMock,
+    mock_fetch_ttvdrops_campaign_media_items: MagicMock,
+) -> None:
+    reader = MagicMock()
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+        "media_gallery_image_limit": 0,
+        "webhook_text_length_limit": 20,
+    }.get(key, default)
+    entry = MagicMock()
+    entry.id = "entry-1"
+    entry.title = "Entry title"
+    entry.link = "https://example.com/entry"
+    entry.summary = ""
+    entry.content = []
+    entry.feed.url = "https://example.com/feed.xml"
+    mock_replace_tags_in_embed.return_value = feeds.CustomEmbed(description="x" * 100)
+
+    webhook = feeds.create_embed_webhook("https://discord.com/api/webhooks/123/abc", entry, reader)
+
+    assert "components" not in webhook.json
+    embeds = webhook.json.get("embeds")
+    assert isinstance(embeds, list)
+    assert isinstance(embeds[0], dict)
+    assert isinstance(embeds[0].get("description"), str)
+    assert len(embeds[0]["description"]) == 20
+    assert embeds[0]["description"].endswith("...")
     mock_fetch_ttvdrops_campaign_media_items.assert_not_called()
 
 

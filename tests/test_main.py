@@ -283,8 +283,13 @@ def test_get() -> None:
     assert "This feed" in response.text
     assert "Screenshot Delivery" in response.text
     assert "Image Delivery" in response.text
+    assert "Text Delivery" in response.text
+    assert "main embed" in response.text
+    assert "2000 characters" in response.text
     assert 'type="range"' in response.text
     assert 'max="10"' in response.text
+    assert 'id="text_length_limit"' in response.text
+    assert 'max="4000"' in response.text
 
     response: Response = client.get(url="/")
     assert response.status_code == 200, f"/ failed: {response.text}"
@@ -603,6 +608,10 @@ def test_settings_page_shows_screenshot_layout_setting() -> None:
     assert response.status_code == 200, f"/settings failed: {response.text}"
     assert "Default delivery mode for new feeds" in response.text
     assert "Default screenshot layout for new feeds" in response.text
+    assert "Default webhook text limit for new feeds" in response.text
+    assert "regular embed mode" in response.text
+    assert "2000 characters" in response.text
+    assert 'id="global_text_length_limit"' in response.text
     assert "uv run playwright install chromium" in response.text
 
 
@@ -613,6 +622,18 @@ def test_set_global_delivery_mode() -> None:
     response = client.get(url="/settings")
     assert response.status_code == 200, f"/settings failed after setting delivery mode: {response.text}"
     assert re.search(r"<option\s+value=\"text\"[^>]*\bselected\b", response.text)
+
+
+def test_set_global_webhook_text_length_limit() -> None:
+    response: Response = client.post(
+        url="/set_global_webhook_text_length_limit",
+        data={"text_length_limit": "2500"},
+    )
+    assert response.status_code == 200, f"Failed to set global webhook text length limit: {response.text}"
+
+    response = client.get(url="/settings")
+    assert response.status_code == 200, f"/settings failed after setting webhook text length limit: {response.text}"
+    assert 'value="2500"' in response.text
 
 
 def test_add_page_shows_global_default_delivery_mode_hint() -> None:
@@ -738,6 +759,41 @@ def test_set_feed_media_gallery_image_limit_route_updates_stored_tag() -> None:
 
         assert response.status_code == 303, f"/set_feed_media_gallery_image_limit failed: {response.text}"
         assert stub_reader.tags[stub_reader.feed.url, "media_gallery_image_limit"] == 7
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_set_feed_webhook_text_length_limit_route_updates_stored_tag() -> None:
+    @dataclass(slots=True)
+    class DummyFeed:
+        url: str
+        title: str
+
+    class StubReader:
+        def __init__(self) -> None:
+            self.feed = DummyFeed(url="https://example.com/feed.xml", title="Example")
+            self.tags: dict[tuple[str, str], int] = {}
+
+        def get_feed(self, feed_url: str) -> DummyFeed:
+            assert feed_url == self.feed.url
+            return self.feed
+
+        def set_tag(self, resource: str, key: str, value: int) -> None:
+            self.tags[resource, key] = value
+
+    stub_reader = StubReader()
+    app.dependency_overrides[get_reader_dependency] = lambda: stub_reader
+
+    try:
+        with patch("discord_rss_bot.main.commit_state_change"):
+            response: Response = client.post(
+                url="/set_feed_webhook_text_length_limit",
+                data={"feed_url": stub_reader.feed.url, "text_length_limit": "2500"},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303, f"/set_feed_webhook_text_length_limit failed: {response.text}"
+        assert stub_reader.tags[stub_reader.feed.url, "webhook_text_length_limit"] == 2500
     finally:
         app.dependency_overrides = {}
 
