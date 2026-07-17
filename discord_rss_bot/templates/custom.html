@@ -240,6 +240,28 @@
                     id="custom_message" {% if custom_message %} value="{{- custom_message -}}" {% endif %} />
             </div>
         </div>
+        <!-- Optional Discord webhook username & avatar for this feed -->
+        <div class="row pb-2">
+            <div class="col-sm-12">
+                <div class="form-text">
+                    <ul class="list-inline">
+                        <li>Optional: override the Discord webhook username and avatar for messages from this feed.</li>
+                        <li>Leave blank to use the webhook's default name and avatar.</li>
+                        <li>Invalid values (empty, disallowed characters, or bad avatar URLs) are ignored when sending.</li>
+                        <li>Username rules: 1–80 characters; cannot contain <code>@</code>, <code>#</code>, <code>:</code>, or <code>`</code>; cannot contain <code>clyde</code> or <code>discord</code>.</li>
+                        <li>Avatar must be a full <code>http://</code> or <code>https://</code> image URL.</li>
+                    </ul>
+                </div>
+                <label for="message_username" class="col-sm-6 col-form-label">Message Username</label>
+                <input name="message_username" type="text" class="form-control bg-dark border-dark text-muted"
+                    id="message_username" maxlength="80" placeholder="e.g. Power Of The Shell"
+                    {% if message_username %} value="{{- message_username -}}" {% endif %} />
+                <label for="message_avatar_url" class="col-sm-6 col-form-label">Message Avatar Image</label>
+                <input name="message_avatar_url" type="url" class="form-control bg-dark border-dark text-muted"
+                    id="message_avatar_url" placeholder="e.g. https://example.com/icon.png"
+                    {% if message_avatar_url %} value="{{- message_avatar_url -}}" {% endif %} />
+            </div>
+        </div>
         <!-- Add a hidden feed_url field to the form -->
         <input type="hidden" name="feed_url" value="{{ feed.url }}" />
         <!-- Submit button -->

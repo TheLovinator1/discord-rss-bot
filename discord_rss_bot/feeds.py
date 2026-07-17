@@ -48,6 +48,8 @@ from requests import RequestException
 from discord_rss_bot.custom_message import CustomEmbed
 from discord_rss_bot.custom_message import get_custom_message
 from discord_rss_bot.custom_message import get_image_urls
+from discord_rss_bot.custom_message import get_validated_message_avatar_url
+from discord_rss_bot.custom_message import get_validated_message_username
 from discord_rss_bot.custom_message import replace_tags_in_embed
 from discord_rss_bot.custom_message import replace_tags_in_text_message
 from discord_rss_bot.filter.evaluator import get_entry_filter_decision_from_reader
@@ -644,6 +646,10 @@ def get_webhook_message_edit_payload(payload: JsonObject, record: SentWebhookRec
         if edit_payload.get("attachments") == []:
             edit_payload.pop("attachments", None)
 
+    # Username/avatar can only be set when creating a message, not when editing.
+    edit_payload.pop("username", None)
+    edit_payload.pop("avatar_url", None)
+
     return edit_payload
 
 
@@ -962,6 +968,21 @@ def edit_sent_webhook_message(
     )
 
 
+def apply_feed_webhook_identity(webhook: DiscordWebhook, entry: Entry, reader: Reader) -> DiscordWebhook:
+    """Apply per-feed custom username and avatar when valid; ignore blank/invalid values.
+
+    Returns:
+        The same webhook instance with optional identity overrides.
+    """
+    username: str = get_validated_message_username(reader, entry.feed)
+    avatar_url: str = get_validated_message_avatar_url(reader, entry.feed)
+    if username:
+        webhook.username = username
+    if avatar_url:
+        webhook.avatar_url = avatar_url
+    return webhook
+
+
 def create_webhook_for_entry(
     webhook_url: str,
     entry: Entry,
@@ -983,7 +1004,8 @@ def create_webhook_for_entry(
             if post_id:
                 post_data = fetch_hoyolab_post(post_id)
                 if post_data:
-                    return create_hoyolab_webhook(webhook_url, entry, post_data), delivery_mode
+                    webhook = create_hoyolab_webhook(webhook_url, entry, post_data)
+                    return apply_feed_webhook_identity(webhook, entry, reader), delivery_mode
                 logger.warning(
                     "Failed to create Hoyolab webhook for feed %s, falling back to regular processing",
                     entry.feed.url,
@@ -992,18 +1014,18 @@ def create_webhook_for_entry(
             logger.warning("No entry link found for feed %s, falling back to regular processing", entry.feed.url)
 
     if delivery_mode == "embed":
-        return create_embed_webhook(webhook_url, entry, reader=reader), delivery_mode
+        webhook = create_embed_webhook(webhook_url, entry, reader=reader)
+        return apply_feed_webhook_identity(webhook, entry, reader), delivery_mode
     if delivery_mode == "screenshot":
-        return create_screenshot_webhook(webhook_url, entry, reader=reader), delivery_mode
-    return (
-        create_text_webhook(
-            webhook_url,
-            entry,
-            reader=reader,
-            use_default_message_on_empty=use_default_message_on_empty,
-        ),
-        delivery_mode,
+        webhook = create_screenshot_webhook(webhook_url, entry, reader=reader)
+        return apply_feed_webhook_identity(webhook, entry, reader), delivery_mode
+    webhook = create_text_webhook(
+        webhook_url,
+        entry,
+        reader=reader,
+        use_default_message_on_empty=use_default_message_on_empty,
     )
+    return apply_feed_webhook_identity(webhook, entry, reader), delivery_mode
 
 
 def collect_modified_entries_during_update(reader: Reader, update_callback: UpdateCallback) -> list[tuple[str, str]]:

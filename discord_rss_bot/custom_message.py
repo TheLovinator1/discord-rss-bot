@@ -25,6 +25,11 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 DISCORD_TIMESTAMP_TAG_RE: re.Pattern[str] = re.compile(r"<t:\d+(?::[tTdDfFrRsS])?>")
 
+# Discord webhook username: nickname rules, max 80 chars; no "clyde"/"discord" substrings.
+DISCORD_WEBHOOK_USERNAME_MAX_LENGTH: int = 80
+DISCORD_WEBHOOK_USERNAME_FORBIDDEN_CHARS: frozenset[str] = frozenset("@#:`")
+DISCORD_WEBHOOK_USERNAME_FORBIDDEN_SUBSTRINGS: tuple[str, ...] = ("clyde", "discord")
+
 
 @dataclass(slots=True)
 class CustomEmbed:
@@ -389,6 +394,93 @@ def get_custom_message(reader: Reader, feed: Feed) -> str:
         custom_message = ""
 
     return custom_message
+
+
+def get_message_username(reader: Reader, feed: Feed) -> str:
+    """Get the stored custom webhook username for a feed.
+
+    Returns:
+        Stored username (may be empty or invalid for Discord).
+    """
+    try:
+        return str(reader.get_tag(feed, "message_username", ""))
+    except ValueError:
+        return ""
+
+
+def get_message_avatar_url(reader: Reader, feed: Feed) -> str:
+    """Get the stored custom webhook avatar URL for a feed.
+
+    Returns:
+        Stored avatar URL (may be empty or invalid for Discord).
+    """
+    try:
+        return str(reader.get_tag(feed, "message_avatar_url", ""))
+    except ValueError:
+        return ""
+
+
+def normalize_message_username(username: str | None) -> str:
+    """Return a Discord-safe webhook username, or empty string if unusable.
+
+    Blank or invalid values are rejected so Discord uses the webhook default.
+
+    Returns:
+        Valid username, or empty string when the override should not be sent.
+    """
+    if not username:
+        return ""
+
+    cleaned: str = username.strip()
+    if not cleaned:
+        return ""
+    if len(cleaned) > DISCORD_WEBHOOK_USERNAME_MAX_LENGTH:
+        return ""
+    if any(character in cleaned for character in DISCORD_WEBHOOK_USERNAME_FORBIDDEN_CHARS):
+        return ""
+    lowered: str = cleaned.lower()
+    if any(forbidden in lowered for forbidden in DISCORD_WEBHOOK_USERNAME_FORBIDDEN_SUBSTRINGS):
+        return ""
+    return cleaned
+
+
+def normalize_message_avatar_url(avatar_url: str | None) -> str:
+    """Return a usable webhook avatar URL, or empty string if unusable.
+
+    Blank or invalid values are rejected so Discord uses the webhook default.
+
+    Returns:
+        Valid http(s) URL, or empty string when the override should not be sent.
+    """
+    if not avatar_url:
+        return ""
+
+    cleaned: str = avatar_url.strip()
+    if not cleaned:
+        return ""
+    if not cleaned.lower().startswith(("http://", "https://")):
+        return ""
+    if not is_url_valid(cleaned):
+        return ""
+    return cleaned
+
+
+def get_validated_message_username(reader: Reader, feed: Feed) -> str:
+    """Get a Discord-safe custom webhook username for a feed, if configured.
+
+    Returns:
+        Valid username to send, or empty string to use the webhook default.
+    """
+    return normalize_message_username(get_message_username(reader, feed))
+
+
+def get_validated_message_avatar_url(reader: Reader, feed: Feed) -> str:
+    """Get a usable custom webhook avatar URL for a feed, if configured.
+
+    Returns:
+        Valid avatar URL to send, or empty string to use the webhook default.
+    """
+    return normalize_message_avatar_url(get_message_avatar_url(reader, feed))
 
 
 def save_embed(reader: Reader, feed: Feed, embed: CustomEmbed) -> None:

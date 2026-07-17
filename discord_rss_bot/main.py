@@ -49,6 +49,8 @@ from discord_rss_bot.custom_message import CustomEmbed
 from discord_rss_bot.custom_message import get_custom_message
 from discord_rss_bot.custom_message import get_embed
 from discord_rss_bot.custom_message import get_first_image
+from discord_rss_bot.custom_message import get_message_avatar_url
+from discord_rss_bot.custom_message import get_message_username
 from discord_rss_bot.custom_message import replace_tags_in_text_message
 from discord_rss_bot.custom_message import save_embed
 from discord_rss_bot.feeds import FeedUpdateError
@@ -1145,11 +1147,15 @@ async def post_set_custom(
     feed_url: Annotated[str, Form()],
     reader: Annotated[Reader, Depends(get_reader_dependency)],
     custom_message: Annotated[str, Form()] = "",
+    message_username: Annotated[str, Form()] = "",
+    message_avatar_url: Annotated[str, Form()] = "",
 ) -> RedirectResponse:
     """Set the custom message, this is used when sending the message.
 
     Args:
         custom_message: The custom message.
+        message_username: Optional Discord webhook username override for this feed.
+        message_avatar_url: Optional Discord webhook avatar URL override for this feed.
         feed_url: The feed we should set the custom message for.
         reader: The Reader instance.
 
@@ -1158,6 +1164,10 @@ async def post_set_custom(
     """
     our_custom_message: JSONType | str = custom_message.strip()
     our_custom_message = typing.cast("JSONType", our_custom_message)
+
+    # Store raw values; blank/invalid values are ignored when building the Discord payload.
+    reader.set_tag(feed_url, "message_username", typing.cast("JSONType", message_username.strip()))
+    reader.set_tag(feed_url, "message_avatar_url", typing.cast("JSONType", message_avatar_url.strip()))
 
     clean_feed_url: str = feed_url.strip()
     feed: Feed = reader.get_feed(urllib.parse.unquote(clean_feed_url))
@@ -1192,6 +1202,8 @@ async def get_custom(
         "request": request,
         "feed": feed,
         "custom_message": get_custom_message(reader, feed),
+        "message_username": get_message_username(reader, feed),
+        "message_avatar_url": get_message_avatar_url(reader, feed),
     }
 
     # Get the first entry, this is used to show the user what the custom message will look like.

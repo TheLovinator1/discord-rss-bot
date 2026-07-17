@@ -44,6 +44,8 @@ type TagValue = JsonValue
 _FEED_TAGS: tuple[str, ...] = (
     "webhook",
     "custom_message",
+    "message_username",
+    "message_avatar_url",
     "delivery_mode",
     "screenshot_layout",
     "should_send_embed",
