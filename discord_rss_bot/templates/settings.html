@@ -46,6 +46,11 @@
                             name="delivery_mode">
                         <option value="embed"
                                 {% if global_delivery_mode == "embed" %}selected{% endif %}>Embed</option>
+                        <option value="screenshot"
+                                {% if global_delivery_mode == "screenshot" %}selected{% endif %}
+                                {% if not chromium_installed %}disabled{% endif %}>
+                            Screenshot{% if not chromium_installed %} (Chromium not installed){% endif %}
+                        </option>
                         <option value="text"
                                 {% if global_delivery_mode == "text" %}selected{% endif %}>Text</option>
                     </select>
@@ -73,9 +78,12 @@
                 <div class="form-text text-muted mt-2">
                     New feeds inherit this value. Existing feeds keep their current screenshot layout.
                 </div>
-                <div class="form-text screenshot-requirement mt-1">
-                    Screenshot mode requires Chromium to be installed for Playwright. Run <code>uv run playwright install chromium</code> once on this machine.
-                </div>
+                {% if not chromium_installed %}
+                    <div class="form-text text-muted mt-1">
+                        Screenshot mode requires Chromium to be installed for Playwright.
+                        Run <code>uv run playwright install chromium</code> once on this machine.
+                    </div>
+                {% endif %}
             </div>
         </form>
         <form action="/set_global_webhook_text_length_limit"

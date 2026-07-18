@@ -26,7 +26,7 @@ def test_encode_url() -> None:
     assert encode_url("https://www.example.com/my path") == r"https%3A//www.example.com/my%20path", assert_msg
 
     # Test input with special characters
-    assert_msg: str = f"Got: {encode_url('https://www.example.com/my path?q=abc&b=1')}, Expected: https%3A//www.example.com/my%20path%3Fq%3Dabc%26b%3D1"  # noqa: E501
+    assert_msg: str = f"Got: {encode_url('https://www.example.com/my path?q=abc&b=1')}, Expected: https%3A//www.example.com/my%20path%3Fq%3Dabc%26b%3D1"  # ruff:ignore[line-too-long]
     assert (
         encode_url("https://www.example.com/my path?q=abc&b=1")
         == r"https%3A//www.example.com/my%20path%3Fq%3Dabc%26b%3D1"

@@ -18,7 +18,7 @@ def healthcheck() -> None:
             sys.exit(0)
         sys.exit(1)
     except requests.exceptions.RequestException as e:
-        print(f"Healthcheck failed: {e}", file=sys.stderr)  # noqa: T201
+        print(f"Healthcheck failed: {e}", file=sys.stderr)  # ruff:ignore[print]
         sys.exit(1)
 
 

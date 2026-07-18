@@ -42,55 +42,56 @@ fix = true
 line-length = 120
 
 lint.select = ["ALL"]
-lint.unfixable = ["F841"]                                            # Don't automatically remove unused variables
+# Don't automatically remove unused variables
+lint.unfixable = ["unused-variable"]
 lint.pydocstyle.convention = "google"
 lint.isort.required-imports = ["from __future__ import annotations"]
 lint.isort.force-single-line = true
 
 
 lint.ignore = [
-    "ANN201",  # Checks that public functions and methods have return type annotations.
-    "ARG001",  # Checks for the presence of unused arguments in function definitions.
-    "B008",    # Allow Form() as a default value
-    "CPY001",  # Missing copyright notice at top of file
-    "D100",    # Checks for undocumented public module definitions.
-    "D101",    # Checks for undocumented public class definitions.
-    "D102",    # Checks for undocumented public method definitions.
-    "D104",    # Missing docstring in public package.
-    "D105",    # Missing docstring in magic method.
-    "D105",    # pydocstyle - missing docstring in magic method
-    "D106",    # Checks for undocumented public class definitions, for nested classes.
-    "ERA001",  # Found commented-out code
-    "FBT003",  # Checks for boolean positional arguments in function calls.
-    "FIX002",  # Line contains TODO
-    "G002",    # Allow % in logging
-    "PGH003",  # Check for type: ignore annotations that suppress all type warnings, as opposed to targeting specific type warnings.
-    "PLR6301", # Checks for the presence of unused self parameter in methods definitions.
-    "RUF029",  # Checks for functions declared async that do not await or otherwise use features requiring the function to be declared async.
-    "TD003",   # Checks that a TODO comment is associated with a link to a relevant issue or ticket.
-    "PLR0913", # Checks for function definitions that include too many arguments.
-    "PLR0917", # Checks for function definitions that include too many positional arguments.
+    "missing-return-type-undocumented-public-function", # Checks that public functions and methods have return type annotations.
+    "unused-function-argument",                         # Checks for the presence of unused arguments in function definitions.
+    "function-call-in-default-argument",                # Allow Form() as a default value
+    "missing-copyright-notice",                         # Missing copyright notice at top of file
+    "undocumented-public-module",                       # Checks for undocumented public module definitions.
+    "undocumented-public-class",                        # Checks for undocumented public class definitions.
+    "undocumented-public-method",                       # Checks for undocumented public method definitions.
+    "undocumented-public-package",                      # Missing docstring in public package.
+    "undocumented-magic-method",                        # Missing docstring in magic method.
+    "undocumented-magic-method",                        # pydocstyle - missing docstring in magic method
+    "undocumented-public-nested-class",                 # Checks for undocumented public class definitions, for nested classes.
+    "commented-out-code",                               # Found commented-out code
+    "boolean-positional-value-in-call",                 # Checks for boolean positional arguments in function calls.
+    "line-contains-todo",                               # Line contains TODO
+    "logging-percent-format",                           # Allow % in logging
+    "blanket-type-ignore",                              # Check for type: ignore annotations that suppress all type warnings, as opposed to targeting specific type warnings.
+    "no-self-use",                                      # Checks for the presence of unused self parameter in methods definitions.
+    "unused-async",                                     # Checks for functions declared async that do not await or otherwise use features requiring the function to be declared async.
+    "missing-todo-link",                                # Checks that a TODO comment is associated with a link to a relevant issue or ticket.
+    "too-many-arguments",                               # Checks for function definitions that include too many arguments.
+    "too-many-positional-arguments",                    # Checks for function definitions that include too many positional arguments.
 
     # Conflicting lint rules when using Ruff's formatter
     # https://docs.astral.sh/ruff/formatter/#conflicting-lint-rules
-    "COM812", # Checks for the absence of trailing commas.
-    "COM819", # Checks for the presence of prohibited trailing commas.
-    "D206",   # Checks for docstrings that are indented with tabs.
-    "D300",   # Checks for docstrings that use '''triple single quotes''' instead of """triple double quotes""".
-    "E111",   # Checks for indentation with a non-multiple of 4 spaces.
-    "E114",   # Checks for indentation of comments with a non-multiple of 4 spaces.
-    "E117",   # Checks for over-indented code.
-    "ISC001", # Checks for implicitly concatenated strings on a single line.
-    "ISC002", # Checks for implicitly concatenated strings that span multiple lines.
-    "Q000",   # Checks for inline strings that use single quotes or double quotes, depending on the value of the lint.flake8-quotes.inline-quotes option.
-    "Q001",   # Checks for multiline strings that use single quotes or double quotes, depending on the value of the lint.flake8-quotes.multiline-quotes setting.
-    "Q002",   # Checks for docstrings that use single quotes or double quotes, depending on the value of the lint.flake8-quotes.docstring-quotes setting.
-    "Q003",   # Checks for strings that include escaped quotes, and suggests changing the quote style to avoid the need to escape them.
-    "W191",   # Checks for indentation that uses tabs.
+    "missing-trailing-comma",                    # Checks for the absence of trailing commas.
+    "prohibited-trailing-comma",                 # Checks for the presence of prohibited trailing commas.
+    "docstring-tab-indentation",                 # Checks for docstrings that are indented with tabs.
+    "triple-single-quotes",                      # Checks for docstrings that use '''triple single quotes''' instead of """triple double quotes""".
+    "indentation-with-invalid-multiple",         # Checks for indentation with a non-multiple of 4 spaces.
+    "indentation-with-invalid-multiple-comment", # Checks for indentation of comments with a non-multiple of 4 spaces.
+    "over-indented",                             # Checks for over-indented code.
+    "single-line-implicit-string-concatenation", # Checks for implicitly concatenated strings on a single line.
+    "multi-line-implicit-string-concatenation",  # Checks for implicitly concatenated strings that span multiple lines.
+    "bad-quotes-inline-string",                  # Checks for inline strings that use single quotes or double quotes, depending on the value of the lint.flake8-quotes.inline-quotes option.
+    "bad-quotes-multiline-string",               # Checks for multiline strings that use single quotes or double quotes, depending on the value of the lint.flake8-quotes.multiline-quotes setting.
+    "bad-quotes-docstring",                      # Checks for docstrings that use single quotes or double quotes, depending on the value of the lint.flake8-quotes.docstring-quotes setting.
+    "avoidable-escaped-quote",                   # Checks for strings that include escaped quotes, and suggests changing the quote style to avoid the need to escape them.
+    "tab-indentation",                           # Checks for indentation that uses tabs.
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "D103", "PLR2004"]
+"tests/*" = ["assert", "undocumented-public-function", "magic-value-comparison"]
 
 [tool.pytest.ini_options]
 addopts = "-n 5 --dist loadfile -m \"not integration and not slow\""

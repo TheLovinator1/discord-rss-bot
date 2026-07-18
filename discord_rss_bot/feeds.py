@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import datetime
+import functools
 import hashlib
 import json
 import logging
@@ -30,6 +31,7 @@ from httpx2 import HTTPError
 from httpx2 import Response
 from markdownify import markdownify
 from playwright.sync_api import Browser
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
@@ -140,7 +142,7 @@ MESSAGE_PAYLOAD_KEYS: tuple[str, ...] = (
 )
 
 
-def extract_domain(url: str) -> str:  # noqa: PLR0911
+def extract_domain(url: str) -> str:  # ruff:ignore[too-many-return-statements]
     """Extract the domain name from a URL.
 
     Args:
@@ -153,7 +155,7 @@ def extract_domain(url: str) -> str:  # noqa: PLR0911
     if not url:
         return "Other"
 
-    try:  # noqa: PLW0717
+    try:  # ruff:ignore[too-many-statements-in-try-clause]
         # Special handling for YouTube feeds
         if "youtube.com/feeds/videos.xml" in url:
             return "YouTube"
@@ -258,7 +260,7 @@ def extract_steam_app_id_from_url(url: str) -> str | None:
     normalized_netloc: str = parsed_url.netloc.lower().removeprefix("www.")
     path_segments: list[str] = [segment for segment in parsed_url.path.split("/") if segment]
     return _extract_steam_app_id_from_path(normalized_netloc, path_segments) or _extract_steam_app_id_from_query(
-        parsed_url
+        parsed_url,
     )
 
 
@@ -453,7 +455,7 @@ def get_feed_webhook_text_length_limit(reader: Reader, feed: Feed | str) -> int:
     return coerce_webhook_text_length_limit(value)
 
 
-def coerce_media_gallery_image_limit(value: JsonValue) -> int:  # noqa: PLR0911
+def coerce_media_gallery_image_limit(value: JsonValue) -> int:  # ruff:ignore[too-many-return-statements]
     """Return the supported media gallery image limit for a stored tag value."""
     if isinstance(value, bool):
         return 1
@@ -835,7 +837,7 @@ def get_webhook_query_params(
     return clean_webhook_url, params
 
 
-def get_webhook_files(webhook: DiscordWebhook) -> list[WebhookFile]:  # noqa: C901
+def get_webhook_files(webhook: DiscordWebhook) -> list[WebhookFile]:  # ruff:ignore[complex-structure]
     """Return files attached to a webhook object in a normalized shape."""
     raw_files = getattr(webhook, "files", None)
     files: list[WebhookFile] = []
@@ -854,7 +856,7 @@ def get_webhook_files(webhook: DiscordWebhook) -> list[WebhookFile]:  # noqa: C9
             files.append(file_value)
             continue
 
-        if not isinstance(file_value, tuple) or len(file_value) < 2:  # noqa: PLR2004
+        if not isinstance(file_value, tuple) or len(file_value) < 2:  # ruff:ignore[magic-value-comparison]
             continue
 
         first, second = file_value[0], file_value[1]
@@ -862,7 +864,7 @@ def get_webhook_files(webhook: DiscordWebhook) -> list[WebhookFile]:  # noqa: C9
             files.append(WebhookFile(filename=first, content=second))
             continue
 
-        if isinstance(second, tuple) and len(second) >= 2:  # noqa: PLR2004
+        if isinstance(second, tuple) and len(second) >= 2:  # ruff:ignore[magic-value-comparison]
             nested_file = cast("tuple[object, ...]", second)
             nested_filename, nested_content = nested_file[0], nested_file[1]
             if isinstance(nested_filename, str) and isinstance(nested_content, bytes):
@@ -916,7 +918,7 @@ def request_discord_webhook(
         request_kwargs["json"] = payload
 
     response: Response = httpx2.request(method, url, **request_kwargs)
-    if not rate_limit_retry or response.status_code != 429:  # noqa: PLR2004
+    if not rate_limit_retry or response.status_code != 429:  # ruff:ignore[magic-value-comparison]
         return response
 
     retry_after: float | None = get_retry_after_seconds(response)
@@ -1183,7 +1185,7 @@ def update_sent_webhook_record_for_entry(
     )
 
 
-def update_sent_webhooks_for_modified_entries(  # noqa: C901
+def update_sent_webhooks_for_modified_entries(  # ruff:ignore[complex-structure]
     reader: Reader,
     modified_entries: Iterable[tuple[str, str]],
 ) -> int:
@@ -1253,7 +1255,7 @@ def create_text_webhook(
     """
     webhook_message: str = ""
 
-    if get_custom_message(reader, entry.feed) != "":  # noqa: PLC1901
+    if get_custom_message(reader, entry.feed) != "":  # ruff:ignore[compare-to-empty-string]
         webhook_message = replace_tags_in_text_message(entry=entry, reader=reader)
 
     if not webhook_message and use_default_message_on_empty:
@@ -1370,6 +1372,40 @@ def screenshot_filename_for_entry(entry: Entry, *, extension: str = "png") -> st
     return f"{safe_name[:80]}.{safe_extension}"
 
 
+@functools.lru_cache(maxsize=1)
+def is_chromium_installed() -> bool:
+    """Check if Playwright's Chromium browser is installed.
+
+    Uses a cached check so the browser is only probed once per process lifetime.
+    Offloads to a thread when called from an active event loop (e.g. FastAPI).
+
+    Returns:
+        bool: True if Chromium launched successfully, False otherwise.
+    """
+
+    def _check() -> bool:
+        try:
+            with sync_playwright() as playwright:
+                browser = playwright.chromium.launch(
+                    headless=True,
+                    args=["--disable-dev-shm-usage", "--no-sandbox"],
+                )
+                browser.close()
+        except (OSError, PlaywrightError):
+            return False
+        else:
+            return True
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return _check()
+    else:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future: concurrent.futures.Future[bool] = executor.submit(_check)
+            return future.result()
+
+
 def capture_full_page_screenshot(
     url: str,
     *,
@@ -1417,7 +1453,7 @@ def _capture_full_page_screenshot_sync(
     Returns:
         bytes | None: PNG bytes on success, otherwise None.
     """
-    try:  # noqa: PLW0717
+    try:  # ruff:ignore[too-many-statements-in-try-clause]
         with sync_playwright() as playwright:
             browser: Browser = playwright.chromium.launch(
                 headless=True,
@@ -1537,7 +1573,7 @@ def set_description(
     # Discord allows 2048, but we keep a small safety margin by default.
     embed_description: str = custom_embed.description
     if len(embed_description) > max_description_length:
-        if max_description_length <= 3:  # noqa: PLR2004
+        if max_description_length <= 3:  # ruff:ignore[magic-value-comparison]
             embed_description = embed_description[:max_description_length]
         else:
             embed_description = f"{embed_description[: max_description_length - 3]}..."
@@ -1635,7 +1671,7 @@ def get_ttvdrops_reward_description(drop: JsonObject, reward: JsonObject) -> str
     return reward_name
 
 
-def extract_ttvdrops_media_gallery_items(value: JsonValue, *, hide_paid: bool = False) -> list[JsonObject]:  # noqa: C901
+def extract_ttvdrops_media_gallery_items(value: JsonValue, *, hide_paid: bool = False) -> list[JsonObject]:  # ruff:ignore[complex-structure]
     """Extract benefit/reward media gallery items from a ttvdrops API response.
 
     Returns:
@@ -1688,7 +1724,7 @@ def fetch_ttvdrops_campaign_media_items(entry: Entry) -> list[JsonObject]:
 
     try:
         response: Response = httpx2.get(api_url, follow_redirects=True, timeout=10.0)
-        if response.status_code != 200:  # noqa: PLR2004
+        if response.status_code != 200:  # ruff:ignore[magic-value-comparison]
             logger.warning("Failed to fetch ttvdrops campaign data from %s: %s", api_url, response.text[:500])
             return []
 
@@ -1743,7 +1779,7 @@ def truncate_component_text(
     """
     if len(content) <= max_text_display_length:
         return content
-    if max_text_display_length <= 3:  # noqa: PLR2004
+    if max_text_display_length <= 3:  # ruff:ignore[magic-value-comparison]
         return content[:max_text_display_length]
     return f"{content[: max_text_display_length - 3]}..."
 
@@ -1837,7 +1873,7 @@ def create_components_v2_webhook(
     )
 
 
-def create_embed_webhook(  # noqa: C901, PLR0912
+def create_embed_webhook(  # ruff:ignore[complex-structure, too-many-branches]
     webhook_url: str,
     entry: Entry,
     reader: Reader,
@@ -2121,7 +2157,7 @@ def truncate_webhook_message(
     """
     if len(webhook_message) <= max_content_length:
         return webhook_message
-    if max_content_length <= 3:  # noqa: PLR2004
+    if max_content_length <= 3:  # ruff:ignore[magic-value-comparison]
         return webhook_message[:max_content_length]
 
     head_length = (max_content_length - 3) // 2
@@ -2145,7 +2181,7 @@ def remove_invalid_new_feed(reader: Reader, feed_url: str) -> None:
         logger.exception("Failed to remove invalid feed after initial update: %s", feed_url)
 
 
-def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:  # noqa: C901, PLR0912
+def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:  # ruff:ignore[complex-structure, too-many-branches]
     """Add a new feed, update it and mark every entry as read.
 
     Args:

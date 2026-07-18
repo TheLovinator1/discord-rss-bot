@@ -19,7 +19,7 @@ class WebhookFile:
 class DiscordEmbed:
     """Small Discord embed payload builder used by the webhook sender."""
 
-    def __init__(self) -> None:  # noqa: D107
+    def __init__(self) -> None:  # ruff:ignore[undocumented-public-init]
         self._payload: JsonObject = {}
 
     def to_dict(self) -> JsonObject:
@@ -54,7 +54,7 @@ class DiscordEmbed:
     def set_thumbnail(self, *, url: str) -> None:
         self._payload["thumbnail"] = {"url": url}
 
-    def set_image(self, *, url: str, **_ignored: Any) -> None:  # noqa: ANN401
+    def set_image(self, *, url: str, **_ignored: Any) -> None:  # ruff:ignore[any-type]
         self._payload["image"] = {"url": url}
 
     def set_footer(self, *, text: str, icon_url: str | None = None) -> None:
@@ -85,7 +85,7 @@ class DiscordWebhook:
     while leaving the actual HTTP transport to `httpx2`.
     """
 
-    def __init__(  # noqa: D107
+    def __init__(  # ruff:ignore[undocumented-public-init]
         self,
         url: str,
         *,
@@ -99,7 +99,7 @@ class DiscordWebhook:
         thread_id: str | None = None,
         timeout: float | None = None,
         rate_limit_retry: bool = False,
-        **_ignored: Any,  # noqa: ANN401
+        **_ignored: Any,  # ruff:ignore[any-type]
     ) -> None:
         self.url: str = url
         self.thread_id: str | None = thread_id

@@ -25,7 +25,7 @@ import json
 import logging
 import os
 import shutil
-import subprocess  # noqa: S404
+import subprocess  # ruff:ignore[suspicious-subprocess-import]
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -102,22 +102,22 @@ def setup_backup_repo(backup_path: Path) -> bool:
     Returns:
         ``True`` if the repository is ready, ``False`` on any error.
     """
-    try:  # noqa: PLW0717
+    try:  # ruff:ignore[too-many-statements-in-try-clause]
         backup_path.mkdir(parents=True, exist_ok=True)
         git_dir: Path = backup_path / ".git"
         if not git_dir.exists():
-            subprocess.run([GIT_EXECUTABLE, "init", str(backup_path)], check=True, capture_output=True)  # noqa: S603
+            subprocess.run([GIT_EXECUTABLE, "init", str(backup_path)], check=True, capture_output=True)  # ruff:ignore[subprocess-without-shell-equals-true]
             logger.info("Initialized git backup repository at %s", backup_path)
 
         # Ensure a local identity exists so that `git commit` always works.
         for key, value in (("user.email", "discord-rss-bot@localhost"), ("user.name", "discord-rss-bot")):
-            result: subprocess.CompletedProcess[bytes] = subprocess.run(  # noqa: S603
+            result: subprocess.CompletedProcess[bytes] = subprocess.run(  # ruff:ignore[subprocess-without-shell-equals-true]
                 [GIT_EXECUTABLE, "-C", str(backup_path), "config", "--local", key],
                 check=False,
                 capture_output=True,
             )
             if result.returncode != 0:
-                subprocess.run(  # noqa: S603
+                subprocess.run(  # ruff:ignore[subprocess-without-shell-equals-true]
                     [GIT_EXECUTABLE, "-C", str(backup_path), "config", "--local", key, value],
                     check=True,
                     capture_output=True,
@@ -127,14 +127,14 @@ def setup_backup_repo(backup_path: Path) -> bool:
         remote_url: str = get_backup_remote()
         if remote_url:
             # Check if remote "origin" already exists.
-            check_remote: subprocess.CompletedProcess[bytes] = subprocess.run(  # noqa: S603
+            check_remote: subprocess.CompletedProcess[bytes] = subprocess.run(  # ruff:ignore[subprocess-without-shell-equals-true]
                 [GIT_EXECUTABLE, "-C", str(backup_path), "remote", "get-url", "origin"],
                 check=False,
                 capture_output=True,
             )
             if check_remote.returncode != 0:
                 # Remote doesn't exist, add it.
-                subprocess.run(  # noqa: S603
+                subprocess.run(  # ruff:ignore[subprocess-without-shell-equals-true]
                     [GIT_EXECUTABLE, "-C", str(backup_path), "remote", "add", "origin", remote_url],
                     check=True,
                     capture_output=True,
@@ -144,7 +144,7 @@ def setup_backup_repo(backup_path: Path) -> bool:
                 # Remote exists, update it if the URL has changed.
                 current_url: str = check_remote.stdout.decode().strip()
                 if current_url != remote_url:
-                    subprocess.run(  # noqa: S603
+                    subprocess.run(  # ruff:ignore[subprocess-without-shell-equals-true]
                         [GIT_EXECUTABLE, "-C", str(backup_path), "remote", "set-url", "origin", remote_url],
                         check=True,
                         capture_output=True,
@@ -169,7 +169,7 @@ def export_state(reader: Reader, backup_path: Path) -> None:
         for tag in _FEED_TAGS:
             try:
                 value: TagValue = reader.get_tag(feed, tag, None)
-                if value is not None and value != "":  # noqa: PLC1901
+                if value is not None and value != "":  # ruff:ignore[compare-to-empty-string]
                     feed_data[tag] = value
             except Exception:
                 logger.exception("Failed to read tag '%s' for feed '%s' during state export", tag, feed.url)
@@ -219,13 +219,13 @@ def commit_state_change(reader: Reader, message: str) -> None:
     if not setup_backup_repo(backup_path):
         return
 
-    try:  # noqa: PLW0717
+    try:  # ruff:ignore[too-many-statements-in-try-clause]
         export_state(reader, backup_path)
 
-        subprocess.run([GIT_EXECUTABLE, "-C", str(backup_path), "add", "-A"], check=True, capture_output=True)  # noqa: S603
+        subprocess.run([GIT_EXECUTABLE, "-C", str(backup_path), "add", "-A"], check=True, capture_output=True)  # ruff:ignore[subprocess-without-shell-equals-true]
 
         # Only create a commit if there are staged changes.
-        diff_result: subprocess.CompletedProcess[bytes] = subprocess.run(  # noqa: S603
+        diff_result: subprocess.CompletedProcess[bytes] = subprocess.run(  # ruff:ignore[subprocess-without-shell-equals-true]
             [GIT_EXECUTABLE, "-C", str(backup_path), "diff", "--cached", "--exit-code"],
             check=False,
             capture_output=True,
@@ -234,7 +234,7 @@ def commit_state_change(reader: Reader, message: str) -> None:
             logger.debug("No state changes to commit for: %s", message)
             return
 
-        subprocess.run(  # noqa: S603
+        subprocess.run(  # ruff:ignore[subprocess-without-shell-equals-true]
             [GIT_EXECUTABLE, "-C", str(backup_path), "commit", "-m", message],
             check=True,
             capture_output=True,
@@ -243,7 +243,7 @@ def commit_state_change(reader: Reader, message: str) -> None:
 
         # Push to remote if configured.
         if get_backup_remote():
-            subprocess.run(  # noqa: S603
+            subprocess.run(  # ruff:ignore[subprocess-without-shell-equals-true]
                 [GIT_EXECUTABLE, "-C", str(backup_path), "push", "origin", "HEAD"],
                 check=True,
                 capture_output=True,

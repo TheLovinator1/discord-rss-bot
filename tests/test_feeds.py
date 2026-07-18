@@ -177,7 +177,7 @@ def test_get_entry_delivery_mode_prefers_delivery_mode_tag() -> None:
     entry = MagicMock()
     entry.feed.url = "https://example.com/feed.xml"
 
-    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # ruff:ignore[unused-lambda-argument]
         "delivery_mode": "screenshot",
         "should_send_embed": True,
     }.get(key, default)
@@ -192,7 +192,7 @@ def test_get_entry_delivery_mode_falls_back_to_legacy_embed_flag() -> None:
     entry = MagicMock()
     entry.feed.url = "https://example.com/feed.xml"
 
-    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # ruff:ignore[unused-lambda-argument]
         "delivery_mode": "",
         "should_send_embed": False,
     }.get(key, default)
@@ -219,7 +219,7 @@ def test_send_entry_to_discord_hoyolab_text_mode_uses_text_webhook(
     entry.link = "https://www.hoyolab.com/article/38588239"
 
     reader = MagicMock()
-    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # ruff:ignore[unused-lambda-argument]
         "webhook": "https://discord.test/webhook",
         "delivery_mode": "text",
     }.get(key, default)
@@ -258,7 +258,7 @@ def test_send_entry_to_discord_hoyolab_screenshot_mode_uses_screenshot_webhook(
     entry.link = "https://www.hoyolab.com/article/38588239"
 
     reader = MagicMock()
-    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # ruff:ignore[unused-lambda-argument]
         "webhook": "https://discord.test/webhook",
         "delivery_mode": "screenshot",
     }.get(key, default)
@@ -296,7 +296,7 @@ def test_send_entry_to_discord_hoyolab_embed_mode_uses_hoyolab_webhook(
     entry.link = "https://www.hoyolab.com/article/38588239"
 
     reader = MagicMock()
-    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # ruff:ignore[unused-lambda-argument]
         "webhook": "https://discord.test/webhook",
         "delivery_mode": "embed",
     }.get(key, default)
@@ -372,7 +372,7 @@ def test_get_feed_media_gallery_image_limit_defaults_to_first_image() -> None:
     reader = MagicMock()
     feed = MagicMock()
     feed.url = "https://example.com/feed.xml"
-    reader.get_tag.side_effect = lambda resource, key, default=None: default  # noqa: ARG005
+    reader.get_tag.side_effect = lambda resource, key, default=None: default  # ruff:ignore[unused-lambda-argument]
 
     result = feeds.get_feed_media_gallery_image_limit(reader, feed)
 
@@ -424,7 +424,7 @@ def test_get_feed_webhook_text_length_limit_defaults_to_discord_limit() -> None:
     reader = MagicMock()
     feed = MagicMock()
     feed.url = "https://example.com/feed.xml"
-    reader.get_tag.side_effect = lambda resource, key, default=None: default  # noqa: ARG005
+    reader.get_tag.side_effect = lambda resource, key, default=None: default  # ruff:ignore[unused-lambda-argument]
 
     result = feeds.get_feed_webhook_text_length_limit(reader, feed)
 
@@ -433,7 +433,7 @@ def test_get_feed_webhook_text_length_limit_defaults_to_discord_limit() -> None:
 
 def test_create_feed_inherits_global_screenshot_layout() -> None:
     reader = MagicMock()
-    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # ruff:ignore[unused-lambda-argument]
         "webhooks": [{"name": "Main", "url": "https://discord.com/api/webhooks/123/abc"}],
         "screenshot_layout": "mobile",
     }.get(key, default)
@@ -445,7 +445,7 @@ def test_create_feed_inherits_global_screenshot_layout() -> None:
 
 def test_create_feed_inherits_global_text_delivery_mode() -> None:
     reader = MagicMock()
-    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # ruff:ignore[unused-lambda-argument]
         "webhooks": [{"name": "Main", "url": "https://discord.com/api/webhooks/123/abc"}],
         "screenshot_layout": "desktop",
         "delivery_mode": "text",
@@ -459,7 +459,7 @@ def test_create_feed_inherits_global_text_delivery_mode() -> None:
 
 def test_create_feed_enables_sent_webhook_tracking_by_default() -> None:
     reader = MagicMock()
-    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # ruff:ignore[unused-lambda-argument]
         "webhooks": [{"name": "Main", "url": "https://discord.com/api/webhooks/123/abc"}],
         "screenshot_layout": "desktop",
         "delivery_mode": "embed",
@@ -472,7 +472,7 @@ def test_create_feed_enables_sent_webhook_tracking_by_default() -> None:
 
 def test_create_feed_sets_default_media_gallery_image_limit() -> None:
     reader = MagicMock()
-    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # ruff:ignore[unused-lambda-argument]
         "webhooks": [{"name": "Main", "url": "https://discord.com/api/webhooks/123/abc"}],
         "screenshot_layout": "desktop",
         "delivery_mode": "embed",
@@ -489,7 +489,7 @@ def test_create_feed_sets_default_media_gallery_image_limit() -> None:
 
 def test_create_feed_sets_default_webhook_text_length_limit() -> None:
     reader = MagicMock()
-    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # ruff:ignore[unused-lambda-argument]
         "webhooks": [{"name": "Main", "url": "https://discord.com/api/webhooks/123/abc"}],
         "screenshot_layout": "desktop",
         "delivery_mode": "embed",
@@ -506,7 +506,7 @@ def test_create_feed_sets_default_webhook_text_length_limit() -> None:
 
 def test_create_feed_inherits_global_webhook_text_length_limit() -> None:
     reader = MagicMock()
-    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # ruff:ignore[unused-lambda-argument]
         "webhooks": [{"name": "Main", "url": "https://discord.com/api/webhooks/123/abc"}],
         "screenshot_layout": "desktop",
         "delivery_mode": "embed",
@@ -524,7 +524,7 @@ def test_create_feed_inherits_global_webhook_text_length_limit() -> None:
 
 def test_create_feed_falls_back_to_embed_when_global_delivery_mode_is_invalid() -> None:
     reader = MagicMock()
-    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # ruff:ignore[unused-lambda-argument]
         "webhooks": [{"name": "Main", "url": "https://discord.com/api/webhooks/123/abc"}],
         "screenshot_layout": "desktop",
         "delivery_mode": "invalid",
@@ -540,7 +540,7 @@ def test_create_feed_removes_new_feed_when_initial_update_fails() -> None:
     feed_url = "https://example.com/not-a-feed"
     autodiscover_links = [{"href": "https://example.com/feed.xml", "type": "application/rss+xml"}]
     reader = MagicMock()
-    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # ruff:ignore[unused-lambda-argument]
         "webhooks": [{"name": "Main", "url": "https://discord.com/api/webhooks/123/abc"}],
         ".reader.autodiscover": autodiscover_links,
     }.get(key, default)
@@ -556,7 +556,7 @@ def test_create_feed_removes_new_feed_when_initial_update_fails() -> None:
 def test_create_feed_does_not_remove_existing_feed_when_update_fails() -> None:
     feed_url = "https://example.com/existing-feed.xml"
     reader = MagicMock()
-    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # ruff:ignore[unused-lambda-argument]
         "webhooks": [{"name": "Main", "url": "https://discord.com/api/webhooks/123/abc"}],
     }.get(key, default)
     reader.add_feed.side_effect = FeedExistsError(feed_url)
@@ -582,7 +582,7 @@ def test_create_screenshot_webhook_adds_image_file(
     entry.id = "entry-abc"
     entry.link = "https://example.com/article"
     reader = MagicMock()
-    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # ruff:ignore[unused-lambda-argument]
         "screenshot_layout": "mobile",
     }.get(key, default)
 
@@ -619,7 +619,7 @@ def test_create_screenshot_webhook_retries_jpeg_when_png_too_large(
     entry.id = "entry-large"
     entry.link = "https://example.com/large-article"
     reader = MagicMock()
-    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # ruff:ignore[unused-lambda-argument]
         "screenshot_layout": "desktop",
     }.get(key, default)
 
@@ -655,7 +655,7 @@ def test_create_screenshot_webhook_falls_back_when_all_formats_too_large(
     entry.id = "entry-too-large"
     entry.link = "https://example.com/very-large"
     reader = MagicMock()
-    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # ruff:ignore[unused-lambda-argument]
         "screenshot_layout": "desktop",
     }.get(key, default)
 
@@ -758,7 +758,7 @@ def test_create_text_webhook_uses_feed_text_length_limit(mock_replace_tags_in_te
     entry = MagicMock()
     entry.feed.url = "https://example.com/feed.xml"
     reader = MagicMock()
-    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # ruff:ignore[unused-lambda-argument]
         "custom_message": "{{entry_title}}",
         "webhook_text_length_limit": 20,
     }.get(key, default)
@@ -784,7 +784,7 @@ def test_create_embed_webhook_uses_media_gallery_for_entry_images(
     mock_fetch_ttvdrops_campaign_media_items: MagicMock,
 ) -> None:
     reader = MagicMock()
-    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # ruff:ignore[unused-lambda-argument]
         "media_gallery_image_limit": 10,
         "webhook_text_length_limit": 4000,
     }.get(key, default)
@@ -830,7 +830,7 @@ def test_create_embed_webhook_uses_feed_text_length_limit_for_media_gallery(
     mock_fetch_ttvdrops_campaign_media_items: MagicMock,
 ) -> None:
     reader = MagicMock()
-    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # ruff:ignore[unused-lambda-argument]
         "media_gallery_image_limit": 10,
         "webhook_text_length_limit": 20,
     }.get(key, default)
@@ -862,7 +862,7 @@ def test_create_embed_webhook_can_limit_media_gallery_to_first_image(
     mock_fetch_ttvdrops_campaign_media_items: MagicMock,
 ) -> None:
     reader = MagicMock()
-    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # ruff:ignore[unused-lambda-argument]
         "media_gallery_image_limit": 1,
         "webhook_text_length_limit": 4000,
     }.get(key, default)
@@ -895,7 +895,7 @@ def test_create_embed_webhook_can_disable_media_images(
     mock_fetch_ttvdrops_campaign_media_items: MagicMock,
 ) -> None:
     reader = MagicMock()
-    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # ruff:ignore[unused-lambda-argument]
         "media_gallery_image_limit": 0,
         "webhook_text_length_limit": 4000,
     }.get(key, default)
@@ -931,7 +931,7 @@ def test_create_embed_webhook_can_use_steam_game_icon_thumbnail(
     mock_fetch_ttvdrops_campaign_media_items: MagicMock,
 ) -> None:
     reader = MagicMock()
-    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # ruff:ignore[unused-lambda-argument]
         "media_gallery_image_limit": 0,
         "webhook_text_length_limit": 4000,
     }.get(key, default)
@@ -971,7 +971,7 @@ def test_create_embed_webhook_prefers_local_steam_game_icon_thumbnail(
     local_icon_bytes = b"local-steam-icon"
 
     reader = MagicMock()
-    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # ruff:ignore[unused-lambda-argument]
         "media_gallery_image_limit": 0,
         "webhook_text_length_limit": 4000,
     }.get(key, default)
@@ -1013,7 +1013,7 @@ def test_create_embed_webhook_does_not_inject_steam_thumbnail_when_app_id_is_mis
     mock_fetch_ttvdrops_campaign_media_items: MagicMock,
 ) -> None:
     reader = MagicMock()
-    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # ruff:ignore[unused-lambda-argument]
         "media_gallery_image_limit": 0,
         "webhook_text_length_limit": 4000,
     }.get(key, default)
@@ -1047,7 +1047,7 @@ def test_create_embed_webhook_uses_feed_text_length_limit_for_regular_embed_desc
     mock_fetch_ttvdrops_campaign_media_items: MagicMock,
 ) -> None:
     reader = MagicMock()
-    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # ruff:ignore[unused-lambda-argument]
         "media_gallery_image_limit": 0,
         "webhook_text_length_limit": 20,
     }.get(key, default)
@@ -1294,7 +1294,7 @@ def test_send_entry_to_discord_uses_screenshot_mode(
     entry.feed.url = "https://example.com/feed.xml"
     entry.feed_url = "https://example.com/feed.xml"
 
-    reader.get_tag.side_effect = lambda resource, key, default=None: {  # noqa: ARG005
+    reader.get_tag.side_effect = lambda resource, key, default=None: {  # ruff:ignore[unused-lambda-argument]
         "webhook": "https://discord.com/api/webhooks/123/abc",
     }.get(key, default)
 
@@ -1339,7 +1339,7 @@ def test_send_entry_to_discord_youtube_feed(
     mock_entry.feed_url = "https://www.youtube.com/feeds/videos.xml?channel_id=123456"
 
     # Mock the tags
-    mock_reader.get_tag.side_effect = lambda feed, tag, default=None: {  # noqa: ARG005
+    mock_reader.get_tag.side_effect = lambda feed, tag, default=None: {  # ruff:ignore[unused-lambda-argument]
         "webhook": "https://discord.com/api/webhooks/123/abc",
         "should_send_embed": True,  # This should be ignored for YouTube feeds
     }.get(tag, default)

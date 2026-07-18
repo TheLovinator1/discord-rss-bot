@@ -38,7 +38,7 @@ repos:
 
   # An extremely fast Python linter and formatter.
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.16
+    rev: v0.15.22
     hooks:
       - id: ruff-format
         types_or: [ python, pyi, jupyter, pyproject ]

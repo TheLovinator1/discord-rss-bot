@@ -76,7 +76,7 @@ def fetch_hoyolab_post(post_id: str) -> JsonObject | None:
         return None
 
     http_ok = 200
-    try:  # noqa: PLW0717
+    try:  # ruff:ignore[too-many-statements-in-try-clause]
         url: str = f"https://bbs-api-os.hoyolab.com/community/post/wapi/getPostFull?post_id={post_id}"
         response: requests.Response = requests.get(url, timeout=10)
 
@@ -94,7 +94,7 @@ def fetch_hoyolab_post(post_id: str) -> JsonObject | None:
     return None
 
 
-def create_hoyolab_webhook(webhook_url: str, entry: Entry, post_data: JsonObject) -> DiscordWebhook:  # noqa: C901, PLR0912, PLR0914, PLR0915
+def create_hoyolab_webhook(webhook_url: str, entry: Entry, post_data: JsonObject) -> DiscordWebhook:  # ruff:ignore[complex-structure, too-many-branches, too-many-locals, too-many-statements]
     """Create a webhook with data from the Hoyolab API.
 
     Args:
@@ -184,8 +184,8 @@ def create_hoyolab_webhook(webhook_url: str, entry: Entry, post_data: JsonObject
 
     # Only show Youtube URL if available
     structured_content: str = str(post.get("structured_content", ""))
-    if structured_content:  # noqa: PLR1702
-        try:  # noqa: PLW0717
+    if structured_content:  # ruff:ignore[too-many-nested-blocks]
+        try:  # ruff:ignore[too-many-statements-in-try-clause]
             loaded_structured_content = cast("JsonValue", json.loads(structured_content))
             structured_content_data: list[JsonObject] = (
                 [cast("JsonObject", item) for item in loaded_structured_content if isinstance(item, dict)]

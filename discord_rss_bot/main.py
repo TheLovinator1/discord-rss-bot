@@ -65,6 +65,7 @@ from discord_rss_bot.feeds import get_feed_media_gallery_image_limit
 from discord_rss_bot.feeds import get_feed_webhook_text_length_limit
 from discord_rss_bot.feeds import get_screenshot_layout
 from discord_rss_bot.feeds import get_sent_webhook_records
+from discord_rss_bot.feeds import is_chromium_installed
 from discord_rss_bot.feeds import is_steam_feed_url
 from discord_rss_bot.feeds import send_entry_to_discord
 from discord_rss_bot.feeds import send_to_discord
@@ -138,7 +139,7 @@ LOGGING_CONFIG = {
     "disable_existing_loggers": False,
     "formatters": {
         "standard": {
-            "format": "%(asctime)s [%(processName)s: %(process)d] [%(threadName)s: %(thread)d] [%(levelname)s] %(name)s: %(message)s",  # noqa: E501
+            "format": "%(asctime)s [%(processName)s: %(process)d] [%(threadName)s: %(thread)d] [%(levelname)s] %(name)s: %(message)s",  # ruff:ignore[line-too-long]
         },
     },
     "handlers": {
@@ -1259,7 +1260,7 @@ async def get_embed_page(
 
 
 @app.post("/embed", response_class=HTMLResponse)
-async def post_embed(  # noqa: C901
+async def post_embed(  # ruff:ignore[complex-structure]
     feed_url: Annotated[str, Form()],
     reader: Annotated[Reader, Depends(get_reader_dependency)],
     title: Annotated[str, Form()] = "",
@@ -1272,6 +1273,7 @@ async def post_embed(  # noqa: C901
     author_icon_url: Annotated[str, Form()] = "",
     footer_text: Annotated[str, Form()] = "",
     footer_icon_url: Annotated[str, Form()] = "",
+    *,
     show_steam_game_icon_in_thumbnail: Annotated[bool, Form()] = False,
 ) -> RedirectResponse:
     """Set the embed settings.
@@ -1778,7 +1780,7 @@ def get_add(
 
 
 @app.get("/feed", response_class=HTMLResponse)
-async def get_feed(  # noqa: C901, PLR0912, PLR0914, PLR0915
+async def get_feed(  # ruff:ignore[complex-structure, too-many-branches, too-many-locals, too-many-statements]
     feed_url: str,
     request: Request,
     reader: Annotated[Reader, Depends(get_reader_dependency)],
@@ -1874,6 +1876,7 @@ async def get_feed(  # noqa: C901, PLR0912, PLR0914, PLR0915
                 "max_webhook_text_length_limit": 4000,
                 "save_sent_webhooks": feed_saves_sent_webhooks(reader, feed),
                 "is_steam_feed": is_steam_feed_url(feed.url),
+                "chromium_installed": is_chromium_installed(),
             }
             return templates.TemplateResponse(request=request, name="feed.html", context=context)
 
@@ -1941,11 +1944,12 @@ async def get_feed(  # noqa: C901, PLR0912, PLR0914, PLR0915
         "max_webhook_text_length_limit": 4000,
         "save_sent_webhooks": feed_saves_sent_webhooks(reader, feed),
         "is_steam_feed": is_steam_feed_url(feed.url),
+        "chromium_installed": is_chromium_installed(),
     }
     return templates.TemplateResponse(request=request, name="feed.html", context=context)
 
 
-def create_html_for_feed(  # noqa: C901, PLR0914
+def create_html_for_feed(  # ruff:ignore[complex-structure, too-many-locals]
     reader: Reader,
     entries: Iterable[Entry],
     current_feed_url: str = "",
@@ -2051,7 +2055,7 @@ def create_html_for_feed(  # noqa: C901, PLR0914
 {video_embed_html}
 {image_html}
 </div>
-"""  # noqa: E501
+"""  # ruff:ignore[line-too-long]
     return html.strip()
 
 
@@ -2152,7 +2156,7 @@ async def get_settings(
         global_delivery_mode = "embed"
 
     global_webhook_text_length_limit: int = coerce_webhook_text_length_limit(
-        reader.get_tag((), "webhook_text_length_limit", 4000)
+        reader.get_tag((), "webhook_text_length_limit", 4000),
     )
 
     # Get all feeds with their intervals
@@ -2181,6 +2185,7 @@ async def get_settings(
         "global_webhook_text_length_limit": global_webhook_text_length_limit,
         "max_webhook_text_length_limit": 4000,
         "feed_intervals": feed_intervals,
+        "chromium_installed": is_chromium_installed(),
     }
     return templates.TemplateResponse(request=request, name="settings.html", context=context)
 
@@ -2603,8 +2608,8 @@ def create_webhook_feed_url_preview(
     webhook_feeds: list[Feed],
     replace_from: str,
     replace_to: str,
-    resolve_urls: bool,  # noqa: FBT001
-    force_update: bool = False,  # noqa: FBT001, FBT002
+    resolve_urls: bool,  # ruff:ignore[boolean-type-hint-positional-argument]
+    force_update: bool = False,  # ruff:ignore[boolean-type-hint-positional-argument, boolean-default-value-positional-argument]
     existing_feed_urls: set[str] | None = None,
 ) -> list[dict[str, str | bool | None]]:
     """Create preview rows for bulk feed URL replacement.
@@ -2670,8 +2675,8 @@ def build_webhook_mass_update_context(
     all_feeds: list[Feed],
     replace_from: str,
     replace_to: str,
-    resolve_urls: bool,  # noqa: FBT001
-    force_update: bool = False,  # noqa: FBT001, FBT002
+    resolve_urls: bool,  # ruff:ignore[boolean-type-hint-positional-argument]
+    force_update: bool = False,  # ruff:ignore[boolean-type-hint-positional-argument, boolean-default-value-positional-argument]
 ) -> dict[str, str | bool | int | list[dict[str, str | bool | None]] | dict[str, int]]:
     """Build context data used by the webhook mass URL update preview UI.
 
@@ -2732,8 +2737,8 @@ async def get_webhook_entries_mass_update_preview(
     reader: Annotated[Reader, Depends(get_reader_dependency)],
     replace_from: str = "",
     replace_to: str = "",
-    resolve_urls: bool = True,  # noqa: FBT001, FBT002
-    force_update: bool = False,  # noqa: FBT001, FBT002
+    resolve_urls: bool = True,  # ruff:ignore[boolean-type-hint-positional-argument, boolean-default-value-positional-argument]
+    force_update: bool = False,  # ruff:ignore[boolean-type-hint-positional-argument, boolean-default-value-positional-argument]
 ) -> HTMLResponse:
     """Render the mass-update preview fragment for a webhook using HTMX.
 
@@ -2771,15 +2776,15 @@ async def get_webhook_entries_mass_update_preview(
 
 
 @app.get("/webhook_entries", response_class=HTMLResponse)
-async def get_webhook_entries(  # noqa: C901, PLR0914
+async def get_webhook_entries(  # ruff:ignore[complex-structure, too-many-locals]
     webhook_url: str,
     request: Request,
     reader: Annotated[Reader, Depends(get_reader_dependency)],
     starting_after: str = "",
     replace_from: str = "",
     replace_to: str = "",
-    resolve_urls: bool = True,  # noqa: FBT001, FBT002
-    force_update: bool = False,  # noqa: FBT001, FBT002
+    resolve_urls: bool = True,  # ruff:ignore[boolean-type-hint-positional-argument, boolean-default-value-positional-argument]
+    force_update: bool = False,  # ruff:ignore[boolean-type-hint-positional-argument, boolean-default-value-positional-argument]
     message: str = "",
 ) -> HTMLResponse:
     """Get all latest entries from all feeds for a specific webhook.
@@ -2901,13 +2906,13 @@ async def get_webhook_entries(  # noqa: C901, PLR0914
 
 
 @app.post("/bulk_change_feed_urls", response_class=HTMLResponse)
-async def post_bulk_change_feed_urls(  # noqa: C901, PLR0914, PLR0912, PLR0915
+async def post_bulk_change_feed_urls(  # ruff:ignore[complex-structure, too-many-locals, too-many-branches, too-many-statements]
     webhook_url: Annotated[str, Form()],
     replace_from: Annotated[str, Form()],
     reader: Annotated[Reader, Depends(get_reader_dependency)],
     replace_to: Annotated[str, Form()] = "",
-    resolve_urls: Annotated[bool, Form()] = True,  # noqa: FBT002
-    force_update: Annotated[bool, Form()] = False,  # noqa: FBT002
+    resolve_urls: Annotated[bool, Form()] = True,  # ruff:ignore[boolean-default-value-positional-argument]
+    force_update: Annotated[bool, Form()] = False,  # ruff:ignore[boolean-default-value-positional-argument]
 ) -> RedirectResponse:
     """Bulk-change feed URLs attached to a webhook.
 
@@ -3044,7 +3049,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "main:app",
         log_level="debug",
-        host="0.0.0.0",  # noqa: S104
+        host="0.0.0.0",  # ruff:ignore[hardcoded-bind-all-interfaces]
         port=3000,
         proxy_headers=True,
         forwarded_allow_ips="*",

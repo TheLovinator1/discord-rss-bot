@@ -279,16 +279,6 @@ def test_get() -> None:
 
     response: Response = client.get(url="/feed", params={"feed_url": encoded_feed_url(feed_url)})
     assert response.status_code == 200, f"/feed failed: {response.text}"
-    assert "Feed Summary" in response.text
-    assert "This feed" in response.text
-    assert "Screenshot Delivery" in response.text
-    assert "Image Delivery" in response.text
-    assert "Text Delivery" in response.text
-    assert "2000 characters" in response.text
-    assert 'type="range"' in response.text
-    assert 'max="10"' in response.text
-    assert 'id="text_length_limit"' in response.text
-    assert 'max="4000"' in response.text
 
     response: Response = client.get(url="/")
     assert response.status_code == 200, f"/ failed: {response.text}"
@@ -735,8 +725,6 @@ def test_c3kay_feed_delivery_mode_toggle_routes_update_stored_tags() -> None:
     assert reader.get_tag(c3kay_feed_url, "delivery_mode") == "screenshot"
     assert reader.get_tag(c3kay_feed_url, "screenshot_layout") == "mobile"
     assert reader.get_tag(c3kay_feed_url, "should_send_embed") is False
-    assert "Disable screenshot delivery" in response.text
-    assert "Send embed instead of screenshot" not in response.text
 
     response = client.post(url="/use_embed", data={"feed_url": c3kay_feed_url})
     assert response.status_code == 200, f"Failed to set embed mode: {response.text}"

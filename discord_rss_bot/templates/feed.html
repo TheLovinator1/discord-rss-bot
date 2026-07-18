@@ -103,7 +103,7 @@
                             {% elif delivery_mode == "screenshot" %}
                                 <li>Screenshot layout: {{ screenshot_layout }}.</li>
                             {% endif %}
-                            <li>Webhook text</li> is truncated to {{ webhook_text_length_limit }} characters.</li>
+                            <li>Webhook text is truncated to {{ webhook_text_length_limit }} characters.</li>
                             <li>
                                 Filters:
                                 {% if has_blacklist_filters and has_whitelist_filters %}
@@ -173,10 +173,13 @@
                                     <section class="mb-3">
                                         <h4 class="h6 text-muted mb-2">Delivery Mode</h4>
                                         <p class="text-muted small mb-2">
-                                            Choose between:<br>
-                                            Embed: a Discord embed with title, description, and images.<br>
+                                            Choose between:
+                                            <br>
+                                            Embed: a Discord embed with title, description, and images.
+                                            <br>
                                             {% if not "youtube.com/feeds/videos.xml" in feed.url %}
-                                                Screenshot: full-page screenshot of the entry link.<br>
+                                                Screenshot: full-page screenshot of the entry link.
+                                                <br>
                                             {% endif %}
                                             Text: plain message.
                                         </p>
@@ -184,39 +187,56 @@
                                             {% if delivery_mode != "embed" %}
                                                 <form action="/use_embed" method="post" class="d-inline">
                                                     <button class="btn btn-outline-light btn-sm"
-                                                            style="border-top-right-radius: 0; border-bottom-right-radius: 0;"
+                                                            style="border-top-right-radius: 0;
+                                                                   border-bottom-right-radius: 0"
                                                             name="feed_url"
                                                             value="{{ feed.url }}">Embed</button>
                                                 </form>
                                             {% else %}
                                                 <span class="btn btn-primary btn-sm disabled"
-                                                      style="border-top-right-radius: 0; border-bottom-right-radius: 0;">Embed</span>
+                                                      style="border-top-right-radius: 0;
+                                                             border-bottom-right-radius: 0">Embed</span>
                                             {% endif %}
                                             {% if not "youtube.com/feeds/videos.xml" in feed.url %}
-                                                {% if delivery_mode != "screenshot" %}
-                                                    <form action="/use_screenshot" method="post" class="d-inline">
-                                                        <button class="btn btn-outline-light btn-sm rounded-0"
-                                                                name="feed_url"
-                                                                value="{{ feed.url }}">Screenshot</button>
-                                                    </form>
+                                                {% if chromium_installed %}
+                                                    {% if delivery_mode != "screenshot" %}
+                                                        <form action="/use_screenshot" method="post" class="d-inline">
+                                                            <button class="btn btn-outline-light btn-sm rounded-0"
+                                                                    name="feed_url"
+                                                                    value="{{ feed.url }}">Screenshot</button>
+                                                        </form>
+                                                    {% else %}
+                                                        <span class="btn btn-primary btn-sm disabled rounded-0">Screenshot</span>
+                                                    {% endif %}
                                                 {% else %}
-                                                    <span class="btn btn-primary btn-sm disabled rounded-0">Screenshot</span>
+                                                    <span class="btn btn-outline-light btn-sm rounded-0"
+                                                          title="Playwright Chromium is not installed. Run 'uv run playwright install chromium' to enable."
+                                                          style="opacity: 0.5;
+                                                                 cursor: not-allowed">Screenshot</span>
                                                 {% endif %}
                                             {% endif %}
                                             {% if delivery_mode != "text" %}
                                                 <form action="/use_text" method="post" class="d-inline">
                                                     <button class="btn btn-outline-light btn-sm"
-                                                            style="border-top-left-radius: 0; border-bottom-left-radius: 0;"
+                                                            style="border-top-left-radius: 0;
+                                                                   border-bottom-left-radius: 0"
                                                             name="feed_url"
                                                             value="{{ feed.url }}">Text</button>
                                                 </form>
                                             {% else %}
                                                 <span class="btn btn-primary btn-sm disabled"
-                                                      style="border-top-left-radius: 0; border-bottom-left-radius: 0;">Text</span>
+                                                      style="border-top-left-radius: 0;
+                                                             border-bottom-left-radius: 0">Text</span>
                                             {% endif %}
                                         </div>
+                                        {% if not chromium_installed and not "youtube.com/feeds/videos.xml" in feed.url %}
+                                            <div class="mt-2 small text-muted">
+                                                Screenshot mode requires Chromium for Playwright.
+                                                Run <code class="text-light">uv run playwright install chromium</code> to enable it.
+                                            </div>
+                                        {% endif %}
                                     </section>
-                                    {% if delivery_mode == "screenshot" and not "youtube.com/feeds/videos.xml" in feed.url %}
+                                    {% if delivery_mode == "screenshot" and chromium_installed and not "youtube.com/feeds/videos.xml" in feed.url %}
                                         <hr class="border-secondary" />
                                         <section class="mb-3">
                                             <h4 class="h6 text-muted mb-2">Screenshot Layout</h4>
@@ -236,10 +256,6 @@
                                                     </form>
                                                     <span class="btn btn-primary btn-sm disabled">Desktop</span>
                                                 {% endif %}
-                                            </div>
-                                            <div class="mt-2 small text-muted">
-                                                Requires Chromium for Playwright. Run
-                                                <code class="text-light">uv run playwright install chromium</code> once.
                                             </div>
                                         </section>
                                     {% endif %}
@@ -283,7 +299,7 @@
                                                                oninput="this.form.elements.image_limit_value.value = this.value" />
                                                         <div class="d-flex justify-content-between text-muted small">
                                                             <span>0</span>
-</span>                                                            <span>{{ max_media_gallery_items }}</span>
+                                                            <span>{{ max_media_gallery_items }}</span>
                                                         </div>
                                                     </div>
                                                     <button class="btn btn-outline-light btn-sm" type="submit">Save image limit</button>
@@ -472,14 +488,10 @@
                                            href="/blacklist?feed_url={{ feed.url|encode_url }}">Blacklist</a>
                                         <div class="btn-group btn-group-sm" role="group">
                                             <a class="btn {{ 'btn-primary' if delivery_mode == 'text' else 'btn-outline-light' }}"
-                                               href="/custom?feed_url={{ feed.url|encode_url }}">
-                                                Customize message
-                                            </a>
+                                               href="/custom?feed_url={{ feed.url|encode_url }}">Customize message</a>
                                             {% if not "youtube.com/feeds/videos.xml" in feed.url %}
                                                 <a class="btn {{ 'btn-primary' if delivery_mode == 'embed' else 'btn-outline-light' }}"
-                                                   href="/embed?feed_url={{ feed.url|encode_url }}">
-                                                    Customize embed
-                                                </a>
+                                                   href="/embed?feed_url={{ feed.url|encode_url }}">Customize embed</a>
                                             {% endif %}
                                         </div>
                                     </div>

@@ -86,7 +86,7 @@ def test_data_dir() -> None:
 
 def test_default_custom_message() -> None:
     """Test the default custom message."""
-    assert_msg = f"The default custom message should be '{{entry_title}}\n{{entry_link}}'. But it was '{default_custom_message}'."  # noqa: E501
+    assert_msg = f"The default custom message should be '{{entry_title}}\n{{entry_link}}'. But it was '{default_custom_message}'."  # ruff:ignore[line-too-long]
     assert default_custom_message == "{{entry_title}}\n{{entry_link}}", assert_msg
 
 

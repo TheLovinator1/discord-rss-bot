@@ -3,7 +3,7 @@ from __future__ import annotations
 import contextlib
 import json
 import shutil
-import subprocess  # noqa: S404
+import subprocess  # ruff:ignore[suspicious-subprocess-import]
 from typing import TYPE_CHECKING
 from typing import cast
 from unittest.mock import MagicMock
@@ -579,7 +579,7 @@ def test_embed_backup_end_to_end(monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     assert response.status_code == 200, f"Failed to customize embed: {response.text}"
 
     # Verify a commit was created
-    result: subprocess.CompletedProcess[str] = subprocess.run(  # noqa: S603
+    result: subprocess.CompletedProcess[str] = subprocess.run(  # ruff:ignore[subprocess-without-shell-equals-true]
         [git_executable, "-C", str(backup_path), "log", "--oneline"],
         capture_output=True,
         text=True,
