@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import concurrent.futures
 import io
 import json
 import logging
@@ -15,6 +16,7 @@ from datetime import datetime
 from functools import lru_cache
 from html import escape
 from html import unescape
+from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import Annotated
 from typing import TypedDict
@@ -61,6 +63,7 @@ from discord_rss_bot.custom_message import get_message_username
 from discord_rss_bot.custom_message import replace_tags_in_text_message
 from discord_rss_bot.custom_message import save_embed
 from discord_rss_bot.feeds import FeedUpdateError
+from discord_rss_bot.feeds import JsonValue
 from discord_rss_bot.feeds import SentWebhookRecord
 from discord_rss_bot.feeds import coerce_media_gallery_image_limit
 from discord_rss_bot.feeds import coerce_webhook_text_length_limit
@@ -91,12 +94,15 @@ from discord_rss_bot.git_backup import commit_state_change
 from discord_rss_bot.git_backup import get_backup_path
 from discord_rss_bot.is_url_valid import is_url_valid
 from discord_rss_bot.search import create_search_context
+from discord_rss_bot.settings import data_dir
+from discord_rss_bot.settings import default_custom_embed
+from discord_rss_bot.settings import default_custom_message
 from discord_rss_bot.settings import get_reader
+from discord_rss_bot.settings import make_app_reader
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
     from collections.abc import Iterable
-    from pathlib import Path
 
     from reader.types import JSONType
 
@@ -2649,12 +2655,439 @@ async def manual_backup(
     return RedirectResponse(url=f"/?message={urllib.parse.quote(message)}", status_code=303)
 
 
+def _get_grouped_feeds(reader: Reader) -> list[dict[str, typing.Any]]:
+    """Build a list of webhook groups with pre-computed indices for template use.
+
+    Each group dict contains:
+        name: The webhook name (or "Orphaned (no webhook)").
+        group_idx: 1-based index for the group.
+        feeds: List of dicts with:
+            feed: The Feed object.
+            feed_idx: 1-based index within the group.
+
+    Returns:
+        list[dict]: Grouped feeds with pre-computed indices for template rendering.
+    """
+    hooks: list[dict[str, str]] = cast("list[dict[str, str]]", list(reader.get_tag((), "webhooks", [])))
+
+    feeds_by_webhook: dict[str, list[Feed]] = {}
+    orphaned: list[Feed] = []
+
+    for feed in reader.get_feeds():
+        feed_webhook: str = str(reader.get_tag(feed.url, "webhook", ""))
+        hook_name: str = ""
+        for hook in hooks:
+            if hook["url"] == feed_webhook:
+                hook_name = hook["name"]
+                break
+        if hook_name:
+            feeds_by_webhook.setdefault(hook_name, []).append(feed)
+        else:
+            orphaned.append(feed)
+
+    grouped: list[dict[str, typing.Any]] = []
+    for group_idx, (name, feed_list) in enumerate(feeds_by_webhook.items(), start=1):
+        grouped.append({
+            "name": name,
+            "group_idx": group_idx,
+            "feeds": [{"feed": f, "feed_idx": idx} for idx, f in enumerate(feed_list, start=1)],
+        })
+    if orphaned:
+        grouped.append({
+            "name": "Orphaned (no webhook)",
+            "group_idx": len(grouped) + 1,
+            "feeds": [{"feed": f, "feed_idx": idx} for idx, f in enumerate(orphaned, start=1)],
+        })
+
+    return grouped
+
+
+@app.get("/mass", response_class=HTMLResponse)
+async def get_mass(
+    request: Request,
+    reader: Annotated[Reader, Depends(get_reader_dependency)],
+    active_tab: str = "create",
+) -> HTMLResponse:
+    """Mass operations page: create, delete, or modify feeds in bulk.
+
+    Args:
+        request: The request object.
+        reader: The Reader instance.
+        active_tab: The active tab (create, delete, modify).
+
+    Returns:
+        HTMLResponse: The mass operations page.
+    """
+    hooks: list[dict[str, str]] = cast("list[dict[str, str]]", list(reader.get_tag((), "webhooks", [])))
+
+    context: dict[str, typing.Any] = {
+        "request": request,
+        "webhooks": hooks,
+        "all_feeds_grouped": _get_grouped_feeds(reader),
+        "active_tab": active_tab,
+    }
+    return templates.TemplateResponse(request=request, name="mass.html", context=context)
+
+
+def _create_and_tag_feed(reader: Reader, feed_url: str, webhook_url: str) -> str | None:
+    """Add a feed and set its tags, without updating.
+
+    Returns:
+        The feed URL on success, or None if adding failed.
+    """
+    clean_url: str = feed_url.strip()
+    try:
+        reader.add_feed(clean_url)
+    except FeedExistsError:
+        pass
+    except ReaderError:
+        return None
+
+    reader.set_tag(clean_url, "webhook", webhook_url)  # pyright: ignore[reportArgumentType]
+    reader.set_tag(clean_url, "save_sent_webhooks", True)  # pyright: ignore[reportArgumentType]
+    reader.set_tag(clean_url, "media_gallery_image_limit", cast("JSONType", 1))
+
+    global_webhook_text_length_limit: int = coerce_webhook_text_length_limit(
+        cast("JsonValue", reader.get_tag((), "webhook_text_length_limit", 4000)),  # pyright: ignore[reportArgumentType]
+    )
+    reader.set_tag(clean_url, "webhook_text_length_limit", cast("JSONType", global_webhook_text_length_limit))
+    reader.set_tag(clean_url, "custom_message", default_custom_message)  # pyright: ignore[reportArgumentType]
+
+    global_screenshot_layout: str = str(reader.get_tag((), "screenshot_layout", "desktop")).strip().lower()
+    if global_screenshot_layout not in {"desktop", "mobile"}:
+        global_screenshot_layout = "desktop"
+    reader.set_tag(clean_url, "screenshot_layout", global_screenshot_layout)  # pyright: ignore[reportArgumentType]
+
+    global_delivery_mode: str = str(reader.get_tag((), "delivery_mode", "embed")).strip().lower()
+    if global_delivery_mode not in {"embed", "text"}:
+        global_delivery_mode = "embed"
+    reader.set_tag(clean_url, "delivery_mode", global_delivery_mode)  # pyright: ignore[reportArgumentType]
+    reader.set_tag(clean_url, "should_send_embed", global_delivery_mode == "embed")  # pyright: ignore[reportArgumentType]
+    reader.set_tag(clean_url, "embed", json.dumps(default_custom_embed))  # pyright: ignore[reportArgumentType]
+
+    return clean_url
+
+
+def _modify_single_feed(  # ruff:ignore[complex-structure, too-many-branches, too-many-statements]
+    reader: Reader,
+    url: str,
+    modify_action: str,
+    modify_value: str,
+) -> dict[str, typing.Any]:
+    """Apply a modification action to a single feed and return the result.
+
+    Args:
+        reader: The Reader instance.
+        url: The feed URL to modify.
+        modify_action: The action to perform.
+        modify_value: The value for the action.
+
+    Returns:
+        dict: Result with url, success, error, and action_taken keys.
+    """
+    result: dict[str, typing.Any] = {
+        "url": url,
+        "success": False,
+        "error": "",
+        "action_taken": "",
+    }
+
+    try:
+        reader.get_feed(url)
+    except FeedNotFoundError:
+        result["error"] = "Feed not found"
+        return result
+
+    if modify_action == "pause":
+        reader.disable_feed_updates(url)
+        result["success"] = True
+        result["action_taken"] = "Paused"
+    elif modify_action == "unpause":
+        reader.enable_feed_updates(url)
+        result["success"] = True
+        result["action_taken"] = "Unpaused"
+    elif modify_action == "change_webhook":
+        webhooks: list[dict[str, str]] = cast("list[dict[str, str]]", list(reader.get_tag((), "webhooks", [])))
+        webhook_url: str = ""
+        for hook in webhooks:
+            if hook["name"] == modify_value:
+                webhook_url = hook["url"]
+                break
+        if webhook_url:
+            reader.set_tag(url, "webhook", webhook_url)  # pyright: ignore[reportArgumentType]
+            result["success"] = True
+            result["action_taken"] = f"Webhook changed to {modify_value}"
+        else:
+            result["error"] = f"Webhook '{modify_value}' not found"
+    elif modify_action == "delivery_mode":
+        if modify_value == "embed":
+            reader.set_tag(url, "delivery_mode", "embed")  # pyright: ignore[reportArgumentType]
+            reader.set_tag(url, "should_send_embed", True)  # pyright: ignore[reportArgumentType]
+            result["success"] = True
+            result["action_taken"] = "Delivery mode set to embed"
+        elif modify_value == "text":
+            reader.set_tag(url, "delivery_mode", "text")  # pyright: ignore[reportArgumentType]
+            reader.set_tag(url, "should_send_embed", False)  # pyright: ignore[reportArgumentType]
+            result["success"] = True
+            result["action_taken"] = "Delivery mode set to text"
+        elif modify_value == "screenshot_desktop":
+            reader.set_tag(url, "delivery_mode", "screenshot")  # pyright: ignore[reportArgumentType]
+            reader.set_tag(url, "screenshot_layout", "desktop")  # pyright: ignore[reportArgumentType]
+            result["success"] = True
+            result["action_taken"] = "Delivery mode set to screenshot (desktop)"
+        elif modify_value == "screenshot_mobile":
+            reader.set_tag(url, "delivery_mode", "screenshot")  # pyright: ignore[reportArgumentType]
+            reader.set_tag(url, "screenshot_layout", "mobile")  # pyright: ignore[reportArgumentType]
+            result["success"] = True
+            result["action_taken"] = "Delivery mode set to screenshot (mobile)"
+        else:
+            result["error"] = f"Unknown delivery mode: {modify_value}"
+    elif modify_action == "screenshot_layout":
+        if modify_value in {"desktop", "mobile"}:
+            reader.set_tag(url, "screenshot_layout", modify_value)  # pyright: ignore[reportArgumentType]
+            result["success"] = True
+            result["action_taken"] = f"Screenshot layout set to {modify_value}"
+        else:
+            result["error"] = f"Unknown layout: {modify_value}"
+    elif modify_action == "update_interval":
+        try:
+            interval: int = int(modify_value)
+        except ValueError as e:
+            result["error"] = str(e)
+            return result
+        if interval < 1:
+            result["error"] = "Interval must be at least 1 minute"
+        else:
+            reader.set_tag(url, ".reader.update", {"interval": interval})  # pyright: ignore[reportArgumentType]
+            result["success"] = True
+            result["action_taken"] = f"Update interval set to {interval} minute(s)"  # ruff:ignore[hardcoded-sql-expression]
+    else:
+        result["error"] = f"Unknown action: {modify_action}"
+
+    return result
+
+
+def _update_and_mark_read(db_path: Path, feed_url: str) -> tuple[str, bool, str]:
+    """Update a feed and mark entries as read, in its own reader instance.
+
+    Called from worker threads to parallelize HTTP fetches.
+
+    Returns:
+        (feed_url, success, error_message)
+    """
+    worker_reader: Reader = make_app_reader(db_path)
+    try:
+        worker_reader.update_feed(feed_url)
+        for entry in worker_reader.get_entries(feed=feed_url, read=False):
+            worker_reader.set_entry_read(entry, True)
+    except ReaderError as e:
+        logger.warning("Failed to update feed %s: %s", feed_url, e)
+        return feed_url, False, str(e)[:200]
+    except Exception as e:
+        logger.exception("Unexpected error updating feed %s", feed_url)
+        return feed_url, False, str(e)[:200]
+    finally:
+        worker_reader.close()
+    return feed_url, True, ""
+
+
+@app.post("/mass/create", response_class=HTMLResponse)
+async def post_mass_create(  # ruff:ignore[complex-structure]
+    request: Request,
+    feed_urls: Annotated[str, Form()],
+    webhook_dropdown: Annotated[str, Form()],
+    reader: Annotated[Reader, Depends(get_reader_dependency)],
+) -> HTMLResponse:
+    """Create multiple feeds at once.
+
+    Phase 1: Add feeds and set tags (sequential, fast, no HTTP).
+    Phase 2: Update feeds in parallel via a thread pool.
+
+    Args:
+        request: The request object.
+        feed_urls: Feed URLs (one per line).
+        webhook_dropdown: The webhook to attach feeds to.
+        reader: The Reader instance.
+
+    Returns:
+        HTMLResponse: The mass operations page with results.
+
+    Raises:
+        HTTPException: If the selected webhook is not found.
+    """
+    urls: list[str] = [url.strip() for url in feed_urls.strip().split("\n") if url.strip()]
+    results: list[dict[str, typing.Any]] = []
+
+    webhooks: list[dict[str, str]] = cast("list[dict[str, str]]", list(reader.get_tag((), "webhooks", [])))
+
+    # Resolve webhook name to URL once for all feeds
+    webhook_url: str = ""
+    for hook in webhooks:
+        if hook["name"] == webhook_dropdown:
+            webhook_url = hook["url"]
+            break
+
+    if not webhook_url:
+        raise HTTPException(status_code=404, detail="Webhook not found")
+
+    # Phase 1: Add feeds and set tags (sequential, fast)
+    urls_to_update: list[str] = []
+    for url in urls:
+        added_url: str | None = _create_and_tag_feed(reader, url, webhook_url)
+        if added_url:
+            urls_to_update.append(added_url)
+            results.append({"url": url, "success": False, "feed_url": None, "error": ""})
+            continue
+        results.append({"url": url, "success": False, "feed_url": None, "error": "Failed to add feed"})
+
+    # Phase 2: Update feeds in parallel
+    if urls_to_update:
+        db_path: Path = Path(data_dir) / "db.sqlite"
+        max_workers: int = min(10, len(urls_to_update))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_url = {executor.submit(_update_and_mark_read, db_path, u): u for u in urls_to_update}
+            for future in concurrent.futures.as_completed(future_to_url):
+                original_url: str = future_to_url[future]
+                feed_url, update_success, error_msg = future.result()
+                # Find and update the matching result entry
+                for result in results:
+                    if result["url"] == original_url:
+                        result["success"] = update_success
+                        result["feed_url"] = feed_url if update_success else None
+                        result["error"] = error_msg
+                        break
+
+        reader.update_search()
+
+    success_count: int = sum(1 for r in results if r["success"])
+    if success_count > 0:
+        commit_state_change(reader, f"Mass create {success_count} feed(s)")
+
+    context: dict[str, typing.Any] = {
+        "request": request,
+        "webhooks": webhooks,
+        "all_feeds_grouped": _get_grouped_feeds(reader),
+        "active_tab": "create",
+        "feed_urls": feed_urls,
+        "selected_webhook": webhook_dropdown,
+        "create_results": results,
+        "message": f"Created {success_count} of {len(results)} feed(s).",
+    }
+    return templates.TemplateResponse(request=request, name="mass.html", context=context)
+
+
+@app.post("/mass/delete", response_class=HTMLResponse)
+async def post_mass_delete(
+    request: Request,
+    reader: Annotated[Reader, Depends(get_reader_dependency)],
+    feed_urls: Annotated[list[str] | None, Form()] = None,
+) -> HTMLResponse:
+    """Delete multiple feeds at once.
+
+    Args:
+        request: The request object.
+        reader: The Reader instance.
+        feed_urls: List of feed URLs to delete.
+
+    Returns:
+        HTMLResponse: The mass operations page with results.
+    """
+    if feed_urls is None:
+        feed_urls = []
+    results: list[dict[str, typing.Any]] = []
+
+    for url in feed_urls:
+        result: dict[str, typing.Any] = {"url": url, "success": False, "error": ""}
+        try:
+            reader.delete_feed(url)
+            result["success"] = True
+        except FeedNotFoundError:
+            result["error"] = "Feed not found"
+        except Exception as e:  # ruff:ignore[blind-except]
+            result["error"] = str(e)[:200]
+        results.append(result)
+
+    deleted_count: int = sum(1 for r in results if r["success"])
+    if deleted_count > 0:
+        commit_state_change(reader, f"Mass delete {deleted_count} feed(s)")
+
+    webhooks: list[dict[str, str]] = cast("list[dict[str, str]]", list(reader.get_tag((), "webhooks", [])))
+
+    failed_count: int = len(results) - deleted_count
+    context: dict[str, typing.Any] = {
+        "request": request,
+        "webhooks": webhooks,
+        "all_feeds_grouped": _get_grouped_feeds(reader),
+        "active_tab": "delete",
+        "delete_results": results,
+        "delete_summary": {"deleted": deleted_count, "failed": failed_count},
+        "message": f"Deleted {deleted_count} feed(s). {failed_count} failed.",
+    }
+    return templates.TemplateResponse(request=request, name="mass.html", context=context)
+
+
+@app.post("/mass/modify", response_class=HTMLResponse)
+async def post_mass_modify(
+    request: Request,
+    reader: Annotated[Reader, Depends(get_reader_dependency)],
+    feed_urls: Annotated[list[str] | None, Form()] = None,
+    modify_action: Annotated[str, Form()] = "",
+    modify_value: Annotated[str, Form()] = "",
+) -> HTMLResponse:
+    """Modify multiple feeds at once.
+
+    Args:
+        request: The request object.
+        reader: The Reader instance.
+        feed_urls: List of feed URLs to modify.
+        modify_action: The action to perform (pause, unpause, change_webhook, etc.).
+        modify_value: The value for the action.
+
+    Returns:
+        HTMLResponse: The mass operations page with results.
+    """
+    feed_urls_list: list[str] = feed_urls if feed_urls is not None else []
+    results: list[dict[str, typing.Any]] = []
+
+    for url in feed_urls_list:
+        try:
+            result = _modify_single_feed(reader, url, modify_action, modify_value)
+        except Exception as e:
+            logger.exception("Failed to modify feed %s", url)
+            result = {"url": url, "success": False, "error": str(e)[:200], "action_taken": ""}
+        results.append(result)
+
+    modified_count: int = sum(1 for r in results if r["success"])
+    failed_count: int = sum(1 for r in results if not r["success"])
+    if modified_count > 0:
+        commit_state_change(reader, f"Mass modify {modified_count} feed(s)")
+
+    webhooks = cast("list[dict[str, str]]", list(reader.get_tag((), "webhooks", [])))
+
+    context: dict[str, typing.Any] = {
+        "request": request,
+        "webhooks": webhooks,
+        "all_feeds_grouped": _get_grouped_feeds(reader),
+        "active_tab": "modify",
+        "modify_results": results,
+        "modify_action": modify_action,
+        "modify_value": modify_value,
+        "modify_summary": {
+            "modified": modified_count,
+            "failed": failed_count,
+            "skipped": 0,
+        },
+        "message": f"Modified {modified_count} feed(s). {failed_count} failed.",
+    }
+    return templates.TemplateResponse(request=request, name="mass.html", context=context)
+
+
 @app.get("/search", response_class=HTMLResponse)
 async def search(
     request: Request,
     query: str,
     reader: Annotated[Reader, Depends(get_reader_dependency)],
-):
+) -> HTMLResponse:
     """Get entries matching a full-text search query.
 
     Args:

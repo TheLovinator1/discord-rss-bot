@@ -1,0 +1,355 @@
+{% extends "base.html" %}
+{% block title %}
+    Mass operations | discord-rss-bot
+{% endblock title %}
+{% block description %}
+    Mass create, delete, or modify RSS feeds in bulk.
+{% endblock description %}
+{% block content %}
+    {% if message %}
+        <div class="alert alert-info alert-dismissible fade show" role="alert">
+            <pre>{{ message }}</pre>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    {% endif %}
+    <ul class="nav nav-tabs nav-dark border-dark mb-3" id="massTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link text-muted {% if active_tab == 'create' %}active bg-dark text-light{% endif %}"
+                    id="create-tab"
+                    data-bs-toggle="tab"
+                    data-bs-target="#create"
+                    type="button"
+                    role="tab"
+                    aria-controls="create"
+                    aria-selected="{% if active_tab == 'create' %}true{% else %}false{% endif %}">
+                Mass Create
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link text-muted {% if active_tab == 'delete' %}active bg-dark text-light{% endif %}"
+                    id="delete-tab"
+                    data-bs-toggle="tab"
+                    data-bs-target="#delete"
+                    type="button"
+                    role="tab"
+                    aria-controls="delete"
+                    aria-selected="{% if active_tab == 'delete' %}true{% else %}false{% endif %}">
+                Mass Delete
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link text-muted {% if active_tab == 'modify' %}active bg-dark text-light{% endif %}"
+                    id="modify-tab"
+                    data-bs-toggle="tab"
+                    data-bs-target="#modify"
+                    type="button"
+                    role="tab"
+                    aria-controls="modify"
+                    aria-selected="{% if active_tab == 'modify' %}true{% else %}false{% endif %}">
+                Mass Modify
+            </button>
+        </li>
+    </ul>
+    <div class="tab-content" id="massTabsContent">
+        {# ===== Mass Create ===== #}
+        <div class="tab-pane fade {% if active_tab == 'create' %}show active{% endif %}"
+             id="create"
+             role="tabpanel"
+             aria-labelledby="create-tab">
+            <div class="card border border-dark p-3 text-light">
+                <h3 class="h5">Create multiple feeds</h3>
+                <p class="text-muted small mb-3">Enter one feed URL per line. All feeds will be attached to the selected webhook.</p>
+                <form action="/mass/create" method="post">
+                    <div class="mb-3">
+                        <label for="feed_urls" class="form-label">Feed URLs (one per line)</label>
+                        <textarea name="feed_urls"
+                                  id="feed_urls"
+                                  class="form-control bg-dark border-dark text-muted"
+                                  rows="10"
+                                  placeholder="https://example.com/feed.xml&#10;https://other.com/rss&#10;https://third.com/atom">{{ feed_urls or '' }}</textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="webhook_dropdown" class="form-label">Webhook</label>
+                        <select class="form-select bg-dark border-dark text-muted"
+                                id="webhook_dropdown"
+                                name="webhook_dropdown"
+                                required>
+                            <option value="" {% if not selected_webhook %}selected{% endif %} disabled>Choose webhook...</option>
+                            {% for hook in webhooks %}
+                                <option value="{{ hook.name }}"
+                                        {% if hook.name == selected_webhook %}selected{% endif %}>{{ hook.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Create all feeds</button>
+                </form>
+            </div>
+            {% if create_results %}
+                <div class="card border border-dark p-3 text-light mt-3">
+                    <h3 class="h5">Results</h3>
+                    <ul class="list-unstyled mb-0">
+                        {% for result in create_results %}
+                            <li class="mb-2 {% if result.success %}text-success{% else %}text-danger{% endif %}">
+                                <strong>{{ result.url }}</strong>
+                                {% if result.success %}
+                                    &check; Added
+                                    {% if result.feed_url %}
+                                        - <a class="text-success" href="/feed?feed_url={{ result.feed_url|encode_url }}">View feed</a>
+                                    {% endif %}
+                                {% else %}
+                                    &cross; {{ result.error }}
+                                {% endif %}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+        </div>
+        {# ===== Mass Delete ===== #}
+        <div class="tab-pane fade {% if active_tab == 'delete' %}show active{% endif %}"
+             id="delete"
+             role="tabpanel"
+             aria-labelledby="delete-tab">
+            <div class="card border border-dark p-3 text-light">
+                <h3 class="h5">Delete multiple feeds</h3>
+                <p class="text-muted small mb-3">Select feeds to delete. This action cannot be undone.</p>
+                {% if all_feeds_grouped %}
+                    <form id="mass-delete-form" action="/mass/delete" method="post">
+                        {% for group in all_feeds_grouped %}
+                            <div class="mb-3 border border-dark p-2">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h4 class="h6 mb-0">{{ group.name }} ({{ group.feeds|length }})</h4>
+                                    <div>
+                                        <button type="button"
+                                                class="btn btn-outline-light btn-sm select-all"
+                                                data-group="{{ group.group_idx }}">Select all</button>
+                                        <button type="button"
+                                                class="btn btn-outline-secondary btn-sm deselect-all"
+                                                data-group="{{ group.group_idx }}">Deselect all</button>
+                                    </div>
+                                </div>
+                                <ul class="list-unstyled mb-0">
+                                    {% for item in group.feeds %}
+                                        {% set feed = item.feed %}
+                                        <li class="form-check">
+                                            <input class="form-check-input mass-delete-checkbox group-{{ group.group_idx }}"
+                                                   type="checkbox"
+                                                   name="feed_urls"
+                                                   value="{{ feed.url }}"
+                                                   id="delete-{{ group.group_idx }}-{{ item.feed_idx }}" />
+                                            <label class="form-check-label text-muted" for="delete-{{ group.group_idx }}-{{ item.feed_idx }}">
+                                                {% if feed.title %}
+                                                    {{ feed.title }}
+                                                {% else %}
+                                                    {{ feed.url }}
+                                                {% endif %}
+                                                {% if feed.title %}<span class="small">- {{ feed.url }}</span>{% endif %}
+                                                {% if not feed.updates_enabled %}<span class="text-warning small">Paused</span>{% endif %}
+                                                {% if feed.last_exception %}<span class="text-danger small">Error</span>{% endif %}
+                                            </label>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        {% endfor %}
+                        <button type="submit"
+                                class="btn btn-danger"
+                                onclick="return confirm('Are you sure you want to delete the selected feeds? This cannot be undone.');">
+                            Delete selected feeds
+                        </button>
+                    </form>
+                {% else %}
+                    <p class="text-muted mb-0">No feeds found.</p>
+                {% endif %}
+            </div>
+            {% if delete_results %}
+                <div class="card border border-dark p-3 text-light mt-3">
+                    <h3 class="h5">Results</h3>
+                    <ul class="list-unstyled mb-0">
+                        {% for result in delete_results %}
+                            <li class="mb-2 {% if result.success %}text-success{% else %}text-danger{% endif %}">
+                                <strong>{{ result.url }}</strong>
+                                {% if result.success %}
+                                    &check; Deleted
+                                {% else %}
+                                    &cross; {{ result.error }}
+                                {% endif %}
+                            </li>
+                        {% endfor %}
+                        <li class="mt-2 text-muted">{{ delete_summary.deleted }} deleted, {{ delete_summary.failed }} failed</li>
+                    </ul>
+                </div>
+            {% endif %}
+        </div>
+        {# ===== Mass Modify ===== #}
+        <div class="tab-pane fade {% if active_tab == 'modify' %}show active{% endif %}"
+             id="modify"
+             role="tabpanel"
+             aria-labelledby="modify-tab">
+            <div class="card border border-dark p-3 text-light">
+                <h3 class="h5">Modify multiple feeds</h3>
+                <p class="text-muted small mb-3">Select feeds and choose a setting to update.</p>
+                {% if all_feeds_grouped %}
+                    <form id="mass-modify-form" action="/mass/modify" method="post">
+                        {% for group in all_feeds_grouped %}
+                            <div class="mb-3 border border-dark p-2">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h4 class="h6 mb-0">{{ group.name }} ({{ group.feeds|length }})</h4>
+                                    <div>
+                                        <button type="button"
+                                                class="btn btn-outline-light btn-sm select-all"
+                                                data-group="modify-{{ group.group_idx }}">Select all</button>
+                                        <button type="button"
+                                                class="btn btn-outline-secondary btn-sm deselect-all"
+                                                data-group="modify-{{ group.group_idx }}">Deselect all</button>
+                                    </div>
+                                </div>
+                                <ul class="list-unstyled mb-0">
+                                    {% for item in group.feeds %}
+                                        {% set feed = item.feed %}
+                                        <li class="form-check">
+                                            <input class="form-check-input mass-modify-checkbox group-modify-{{ group.group_idx }}"
+                                                   type="checkbox"
+                                                   name="feed_urls"
+                                                   value="{{ feed.url }}"
+                                                   id="modify-{{ group.group_idx }}-{{ item.feed_idx }}" />
+                                            <label class="form-check-label text-muted"
+                                                   for="modify-{{ group.group_idx }}-{{ item.feed_idx }}">
+                                                {% if feed.title %}
+                                                    {{ feed.title }}
+                                                {% else %}
+                                                    {{ feed.url }}
+                                                {% endif %}
+                                                {% if feed.title %}<span class="small">- {{ feed.url }}</span>{% endif %}
+                                                {% if not feed.updates_enabled %}<span class="text-warning small">Paused</span>{% endif %}
+                                            </label>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        {% endfor %}
+                        <hr class="border-secondary" />
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label for="modify_action" class="form-label">Action</label>
+                                <select class="form-select bg-dark border-dark text-muted"
+                                        id="modify_action"
+                                        name="modify_action"
+                                        required>
+                                    <option value="" disabled {% if not modify_action %}selected{% endif %}>Choose action...</option>
+                                    <option value="pause" {% if modify_action == 'pause' %}selected{% endif %}>Pause (disable updates)</option>
+                                    <option value="unpause" {% if modify_action == 'unpause' %}selected{% endif %}>Unpause (enable updates)</option>
+                                    <option value="change_webhook" {% if modify_action == 'change_webhook' %}selected{% endif %}>Change webhook</option>
+                                    <option value="delivery_mode" {% if modify_action == 'delivery_mode' %}selected{% endif %}>Change delivery mode</option>
+                                    <option value="screenshot_layout" {% if modify_action == 'screenshot_layout' %}selected{% endif %}>Change screenshot layout</option>
+                                    <option value="update_interval" {% if modify_action == 'update_interval' %}selected{% endif %}>Change update interval (minutes)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4" id="modify-value-group">
+                                <label for="modify_value" class="form-label">Value</label>
+                                <div id="modify-value-dynamic">
+                                    <input type="text"
+                                           name="modify_value"
+                                           id="modify_value"
+                                           class="form-control bg-dark border-dark text-muted"
+                                           value="{{ modify_value or '' }}"
+                                           placeholder="New value" />
+                                </div>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-warning mt-3">Apply to selected feeds</button>
+                    </form>
+                {% else %}
+                    <p class="text-muted mb-0">No feeds found.</p>
+                {% endif %}
+            </div>
+            {% if modify_results %}
+                <div class="card border border-dark p-3 text-light mt-3">
+                    <h3 class="h5">Results</h3>
+                    <ul class="list-unstyled mb-0">
+                        {% for result in modify_results %}
+                            <li class="mb-2 {% if result.success %}text-success{% else %}text-danger{% endif %}">
+                                <strong>{{ result.url }}</strong>
+                                {% if result.success %}
+                                    &check; {{ result.action_taken }}
+                                {% else %}
+                                    &cross; {{ result.error }}
+                                {% endif %}
+                            </li>
+                        {% endfor %}
+                        <li class="mt-2 text-muted">
+                            {{ modify_summary.modified }} modified, {{ modify_summary.failed }} failed, {{ modify_summary.skipped }} skipped
+                        </li>
+                    </ul>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+{% endblock content %}
+{% block head %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Select/Deselect all for mass delete and modify checkboxes
+            document.querySelectorAll('.select-all').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var group = this.getAttribute('data-group');
+                    document.querySelectorAll('.group-' + group).forEach(function(cb) {
+                        cb.checked = true;
+                    });
+                });
+            });
+            document.querySelectorAll('.deselect-all').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var group = this.getAttribute('data-group');
+                    document.querySelectorAll('.group-' + group).forEach(function(cb) {
+                        cb.checked = false;
+                    });
+                });
+            });
+
+            // Dynamic value field for modify action
+            var actionSelect = document.getElementById('modify_action');
+            var valueDynamic = document.getElementById('modify-value-dynamic');
+            if (actionSelect && valueDynamic) {
+                function updateModifyValueField() {
+                    var action = actionSelect.value;
+                    var html = '';
+                    if (action === 'pause' || action === 'unpause') {
+                        html = '<p class="text-muted small mt-2">No additional value needed.</p>';
+                    } else if (action === 'change_webhook') {
+                        html = `<select name="modify_value" class="form-select bg-dark border-dark text-muted" required>
+                                    <option value="" disabled selected>Choose webhook...</option>
+                                    {% for hook in webhooks %}
+                                        <option value="{{ hook.name }}">{{ hook.name }}</option>
+                                    {% endfor %}
+                                </select>`;
+                    } else if (action === 'delivery_mode') {
+                        html = `<select name="modify_value" class="form-select bg-dark border-dark text-muted" required>
+                                    <option value="" disabled selected>Choose mode...</option>
+                                    <option value="embed">Embed</option>
+                                    <option value="text">Text</option>
+                                    <option value="screenshot_desktop">Screenshot (Desktop)</option>
+                                    <option value="screenshot_mobile">Screenshot (Mobile)</option>
+                                </select>`;
+                    } else if (action === 'screenshot_layout') {
+                        html = `<select name="modify_value" class="form-select bg-dark border-dark text-muted" required>
+                                    <option value="" disabled selected>Choose layout...</option>
+                                    <option value="desktop">Desktop</option>
+                                    <option value="mobile">Mobile</option>
+                                </select>`;
+                    } else if (action === 'update_interval') {
+                        html = '<input type="number" name="modify_value" class="form-control bg-dark border-dark text-muted" required min="1" value="15" placeholder="Minutes" />';
+                    } else {
+                        html = '<input type="text" name="modify_value" class="form-control bg-dark border-dark text-muted" placeholder="Value" />';
+                    }
+                    valueDynamic.innerHTML = html;
+                }
+                actionSelect.addEventListener('change', updateModifyValueField);
+                // Init
+                if (actionSelect.value) {
+                    updateModifyValueField();
+                }
+            }
+        });
+    </script>
+{% endblock head %}

@@ -14,8 +14,10 @@ from typing import cast
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 from reader import FeedExistsError
+from reader import FeedNotFoundError
 
 import discord_rss_bot.main as main_module
 from discord_rss_bot import feeds
@@ -26,7 +28,6 @@ from discord_rss_bot.main import get_reader_dependency
 if TYPE_CHECKING:
     from pathlib import Path
 
-    import pytest
     from httpx2 import Response
     from reader import Entry
     from reader import Reader
@@ -3355,3 +3356,532 @@ def test_post_set_custom_clears_username_and_avatar() -> None:
         assert not stub.set_tag.call_args_list[1].args[2]
     finally:
         app.dependency_overrides = {}
+
+
+# ---------------------------------------------------------------------------
+# Mass operations tests
+# ---------------------------------------------------------------------------
+
+
+class _StubFeedForMass:
+    """Minimal feed stub for mass operations tests."""
+
+    def __init__(self, url: str, title: str | None = None, updates_enabled: bool = True) -> None:  # ruff:ignore[boolean-default-value-positional-argument, boolean-type-hint-positional-argument]
+        self.url: str = url
+        self.title: str | None = title
+        self.updates_enabled: bool = updates_enabled
+        self.last_exception: str | None = None
+
+
+class _StubReaderForMass:
+    """Stub reader with feeds grouped under a webhook, used by mass operations tests."""
+
+    def __init__(
+        self,
+        feeds: list[_StubFeedForMass] | None = None,
+        *,
+        webhook_name: str = "",
+        webhook_url: str = "",
+        delete_fail: bool = False,
+    ) -> None:
+        self._feeds: list[_StubFeedForMass] = feeds or []
+        self._webhook_name: str = webhook_name
+        self._webhook_url: str = webhook_url
+        self._delete_fail: bool = delete_fail
+        self.set_tag_calls: list[tuple[str, str, object]] = []
+        self.disabled_feeds: set[str] = set()
+        self.enabled_feeds: set[str] = set()
+
+    def get_feeds(self) -> list[_StubFeedForMass]:
+        """Return the list of feeds."""
+        return self._feeds
+
+    def get_tag(self, resource: tuple[()] | str, key: str, default: TestTagValue = None) -> TestTagValue:  # ruff:ignore[too-many-return-statements]
+        """Return stored tag values."""
+        if resource == () and key == "webhooks":
+            if self._webhook_name:
+                return [{"name": self._webhook_name, "url": self._webhook_url}]
+            return []
+        if resource == () and key == "delivery_mode":
+            return "embed"
+        if resource == () and key == "webhook_text_length_limit":
+            return 4000
+        if resource == () and key == "screenshot_layout":
+            return "desktop"
+        if isinstance(resource, str) and key == "webhook":
+            return self._webhook_url
+        return default
+
+    def set_tag(self, resource: str, key: str, value: object) -> None:  # pyright: ignore[reportArgumentType]
+        """Record tag set calls."""
+        self.set_tag_calls.append((resource, key, value))
+
+    def update_search(self) -> None:
+        """No-op search index update."""
+
+    def delete_feed(self, url: str) -> None:
+        """Delete a feed by URL.
+
+        Raises:
+            RuntimeError: If delete_fail was set in the constructor.
+        """
+        if self._delete_fail:
+            msg = "Delete failed"
+            raise RuntimeError(msg)
+        self._feeds = [f for f in self._feeds if f.url != url]
+
+    def get_feed(self, url: str) -> _StubFeedForMass:
+        """Get a feed by URL.
+
+        Returns:
+            The matching feed.
+
+        Raises:
+            FeedNotFoundError: If no feed matches the URL.
+        """
+        for feed in self._feeds:
+            if feed.url == url:
+                return feed
+        raise FeedNotFoundError(url)
+
+    def disable_feed_updates(self, url: str) -> None:
+        """Disable updates for a feed."""
+        self.disabled_feeds.add(url)
+        self.enabled_feeds.discard(url)
+
+    def enable_feed_updates(self, url: str) -> None:
+        """Enable updates for a feed."""
+        self.enabled_feeds.add(url)
+        self.disabled_feeds.discard(url)
+
+    def add_feed(self, url: str) -> None:
+        """Add a feed to the stub."""
+        self._feeds.append(_StubFeedForMass(url=url))
+
+
+MASS_FEED_1_URL: str = "https://example.com/feed1.xml"
+MASS_FEED_2_URL: str = "https://example.com/feed2.xml"
+MASS_WEBHOOK_NAME: str = "Mass test webhook"
+MASS_WEBHOOK_URL: str = "https://discord.com/api/webhooks/mass/abc"
+
+
+@pytest.fixture
+def mass_stub_reader() -> _StubReaderForMass:
+    """Create a stub reader with feeds for mass operations tests.
+
+    Returns:
+        A configured stub reader instance.
+    """
+    return _StubReaderForMass(
+        feeds=[
+            _StubFeedForMass(url=MASS_FEED_1_URL, title="Feed One"),
+            _StubFeedForMass(url=MASS_FEED_2_URL, title="Feed Two", updates_enabled=False),
+        ],
+        webhook_name=MASS_WEBHOOK_NAME,
+        webhook_url=MASS_WEBHOOK_URL,
+    )
+
+
+class TestMassPage:
+    """Tests for the mass operations page."""
+
+    def test_mass_page_loads(self, mass_stub_reader: _StubReaderForMass) -> None:
+        """GET /mass should render all three tabs."""
+        app.dependency_overrides[get_reader_dependency] = lambda: mass_stub_reader
+        try:
+            response: Response = client.get("/mass")
+            assert response.status_code == 200
+            assert "Mass Create" in response.text
+            assert "Mass Delete" in response.text
+            assert "Mass Modify" in response.text
+        finally:
+            app.dependency_overrides = {}
+
+    def test_mass_page_shows_feeds_when_webhook_exists(self, mass_stub_reader: _StubReaderForMass) -> None:
+        """GET /mass should list feeds grouped by webhook."""
+        app.dependency_overrides[get_reader_dependency] = lambda: mass_stub_reader
+        try:
+            response: Response = client.get("/mass")
+            assert response.status_code == 200
+            assert MASS_WEBHOOK_NAME in response.text
+            assert "Feed One" in response.text
+            assert "Feed Two" in response.text
+        finally:
+            app.dependency_overrides = {}
+
+    def test_mass_page_no_feeds_shows_empty_state(self) -> None:
+        """GET /mass with no feeds should show 'No feeds found'."""
+        stub = _StubReaderForMass(webhook_name=MASS_WEBHOOK_NAME, webhook_url=MASS_WEBHOOK_URL)
+        app.dependency_overrides[get_reader_dependency] = lambda: stub
+        try:
+            response: Response = client.get("/mass")
+            assert response.status_code == 200
+            assert "No feeds found" in response.text
+        finally:
+            app.dependency_overrides = {}
+
+    def test_mass_page_defaults_to_create_tab(self, mass_stub_reader: _StubReaderForMass) -> None:
+        """GET /mass without active_tab should default to create tab."""
+        app.dependency_overrides[get_reader_dependency] = lambda: mass_stub_reader
+        try:
+            response: Response = client.get("/mass")
+            assert response.status_code == 200
+            assert 'id="create-tab"' in response.text
+            assert 'aria-selected="true"' in response.text
+        finally:
+            app.dependency_overrides = {}
+
+    def test_mass_page_respects_active_tab_param(self, mass_stub_reader: _StubReaderForMass) -> None:
+        """GET /mass?active_tab=delete should show delete tab active."""
+        app.dependency_overrides[get_reader_dependency] = lambda: mass_stub_reader
+        try:
+            response: Response = client.get("/mass?active_tab=delete")
+            assert response.status_code == 200
+            assert "Delete multiple feeds" in response.text
+        finally:
+            app.dependency_overrides = {}
+
+    def test_mass_page_shows_webhooks_in_create_form(self, mass_stub_reader: _StubReaderForMass) -> None:
+        """The mass create tab should list webhooks in the dropdown."""
+        app.dependency_overrides[get_reader_dependency] = lambda: mass_stub_reader
+        try:
+            response: Response = client.get("/mass")
+            assert response.status_code == 200
+            assert MASS_WEBHOOK_NAME in response.text
+            assert "Create all feeds" in response.text
+        finally:
+            app.dependency_overrides = {}
+
+
+class TestMassDelete:
+    """Tests for POST /mass/delete."""
+
+    def test_delete_selected_feeds(self, mass_stub_reader: _StubReaderForMass) -> None:
+        """POST /mass/delete with feed URLs should delete them."""
+        app.dependency_overrides[get_reader_dependency] = lambda: mass_stub_reader
+        try:
+            with patch("discord_rss_bot.main.commit_state_change"):
+                response: Response = client.post(
+                    "/mass/delete",
+                    data={"feed_urls": [MASS_FEED_1_URL, MASS_FEED_2_URL]},
+                )
+            assert response.status_code == 200
+            assert "Deleted 2 feed(s)" in response.text
+        finally:
+            app.dependency_overrides = {}
+
+    def test_delete_no_selection(self, mass_stub_reader: _StubReaderForMass) -> None:
+        """POST /mass/delete with no feed URLs should not crash."""
+        app.dependency_overrides[get_reader_dependency] = lambda: mass_stub_reader
+        try:
+            response: Response = client.post("/mass/delete")
+            assert response.status_code == 200
+            assert "Deleted 0 feed(s)" in response.text
+        finally:
+            app.dependency_overrides = {}
+
+    def test_delete_feed_error_does_not_crash(self) -> None:
+        """POST /mass/delete should handle reader errors gracefully."""
+        stub = _StubReaderForMass(
+            feeds=[_StubFeedForMass(url=MASS_FEED_1_URL)],
+            delete_fail=True,
+        )
+        app.dependency_overrides[get_reader_dependency] = lambda: stub
+        try:
+            response: Response = client.post("/mass/delete", data={"feed_urls": [MASS_FEED_1_URL]})
+            assert response.status_code == 200
+            assert "0 deleted, 1 failed" in response.text
+        finally:
+            app.dependency_overrides = {}
+
+
+class TestMassModify:
+    """Tests for POST /mass/modify."""
+
+    def test_modify_pause_feed(self, mass_stub_reader: _StubReaderForMass) -> None:
+        """POST /mass/modify with pause action should disable feed updates."""
+        app.dependency_overrides[get_reader_dependency] = lambda: mass_stub_reader
+        try:
+            with patch("discord_rss_bot.main.commit_state_change"):
+                response: Response = client.post(
+                    "/mass/modify",
+                    data={
+                        "feed_urls": [MASS_FEED_1_URL],
+                        "modify_action": "pause",
+                        "modify_value": "",
+                    },
+                )
+            assert response.status_code == 200
+            assert MASS_FEED_1_URL in response.text
+            assert "Modified 1 feed(s)" in response.text
+            assert MASS_FEED_1_URL in mass_stub_reader.disabled_feeds
+        finally:
+            app.dependency_overrides = {}
+
+    def test_modify_unpause_feed(self, mass_stub_reader: _StubReaderForMass) -> None:
+        """POST /mass/modify with unpause action should enable feed updates."""
+        app.dependency_overrides[get_reader_dependency] = lambda: mass_stub_reader
+        try:
+            with patch("discord_rss_bot.main.commit_state_change"):
+                response: Response = client.post(
+                    "/mass/modify",
+                    data={
+                        "feed_urls": [MASS_FEED_2_URL],
+                        "modify_action": "unpause",
+                        "modify_value": "",
+                    },
+                )
+            assert response.status_code == 200
+            assert "Modified 1 feed(s)" in response.text
+            assert MASS_FEED_2_URL in mass_stub_reader.enabled_feeds
+        finally:
+            app.dependency_overrides = {}
+
+    def test_modify_nonexistent_feed(self, mass_stub_reader: _StubReaderForMass) -> None:
+        """POST /mass/modify for a non-existent feed should report error."""
+        nonexistent = "https://example.com/nonexistent.xml"
+        app.dependency_overrides[get_reader_dependency] = lambda: mass_stub_reader
+        try:
+            response: Response = client.post(
+                "/mass/modify",
+                data={
+                    "feed_urls": [nonexistent],
+                    "modify_action": "pause",
+                    "modify_value": "",
+                },
+            )
+            assert response.status_code == 200
+            assert "0 modified, 1 failed" in response.text
+            assert "Feed not found" in response.text
+        finally:
+            app.dependency_overrides = {}
+
+    def test_modify_unknown_action(self, mass_stub_reader: _StubReaderForMass) -> None:
+        """POST /mass/modify with an unknown action should report error."""
+        app.dependency_overrides[get_reader_dependency] = lambda: mass_stub_reader
+        try:
+            response: Response = client.post(
+                "/mass/modify",
+                data={
+                    "feed_urls": [MASS_FEED_1_URL],
+                    "modify_action": "nonexistent_action",
+                    "modify_value": "",
+                },
+            )
+            assert response.status_code == 200
+            assert "0 modified, 1 failed" in response.text
+            assert "Unknown action" in response.text
+        finally:
+            app.dependency_overrides = {}
+
+    def test_modify_change_webhook_updates_tag(self, mass_stub_reader: _StubReaderForMass) -> None:
+        """POST /mass/modify with change_webhook should call set_tag with the new webhook URL."""
+        app.dependency_overrides[get_reader_dependency] = lambda: mass_stub_reader
+        try:
+            with patch("discord_rss_bot.main.commit_state_change"):
+                response: Response = client.post(
+                    "/mass/modify",
+                    data={
+                        "feed_urls": [MASS_FEED_1_URL],
+                        "modify_action": "change_webhook",
+                        "modify_value": MASS_WEBHOOK_NAME,
+                    },
+                )
+            assert response.status_code == 200
+            assert "Modified 1 feed(s)" in response.text
+            # Check that set_tag was called with the webhook tag
+            webhook_calls = [c for c in mass_stub_reader.set_tag_calls if c[1] == "webhook"]
+            assert len(webhook_calls) == 1
+            assert webhook_calls[0][2] == MASS_WEBHOOK_URL
+        finally:
+            app.dependency_overrides = {}
+
+    def test_modify_unknown_webhook_reports_error(self, mass_stub_reader: _StubReaderForMass) -> None:
+        """POST /mass/modify with a non-existent webhook name should report error."""
+        app.dependency_overrides[get_reader_dependency] = lambda: mass_stub_reader
+        try:
+            response: Response = client.post(
+                "/mass/modify",
+                data={
+                    "feed_urls": [MASS_FEED_1_URL],
+                    "modify_action": "change_webhook",
+                    "modify_value": "Nonexistent Hook",
+                },
+            )
+            assert response.status_code == 200
+            assert "0 modified, 1 failed" in response.text
+            assert "not found" in response.text
+        finally:
+            app.dependency_overrides = {}
+
+    def test_modify_delivery_mode_embed(self, mass_stub_reader: _StubReaderForMass) -> None:
+        """POST /mass/modify with delivery_mode=embed should set delivery_mode and should_send_embed."""
+        app.dependency_overrides[get_reader_dependency] = lambda: mass_stub_reader
+        try:
+            with patch("discord_rss_bot.main.commit_state_change"):
+                response: Response = client.post(
+                    "/mass/modify",
+                    data={
+                        "feed_urls": [MASS_FEED_1_URL],
+                        "modify_action": "delivery_mode",
+                        "modify_value": "embed",
+                    },
+                )
+            assert response.status_code == 200
+            assert "Modified 1 feed(s)" in response.text
+            delivery_calls = [c for c in mass_stub_reader.set_tag_calls if c[1] == "delivery_mode"]
+            embed_calls = [c for c in mass_stub_reader.set_tag_calls if c[1] == "should_send_embed"]
+            assert len(delivery_calls) == 1
+            assert delivery_calls[0][2] == "embed"
+            assert len(embed_calls) == 1
+            assert embed_calls[0][2] is True
+        finally:
+            app.dependency_overrides = {}
+
+    def test_modify_delivery_mode_text(self, mass_stub_reader: _StubReaderForMass) -> None:
+        """POST /mass/modify with delivery_mode=text should set should_send_embed to False."""
+        app.dependency_overrides[get_reader_dependency] = lambda: mass_stub_reader
+        try:
+            with patch("discord_rss_bot.main.commit_state_change"):
+                response: Response = client.post(
+                    "/mass/modify",
+                    data={
+                        "feed_urls": [MASS_FEED_1_URL],
+                        "modify_action": "delivery_mode",
+                        "modify_value": "text",
+                    },
+                )
+            assert response.status_code == 200
+            assert "Modified 1 feed(s)" in response.text
+            embed_calls = [c for c in mass_stub_reader.set_tag_calls if c[1] == "should_send_embed"]
+            assert len(embed_calls) == 1
+            assert embed_calls[0][2] is False
+        finally:
+            app.dependency_overrides = {}
+
+    def test_modify_update_interval(self, mass_stub_reader: _StubReaderForMass) -> None:
+        """POST /mass/modify with update_interval should store the interval."""
+        app.dependency_overrides[get_reader_dependency] = lambda: mass_stub_reader
+        try:
+            with patch("discord_rss_bot.main.commit_state_change"):
+                response: Response = client.post(
+                    "/mass/modify",
+                    data={
+                        "feed_urls": [MASS_FEED_1_URL],
+                        "modify_action": "update_interval",
+                        "modify_value": "30",
+                    },
+                )
+            assert response.status_code == 200
+            assert "Modified 1 feed(s)" in response.text
+            update_calls = [c for c in mass_stub_reader.set_tag_calls if c[1] == ".reader.update"]
+            assert len(update_calls) == 1
+            assert update_calls[0][2] == {"interval": 30}
+        finally:
+            app.dependency_overrides = {}
+
+    def test_modify_update_interval_invalid(self, mass_stub_reader: _StubReaderForMass) -> None:
+        """POST /mass/modify with non-numeric update_interval should report error."""
+        app.dependency_overrides[get_reader_dependency] = lambda: mass_stub_reader
+        try:
+            response: Response = client.post(
+                "/mass/modify",
+                data={
+                    "feed_urls": [MASS_FEED_1_URL],
+                    "modify_action": "update_interval",
+                    "modify_value": "not-a-number",
+                },
+            )
+            assert response.status_code == 200
+            assert "0 modified, 1 failed" in response.text
+        finally:
+            app.dependency_overrides = {}
+
+    def test_modify_no_selection(self, mass_stub_reader: _StubReaderForMass) -> None:
+        """POST /mass/modify with no feed URLs should not crash."""
+        app.dependency_overrides[get_reader_dependency] = lambda: mass_stub_reader
+        try:
+            response: Response = client.post(
+                "/mass/modify",
+                data={"modify_action": "pause", "modify_value": ""},
+            )
+            assert response.status_code == 200
+            assert "Modified 0 feed(s)" in response.text
+        finally:
+            app.dependency_overrides = {}
+
+
+class TestMassCreate:
+    """Tests for POST /mass/create."""
+
+    def test_create_rejects_missing_webhook(self) -> None:
+        """POST /mass/create without a valid webhook should return 404."""
+        stub = _StubReaderForMass()
+        app.dependency_overrides[get_reader_dependency] = lambda: stub
+        try:
+            response: Response = client.post(
+                "/mass/create",
+                data={
+                    "feed_urls": "https://example.com/feed.xml",
+                    "webhook_dropdown": "nonexistent",
+                },
+            )
+            assert response.status_code == 404
+            assert "Webhook not found" in response.text
+        finally:
+            app.dependency_overrides = {}
+
+    def test_create_single_url(self) -> None:
+        """POST /mass/create with a single URL should attempt to create it."""
+        stub = _StubReaderForMass(webhook_name=MASS_WEBHOOK_NAME, webhook_url=MASS_WEBHOOK_URL)
+        app.dependency_overrides[get_reader_dependency] = lambda: stub
+        try:
+            with (
+                patch("discord_rss_bot.main._update_and_mark_read") as mock_update,
+                patch("discord_rss_bot.main.commit_state_change"),
+            ):
+                mock_update.return_value = ("https://example.com/new-feed.xml", True, "")
+                response: Response = client.post(
+                    "/mass/create",
+                    data={
+                        "feed_urls": "https://example.com/new-feed.xml",
+                        "webhook_dropdown": MASS_WEBHOOK_NAME,
+                    },
+                )
+            assert response.status_code == 200
+        finally:
+            app.dependency_overrides = {}
+
+    def test_create_multiple_urls(self) -> None:
+        """POST /mass/create with multiple URLs should attempt to create them."""
+        stub = _StubReaderForMass(webhook_name=MASS_WEBHOOK_NAME, webhook_url=MASS_WEBHOOK_URL)
+        app.dependency_overrides[get_reader_dependency] = lambda: stub
+        try:
+            with (
+                patch("discord_rss_bot.main._update_and_mark_read") as mock_update,
+                patch("discord_rss_bot.main.commit_state_change"),
+            ):
+                mock_update.side_effect = [
+                    ("https://example.com/feed1.xml", True, ""),
+                    ("https://example.com/feed2.xml", True, ""),
+                ]
+                response: Response = client.post(
+                    "/mass/create",
+                    data={
+                        "feed_urls": "https://example.com/feed1.xml\nhttps://example.com/feed2.xml",
+                        "webhook_dropdown": MASS_WEBHOOK_NAME,
+                    },
+                )
+            assert response.status_code == 200
+        finally:
+            app.dependency_overrides = {}
+
+
+class TestMassNav:
+    """Tests for the mass operations navigation link."""
+
+    def test_mass_link_in_navbar(self) -> None:
+        """The navbar should contain a link to the mass operations page."""
+        response: Response = client.get("/")
+        assert response.status_code == 200
+        assert "/mass" in response.text, f"Expected /mass link in navbar: {response.text}"
