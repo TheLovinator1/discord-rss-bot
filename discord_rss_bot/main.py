@@ -4,6 +4,7 @@ import json
 import logging
 import logging.config
 import re
+import tempfile
 import typing
 import urllib.parse
 from contextlib import asynccontextmanager
@@ -42,6 +43,7 @@ from reader import Reader
 from reader import ReaderError
 from reader import TagNotFoundError
 from starlette.responses import RedirectResponse
+from starlette.responses import Response as StarletteResponse
 
 from discord_rss_bot.custom_filters import entry_is_blacklisted
 from discord_rss_bot.custom_filters import entry_is_whitelisted
@@ -2389,6 +2391,33 @@ async def update_feed(
 
     logger.info("Manually updated feed: %s", feed_url)
     return RedirectResponse(url="/feed?feed_url=" + urllib.parse.quote(feed_url), status_code=303)
+
+
+@app.get("/export")
+def export_database(
+    reader: Annotated[Reader, Depends(get_reader_dependency)],
+) -> StarletteResponse:
+    """Export the entire database as a compressed SQLite file.
+
+    Args:
+        reader: The Reader instance.
+
+    Returns:
+        StarletteResponse: The exported database file for download.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        export_path: Path = reader._storage.export(tmpdir, "discord-rss-bot-export")  # ruff:ignore[private-member-access]
+        filename: str = export_path.name
+        file_bytes: bytes = export_path.read_bytes()
+
+    return StarletteResponse(
+        content=file_bytes,
+        status_code=200,
+        headers={
+            "Content-Type": "application/gzip",
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
 
 
 @app.post("/backup")
