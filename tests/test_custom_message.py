@@ -330,6 +330,43 @@ def test_replace_tags_in_embed_uses_last_content_item(
     assert "New content" in embed.description
 
 
+@patch("discord_rss_bot.custom_message.get_embed")
+def test_replace_tags_in_embed_converts_escaped_newlines(
+    mock_get_embed: MagicMock,
+) -> None:
+    r"""Verify \\n in embed fields becomes actual newlines, and fields without \\n are unchanged."""
+    mock_reader = MagicMock()
+    mock_get_embed.return_value = CustomEmbed(
+        title="Line 1\\nLine 2",
+        description="{{entry_text}}\\ntest\\test2",
+        author_name="Author\\nSubtitle",
+        footer_text="Footer\\n\\nMore",
+    )
+    entry_ns: SimpleNamespace = make_entry("<p>Summary</p>")
+
+    entry: Entry = typing.cast("Entry", entry_ns)
+    embed: CustomEmbed = replace_tags_in_embed(entry_ns.feed, entry, reader=mock_reader)
+
+    # Fields with \\n should have actual newlines
+    assert "\n" in embed.title
+    assert embed.title == "Line 1\nLine 2"
+    assert "\n" in embed.author_name
+    assert embed.author_name == "Author\nSubtitle"
+    assert "\n" in embed.footer_text
+    assert embed.footer_text == "Footer\n\nMore"
+
+    # Description combines tag replacement with \\n conversion.
+    # "{{entry_text}}\\ntest\\\\test2" becomes "Summary text\ntest\\test2".
+    assert "\n" in embed.description
+    assert embed.description == "Summary\ntest\\test2"
+
+    # Fields without \\n should be unchanged (backward compat) - none here but
+    # cover other fields that had no \\n originally
+    assert "\\n" not in embed.title
+    assert "\\n" not in embed.author_name
+    assert "\\n" not in embed.footer_text
+
+
 def test_get_custom_message_returns_empty_string_on_value_error() -> None:
     reader = MagicMock()
     feed = make_feed()

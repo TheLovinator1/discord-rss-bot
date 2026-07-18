@@ -218,6 +218,12 @@
                     message, please contact the developer.
                     {% endif %}
                 </div>
+                <div class="form-text">
+                    <ul class="list-inline">
+                        <li>You can use \n to create a new line.</li>
+                        <li>You can remove the embed from links by adding &lt; and &gt; around the link. (For example &lt;{% raw %}{{entry_link}}{% endraw %}&gt;)</li>
+                    </ul>
+                </div>
                 <label for="title" class="col-sm-6 col-form-label">Title</label>
                 <input name="title" type="text" class="form-control bg-dark border-dark text-muted" id="title"
                     {% if title %} value="{{- title -}}" {% endif %} />

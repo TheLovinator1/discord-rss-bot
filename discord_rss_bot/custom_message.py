@@ -318,7 +318,7 @@ def replace_tags_in_embed(feed: Feed, entry: Entry, reader: Reader) -> CustomEmb
     entry_updated: str = entry.updated.strftime("%Y-%m-%d %H:%M:%S") if entry.updated else "Never"
 
     if embed.title and not embed.author_name and embed.author_url:
-        msg = "You are using author_url without author_name, but has title set. We will use author_name instead of title when sending the embed to Discord."  # noqa: E501
+        msg = "You are using author_url without author_name, but has title set. We will use author_name instead of title when sending the embed to Discord."  # ruff:ignore[line-too-long]
         logger.info(msg)
         embed.author_name = embed.title
         embed.title = ""
@@ -356,6 +356,17 @@ def replace_tags_in_embed(feed: Feed, entry: Entry, reader: Reader) -> CustomEmb
     for replacement in list_of_replacements:
         for template, replace_with in replacement.items():
             _replace_embed_tags(embed, template, replace_with)
+
+    embed.title = embed.title.replace("\\n", "\n")
+    embed.description = embed.description.replace("\\n", "\n")
+    embed.author_name = embed.author_name.replace("\\n", "\n")
+    embed.author_url = embed.author_url.replace("\\n", "\n")
+    embed.author_icon_url = embed.author_icon_url.replace("\\n", "\n")
+    embed.image_url = embed.image_url.replace("\\n", "\n")
+    embed.thumbnail_url = embed.thumbnail_url.replace("\\n", "\n")
+    embed.footer_text = embed.footer_text.replace("\\n", "\n")
+    embed.footer_icon_url = embed.footer_icon_url.replace("\\n", "\n")
+
     return embed
 
 
@@ -541,7 +552,11 @@ def get_embed(reader: Reader, feed: Feed) -> CustomEmbed:
 
 
 def coerce_embed_bool(value: object) -> bool:
-    """Normalize stored embed booleans from JSON or form-like values."""
+    """Normalize stored embed booleans from JSON or form-like values.
+
+    Returns:
+        The coerced boolean value.
+    """
     if isinstance(value, bool):
         return value
     if isinstance(value, int):
