@@ -759,7 +759,7 @@ def test_set_feed_save_sent_webhooks_route_updates_stored_tag() -> None:
             assert feed_url == self.feed.url
             return self.feed
 
-        def set_tag(self, resource: str, key: str, value: bool) -> None:  # noqa: FBT001
+        def set_tag(self, resource: str, key: str, value: bool) -> None:  # ruff:ignore[boolean-type-hint-positional-argument]
             self.tags[resource, key] = value
 
     stub_reader = StubReader()
@@ -2301,7 +2301,7 @@ def test_bulk_change_feed_urls_updates_matching_feeds() -> None:
         def get_entries(self, **_kwargs: TestKwargValue) -> list[Entry]:
             return []
 
-        def set_entry_read(self, _entry: Entry, _value: bool) -> None:  # noqa: FBT001
+        def set_entry_read(self, _entry: Entry, _value: bool) -> None:  # ruff:ignore[boolean-type-hint-positional-argument]
             return
 
     stub_reader = StubReader()
@@ -2386,7 +2386,7 @@ def test_webhook_entries_mass_update_preview_fragment_endpoint() -> None:
         app.dependency_overrides = {}
 
 
-def test_bulk_change_feed_urls_force_update_overwrites_conflict() -> None:  # noqa: C901
+def test_bulk_change_feed_urls_force_update_overwrites_conflict() -> None:  # ruff:ignore[complex-structure]
     """Force update should overwrite conflicting target URLs instead of skipping them."""
 
     @dataclass(slots=True)
@@ -2429,7 +2429,7 @@ def test_bulk_change_feed_urls_force_update_overwrites_conflict() -> None:  # no
         def get_entries(self, **_kwargs: TestKwargValue) -> list[Entry]:
             return []
 
-        def set_entry_read(self, _entry: Entry, _value: bool) -> None:  # noqa: FBT001
+        def set_entry_read(self, _entry: Entry, _value: bool) -> None:  # ruff:ignore[boolean-type-hint-positional-argument]
             return
 
     stub_reader = StubReader()
@@ -2503,7 +2503,7 @@ def test_bulk_change_feed_urls_force_update_ignores_resolution_error() -> None:
         def get_entries(self, **_kwargs: TestKwargValue) -> list[Entry]:
             return []
 
-        def set_entry_read(self, _entry: Entry, _value: bool) -> None:  # noqa: FBT001
+        def set_entry_read(self, _entry: Entry, _value: bool) -> None:  # ruff:ignore[boolean-type-hint-positional-argument]
             return
 
     stub_reader = StubReader()
@@ -2903,10 +2903,13 @@ def test_post_set_custom_saves_message() -> None:
             )
 
         assert response.status_code == 303, f"Expected 303 redirect, got {response.status_code}: {response.text}"
-        stub.set_tag.assert_called_once()
-        _feed_arg, key_arg, value_arg = stub.set_tag.call_args.args
-        assert key_arg == "custom_message"
-        assert value_arg == "Hello {{entry_title}}!"
+        assert stub.set_tag.call_count == 3
+        # First two calls should be username/avatar
+        assert stub.set_tag.call_args_list[0].args[1] == "message_username"
+        assert stub.set_tag.call_args_list[1].args[1] == "message_avatar_url"
+        # Third call should be custom_message
+        assert stub.set_tag.call_args_list[2].args[1] == "custom_message"
+        assert stub.set_tag.call_args_list[2].args[2] == "Hello {{entry_title}}!"
     finally:
         app.dependency_overrides = {}
 
@@ -2931,10 +2934,13 @@ def test_post_set_custom_allows_clearing_message() -> None:
             )
 
         assert response.status_code == 303, f"Expected 303 redirect, got {response.status_code}: {response.text}"
-        stub.set_tag.assert_called_once()
-        _feed_arg, key_arg, value_arg = stub.set_tag.call_args.args
-        assert key_arg == "custom_message"
-        assert not value_arg, f"Expected empty custom_message to be saved, got {value_arg!r}"
+        assert stub.set_tag.call_count == 3
+        # First two calls should be username/avatar
+        assert stub.set_tag.call_args_list[0].args[1] == "message_username"
+        assert stub.set_tag.call_args_list[1].args[1] == "message_avatar_url"
+        # Third call should be custom_message (empty, since it changed from stored)
+        assert stub.set_tag.call_args_list[2].args[1] == "custom_message"
+        assert not stub.set_tag.call_args_list[2].args[2], "Expected empty custom_message to be saved"
     finally:
         app.dependency_overrides = {}
 
@@ -2957,7 +2963,10 @@ def test_post_set_custom_unchanged_message_does_not_write() -> None:
             )
 
         assert response.status_code == 303, f"Expected 303 redirect, got {response.status_code}: {response.text}"
-        stub.set_tag.assert_not_called()
+        # Username/avatar are always stored (even if blank), so expect those calls but not for custom_message
+        assert stub.set_tag.call_count == 2
+        keys = [c.args[1] for c in stub.set_tag.call_args_list]
+        assert keys == ["message_username", "message_avatar_url"]
     finally:
         app.dependency_overrides = {}
 
@@ -2981,9 +2990,128 @@ def test_post_set_custom_clearing_from_default_message() -> None:
             )
 
         assert response.status_code == 303, f"Expected 303 redirect, got {response.status_code}: {response.text}"
-        stub.set_tag.assert_called_once()
-        _feed_arg, _key_arg, value_arg = stub.set_tag.call_args.args
-        # Must be "" not the default.
-        assert not value_arg, f"Expected empty string to be saved, got {value_arg!r}"
+        assert stub.set_tag.call_count == 3
+        # First two calls should be username/avatar
+        assert stub.set_tag.call_args_list[0].args[1] == "message_username"
+        assert stub.set_tag.call_args_list[1].args[1] == "message_avatar_url"
+        # Third call should be custom_message (empty, since it changed from stored)
+        assert stub.set_tag.call_args_list[2].args[1] == "custom_message"
+        assert not stub.set_tag.call_args_list[2].args[2], "Expected empty string to be saved"
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_post_set_custom_saves_username_and_avatar() -> None:
+    """Saving a custom message with username and avatar should persist all fields."""
+    stub = _make_stub_reader_for_custom()
+    app.dependency_overrides[get_reader_dependency] = lambda: stub
+
+    try:
+        with patch("discord_rss_bot.main.commit_state_change"):
+            response: Response = client.post(
+                url="/custom",
+                data={
+                    "feed_url": feed_url,
+                    "custom_message": "Hello {{entry_title}}!",
+                    "message_username": "My Bot",
+                    "message_avatar_url": "https://example.com/avatar.png",
+                },
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303, f"Expected 303 redirect, got {response.status_code}: {response.text}"
+        assert stub.set_tag.call_count == 3
+        keys = [c.args[1] for c in stub.set_tag.call_args_list]
+        assert keys == ["message_username", "message_avatar_url", "custom_message"]
+        assert stub.set_tag.call_args_list[0].args[2] == "My Bot"
+        assert stub.set_tag.call_args_list[1].args[2] == "https://example.com/avatar.png"
+        assert stub.set_tag.call_args_list[2].args[2] == "Hello {{entry_title}}!"
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_post_set_custom_with_username_only() -> None:
+    """Submitting with a username but no avatar should store the username."""
+    existing = "{{entry_title}}\n{{entry_link}}"
+    stub = _make_stub_reader_for_custom(stored_custom_message=existing)
+    app.dependency_overrides[get_reader_dependency] = lambda: stub
+
+    try:
+        with patch("discord_rss_bot.main.commit_state_change"):
+            response: Response = client.post(
+                url="/custom",
+                data={
+                    "feed_url": feed_url,
+                    "custom_message": existing,
+                    "message_username": "New Name",
+                    "message_avatar_url": "",
+                },
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303, f"Expected 303 redirect, got {response.status_code}: {response.text}"
+        assert stub.set_tag.call_count == 2
+        assert stub.set_tag.call_args_list[0].args[1] == "message_username"
+        assert stub.set_tag.call_args_list[0].args[2] == "New Name"
+        assert stub.set_tag.call_args_list[1].args[1] == "message_avatar_url"
+        assert not stub.set_tag.call_args_list[1].args[2]
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_post_set_custom_with_avatar_only() -> None:
+    """Submitting with an avatar but no username should store the avatar."""
+    existing = "{{entry_title}}\n{{entry_link}}"
+    stub = _make_stub_reader_for_custom(stored_custom_message=existing)
+    app.dependency_overrides[get_reader_dependency] = lambda: stub
+
+    try:
+        with patch("discord_rss_bot.main.commit_state_change"):
+            response: Response = client.post(
+                url="/custom",
+                data={
+                    "feed_url": feed_url,
+                    "custom_message": existing,
+                    "message_username": "",
+                    "message_avatar_url": "https://example.com/icon.png",
+                },
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303, f"Expected 303 redirect, got {response.status_code}: {response.text}"
+        assert stub.set_tag.call_count == 2
+        assert stub.set_tag.call_args_list[0].args[1] == "message_username"
+        assert not stub.set_tag.call_args_list[0].args[2]
+        assert stub.set_tag.call_args_list[1].args[1] == "message_avatar_url"
+        assert stub.set_tag.call_args_list[1].args[2] == "https://example.com/icon.png"
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_post_set_custom_clears_username_and_avatar() -> None:
+    """Clearing both identity fields should store empty strings."""
+    existing = "{{entry_title}}\n{{entry_link}}"
+    stub = _make_stub_reader_for_custom(stored_custom_message=existing)
+    app.dependency_overrides[get_reader_dependency] = lambda: stub
+
+    try:
+        with patch("discord_rss_bot.main.commit_state_change"):
+            response: Response = client.post(
+                url="/custom",
+                data={
+                    "feed_url": feed_url,
+                    "custom_message": existing,
+                    "message_username": "",
+                    "message_avatar_url": "",
+                },
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303, f"Expected 303 redirect, got {response.status_code}: {response.text}"
+        assert stub.set_tag.call_count == 2
+        assert stub.set_tag.call_args_list[0].args[1] == "message_username"
+        assert not stub.set_tag.call_args_list[0].args[2]
+        assert stub.set_tag.call_args_list[1].args[1] == "message_avatar_url"
+        assert not stub.set_tag.call_args_list[1].args[2]
     finally:
         app.dependency_overrides = {}

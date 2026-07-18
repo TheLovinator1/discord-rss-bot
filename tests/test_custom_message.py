@@ -14,6 +14,8 @@ from discord_rss_bot.custom_message import get_embed
 from discord_rss_bot.custom_message import get_embed_data
 from discord_rss_bot.custom_message import get_first_image
 from discord_rss_bot.custom_message import get_image_urls
+from discord_rss_bot.custom_message import normalize_message_avatar_url
+from discord_rss_bot.custom_message import normalize_message_username
 from discord_rss_bot.custom_message import replace_tags_in_embed
 from discord_rss_bot.custom_message import replace_tags_in_text_message
 from discord_rss_bot.custom_message import save_embed
@@ -429,3 +431,69 @@ def test_get_embed_data_coerces_values_to_strings() -> None:
     assert embed.title == "1"
     assert embed.footer_icon_url == "10"
     assert embed.show_steam_game_icon_in_thumbnail is True
+
+
+class TestNormalizeMessageUsername:
+    """Tests for normalize_message_username."""
+
+    def test_empty_returns_empty(self) -> None:
+        assert not normalize_message_username(None)
+        assert not normalize_message_username("")
+
+    def test_whitespace_only_returns_empty(self) -> None:
+        assert not normalize_message_username("   ")
+        assert not normalize_message_username("\t\n")
+
+    def test_valid_username_returns_stripped(self) -> None:
+        assert normalize_message_username("  Power Of The Shell  ") == "Power Of The Shell"
+
+    def test_too_long_returns_empty(self) -> None:
+        long_name: str = "a" * 81
+        assert not normalize_message_username(long_name)
+
+    def test_max_length_allowed(self) -> None:
+        name: str = "a" * 80
+        assert normalize_message_username(name) == name
+
+    @pytest.mark.parametrize("char", ["@", "#", ":", "`"])
+    def test_forbidden_characters_returns_empty(self, char: str) -> None:
+        assert not normalize_message_username(f"valid{char}name")
+
+    @pytest.mark.parametrize("substring", ["clyde", "Clyde", "CLYDE", "discord", "Discord", "DISCOrd"])
+    def test_forbidden_substrings_returns_empty(self, substring: str) -> None:
+        assert not normalize_message_username(f"my_{substring}_name")
+
+
+class TestNormalizeMessageAvatarUrl:
+    """Tests for normalize_message_avatar_url."""
+
+    def test_empty_returns_empty(self) -> None:
+        assert not normalize_message_avatar_url(None)
+        assert not normalize_message_avatar_url("")
+
+    def test_whitespace_only_returns_empty(self) -> None:
+        assert not normalize_message_avatar_url("   ")
+
+    def test_valid_http_url_returns_stripped(self) -> None:
+        url: str = "http://example.com/icon.png"
+        assert normalize_message_avatar_url(url) == url
+
+    def test_valid_https_url_returns_stripped(self) -> None:
+        url: str = "https://cdn.example.com/images/avatar.jpg"
+        assert normalize_message_avatar_url(url) == url
+
+    def test_whitespace_around_url_is_stripped(self) -> None:
+        url: str = "https://example.com/icon.png"
+        assert normalize_message_avatar_url(f"  {url}  ") == url
+
+    def test_ftp_scheme_returns_empty(self) -> None:
+        assert not normalize_message_avatar_url("ftp://example.com/icon.png")
+
+    def test_no_scheme_returns_empty(self) -> None:
+        assert not normalize_message_avatar_url("example.com/icon.png")
+
+    def test_javascript_url_returns_empty(self) -> None:
+        assert not normalize_message_avatar_url("javascript:alert(1)")
+
+    def test_invalid_url_returns_empty(self) -> None:
+        assert not normalize_message_avatar_url("not-a-url")
