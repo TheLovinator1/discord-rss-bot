@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import json
 import logging
 import logging.config
@@ -25,9 +26,11 @@ import uvicorn
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import Depends
 from fastapi import FastAPI
+from fastapi import File
 from fastapi import Form
 from fastapi import HTTPException
 from fastapi import Request
+from fastapi import UploadFile
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -38,10 +41,12 @@ from reader import Entry
 from reader import EntryNotFoundError
 from reader import Feed
 from reader import FeedExistsError
+from reader import FeedImportError
 from reader import FeedNotFoundError
 from reader import Reader
 from reader import ReaderError
 from reader import TagNotFoundError
+from reader import opml
 from starlette.responses import RedirectResponse
 from starlette.responses import Response as StarletteResponse
 
@@ -274,6 +279,196 @@ templates.env.filters["discord_markdown"] = markdownify  # pyright: ignore[repor
 templates.env.filters["relative_time"] = relative_time
 templates.env.globals["get_backup_path"] = get_backup_path  # pyright: ignore[reportArgumentType]
 templates.env.globals["has_webhooks"] = has_webhooks  # pyright: ignore[reportArgumentType]
+
+
+@app.get("/export_opml")
+def export_opml(
+    reader: Annotated[Reader, Depends(get_reader_dependency)],
+) -> StarletteResponse:
+    """Export all feeds as an OPML subscription list.
+
+    Args:
+        reader: The Reader instance.
+
+    Returns:
+        StarletteResponse: The OPML file for download.
+    """
+    export = reader.export_feeds()
+    return StarletteResponse(
+        content=export.content,
+        status_code=200,
+        headers={
+            "Content-Type": "application/xml",
+            "Content-Disposition": f'attachment; filename="{export.filename}"',
+        },
+    )
+
+
+@app.post("/import_opml", response_model=None)
+async def import_opml(
+    request: Request,
+    file: Annotated[UploadFile, File()],
+    reader: Annotated[Reader, Depends(get_reader_dependency)],
+):
+    """Upload an OPML file and show a preview of feeds to import.
+
+    Args:
+        request: The request object.
+        file: The uploaded OPML file.
+        reader: The Reader instance.
+
+    Returns:
+        HTMLResponse: The OPML import preview page.
+        RedirectResponse: Redirect to settings on error.
+    """
+    if not file.filename or not file.filename.lower().endswith(".opml"):
+        return RedirectResponse(
+            url=f"/settings?message={urllib.parse.quote('Please upload a file with a .opml extension.')}",
+            status_code=303,
+        )
+
+    try:
+        content: bytes = await file.read()
+        feeds_to_import = opml.parse(io.BytesIO(content))
+    except FeedImportError as e:
+        return RedirectResponse(
+            url=f"/settings?message={urllib.parse.quote(f'Failed to parse OPML file: {e}')}",
+            status_code=303,
+        )
+
+    # Check which feeds already exist
+    existing_urls: set[str] = {feed.url for feed in reader.get_feeds()}
+    feed_list = [
+        {
+            "url": feed.url,
+            "title": feed.title or feed.url,
+            "already_exists": feed.url in existing_urls,
+        }
+        for feed in feeds_to_import
+    ]
+
+    context = {
+        "request": request,
+        "feeds": feed_list,
+        "total": len(feed_list),
+        "new_count": sum(1 for f in feed_list if not f["already_exists"]),
+        "existing_count": sum(1 for f in feed_list if f["already_exists"]),
+        "webhooks": reader.get_tag((), "webhooks", []),
+    }
+    return templates.TemplateResponse(request=request, name="import_opml_preview.html", context=context)
+
+
+@app.post("/import_opml_confirm")
+async def import_opml_confirm(
+    request: Request,
+    reader: Annotated[Reader, Depends(get_reader_dependency)],
+    feed_urls: Annotated[list[str] | None, Form()] = None,
+    webhook_name: Annotated[str | None, Form()] = None,
+) -> RedirectResponse:
+    """Import the selected feeds from the OPML preview.
+
+    Args:
+        request: The request object.
+        reader: The Reader instance.
+        feed_urls: The selected feed URLs to import.
+        webhook_name: Optional webhook name to attach imported feeds to.
+
+    Returns:
+        RedirectResponse: Redirect to the settings page with a status message.
+    """
+    if feed_urls is None:
+        feed_urls = []
+    if not feed_urls:
+        return RedirectResponse(
+            url="/settings?message=No%20feeds%20were%20selected%20for%20import.",
+            status_code=303,
+        )
+
+    webhook_url = _resolve_webhook_url(reader, webhook_name)
+
+    imported, updated_webhook, errors = _import_opml_feeds(reader, feed_urls, webhook_url)
+    message = _summarize_opml_import(imported, updated_webhook, errors)
+
+    logger.info("OPML import complete: %s", message)
+    commit_state_change(reader, f"OPML import: {imported} feeds")
+
+    return RedirectResponse(url=f"/settings?message={urllib.parse.quote(message)}", status_code=303)
+
+
+def _resolve_webhook_url(reader: Reader, webhook_name: str | None) -> str:
+    """Resolve a webhook name to its URL from reader storage.
+
+    Args:
+        reader: The Reader instance.
+        webhook_name: The webhook name to look up.
+
+    Returns:
+        The webhook URL, or empty string if not found or no name given.
+    """
+    if not webhook_name:
+        return ""
+    hooks = cast("list[dict[str, str]]", list(reader.get_tag((), "webhooks", [])))
+    for hook in hooks:
+        if hook.get("name") == webhook_name.strip():
+            return hook.get("url", "").strip()
+    return ""
+
+
+def _import_opml_feeds(
+    reader: Reader,
+    feed_urls: list[str],
+    webhook_url: str,
+) -> tuple[int, int, list[str]]:
+    """Add feeds from an OPML import, optionally setting webhooks.
+
+    Args:
+        reader: The Reader instance.
+        feed_urls: The feed URLs to add.
+        webhook_url: Webhook URL to attach, or empty string.
+
+    Returns:
+        A tuple of (imported_count, updated_webhook_count, error_messages).
+    """
+    imported: int = 0
+    updated_webhook: int = 0
+    errors: list[str] = []
+
+    for feed_url in feed_urls:
+        try:
+            reader.add_feed(feed_url)
+            if webhook_url:
+                reader.set_tag(feed_url, "webhook", webhook_url)  # pyright: ignore[reportArgumentType]
+            imported += 1
+        except FeedExistsError:
+            if webhook_url:
+                reader.set_tag(feed_url, "webhook", webhook_url)  # pyright: ignore[reportArgumentType]
+                updated_webhook += 1
+        except Exception as e:
+            errors.append(f"{feed_url}: {e}")
+            logger.exception("Failed to import feed: %s", feed_url)
+
+    return imported, updated_webhook, errors
+
+
+def _summarize_opml_import(imported: int, updated_webhook: int, errors: list[str]) -> str:
+    """Build a human-readable summary of an OPML import result.
+
+    Args:
+        imported: Number of newly imported feeds.
+        updated_webhook: Number of existing feeds whose webhook was updated.
+        errors: List of error strings.
+
+    Returns:
+        A summary string.
+    """
+    parts: list[str] = []
+    if imported:
+        parts.append(f"Successfully imported {imported} feed{'s' if imported != 1 else ''}")
+    if updated_webhook:
+        parts.append(f"Updated webhook for {updated_webhook} existing feed{'s' if updated_webhook != 1 else ''}")
+    if errors:
+        parts.append(f"{len(errors)} error{'s' if len(errors) != 1 else ''}")
+    return ". ".join(parts) + "."
 
 
 def get_global_delivery_mode(reader: Reader) -> str:
@@ -2131,12 +2326,14 @@ def get_data_from_hook_url(hook_name: str, hook_url: str) -> WebhookInfo:
 async def get_settings(
     request: Request,
     reader: Annotated[Reader, Depends(get_reader_dependency)],
+    message: str = "",
 ):
     """Settings page.
 
     Args:
         request: The request object.
         reader: The Reader instance.
+        message: Optional message to display to the user.
 
     Returns:
         HTMLResponse: The settings page.
@@ -2188,6 +2385,7 @@ async def get_settings(
         "max_webhook_text_length_limit": 4000,
         "feed_intervals": feed_intervals,
         "chromium_installed": is_chromium_installed(),
+        "messages": message or None,
     }
     return templates.TemplateResponse(request=request, name="settings.html", context=context)
 

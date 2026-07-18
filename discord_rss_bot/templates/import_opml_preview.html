@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}
+    Import OPML Feeds | discord-rss-bot
+{% endblock title %}
+{% block description %}
+    Select which feeds to import from your OPML subscription list.
+{% endblock description %}
+{% block content %}
+    <section>
+        <div class="text-light">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <h2 class="mb-0">Import OPML Feeds</h2>
+            </div>
+            <p class="text-muted mt-2 mb-4">
+                Found {{ total }} feed{{ 's' if total != 1 else '' }} in the OPML file.
+                {% if new_count %}
+                    <span class="text-success">{{ new_count }} new</span>
+                {% endif %}
+                {% if existing_count %}
+                    <span class="text-warning">{{ existing_count }} already exist{{ 's' if existing_count == 1 else '' }}</span>
+                {% endif %}
+            </p>
+        </div>
+        {% if feeds %}
+            <form action="/import_opml_confirm" method="post">
+                <!-- Webhook selector -->
+                {% if webhooks %}
+                    <div class="mb-3">
+                        <label for="webhook_name" class="form-label text-muted small mb-1">Attach imported feeds to webhook</label>
+                        <select id="webhook_name"
+                                name="webhook_name"
+                                class="form-select bg-dark text-light border-secondary w-auto">
+                            <option value="">No webhook (attach later)</option>
+                            {% for hook in webhooks %}
+                                <option value="{{ hook.name }}">{{ hook.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text text-muted mt-1">
+                            New feeds will be added with this webhook. Existing feeds will have their webhook overwritten. You can change this later per-feed.
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="alert alert-warning mb-3" role="alert">
+                        No webhooks configured. Imported feeds will need a webhook attached before they can send messages.
+                        <a href="/add_webhook" class="alert-link">Add a webhook</a>
+                    </div>
+                {% endif %}
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover">
+                        <thead>
+                            <tr>
+                                <th>
+                                    <input type="checkbox"
+                                           id="select_all"
+                                           class="form-check-input"
+                                           checked
+                                           onchange="toggleCheckboxes(this)" />
+                                </th>
+                                <th>Feed</th>
+                                <th>URL</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for feed in feeds %}
+                                <tr class="{{ 'text-muted' if feed.already_exists else '' }}">
+                                    <td>
+                                        <input type="checkbox"
+                                               name="feed_urls"
+                                               value="{{ feed.url }}"
+                                               class="form-check-input feed-checkbox"
+                                               checked />
+                                    </td>
+                                    <td>
+                                        <a href="{{ feed.url }}"
+                                           class="text-light text-decoration-none"
+                                           target="_blank"
+                                           rel="noopener noreferrer">{{ feed.title }}</a>
+                                    </td>
+                                    <td>
+                                        <a href="{{ feed.url }}"
+                                           class="text-muted small text-decoration-none"
+                                           target="_blank"
+                                           rel="noopener noreferrer"><code>{{ feed.url }}</code></a>
+                                    </td>
+                                    <td>
+                                        {% if feed.already_exists %}
+                                            <span class="badge bg-secondary">Already exists</span>
+                                        {% else %}
+                                            <span class="badge bg-success">New</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                    <button type="submit" class="btn btn-primary px-4">Import Selected</button>
+                    <a href="/settings" class="btn btn-outline-secondary px-4">Cancel</a>
+                </div>
+            </form>
+        {% else %}
+            <p class="text-muted">No feeds found in the OPML file.</p>
+            <a href="/settings" class="btn btn-primary px-4">Back to Settings</a>
+        {% endif %}
+    </section>
+{% endblock content %}
+{% block head %}
+    <script>
+        function toggleCheckboxes(selectAll) {
+            document.querySelectorAll('.feed-checkbox').forEach(function(checkbox) {
+                checkbox.checked = selectAll.checked;
+            });
+        }
+    </script>
+{% endblock head %}

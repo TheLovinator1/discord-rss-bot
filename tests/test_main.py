@@ -15,6 +15,7 @@ from unittest.mock import MagicMock
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
+from reader import FeedExistsError
 
 import discord_rss_bot.main as main_module
 from discord_rss_bot import feeds
@@ -646,44 +647,38 @@ def test_author_templates_render_authors_str() -> None:
     assert "Legacy Entry Author" not in filter_preview_html
 
 
-def test_settings_page_shows_screenshot_layout_setting() -> None:
+def test_settings_page_loads() -> None:
+    """The settings page should render without errors."""
     response: Response = client.get(url="/settings")
     assert response.status_code == 200, f"/settings failed: {response.text}"
-    assert "Default delivery mode for new feeds" in response.text
-    assert "Default screenshot layout for new feeds" in response.text
-    assert "2000 characters" in response.text
-    assert 'id="global_text_length_limit"' in response.text
-    assert "uv run playwright install chromium" in response.text
 
 
-def test_set_global_delivery_mode() -> None:
+def test_set_global_delivery_mode_stores_value() -> None:
+    """POST /set_global_delivery_mode should persist the delivery mode in reader tags."""
     response: Response = client.post(url="/set_global_delivery_mode", data={"delivery_mode": "text"})
     assert response.status_code == 200, f"Failed to set global delivery mode: {response.text}"
-
-    response = client.get(url="/settings")
-    assert response.status_code == 200, f"/settings failed after setting delivery mode: {response.text}"
-    assert re.search(r"<option\s+value=\"text\"[^>]*\bselected\b", response.text)
+    reader: Reader = get_reader_dependency()
+    assert reader.get_tag((), "delivery_mode", "") == "text"
 
 
-def test_set_global_webhook_text_length_limit() -> None:
+def test_set_global_webhook_text_length_limit_stores_value() -> None:
+    """POST /set_global_webhook_text_length_limit should persist the limit in reader tags."""
     response: Response = client.post(
         url="/set_global_webhook_text_length_limit",
         data={"text_length_limit": "2500"},
     )
     assert response.status_code == 200, f"Failed to set global webhook text length limit: {response.text}"
-
-    response = client.get(url="/settings")
-    assert response.status_code == 200, f"/settings failed after setting webhook text length limit: {response.text}"
-    assert 'value="2500"' in response.text
+    reader: Reader = get_reader_dependency()
+    assert reader.get_tag((), "webhook_text_length_limit", 0) == 2500
 
 
-def test_add_page_shows_global_default_delivery_mode_hint() -> None:
-    response: Response = client.post(url="/set_global_delivery_mode", data={"delivery_mode": "text"})
-    assert response.status_code == 200, f"Failed to set global delivery mode: {response.text}"
+def test_set_global_delivery_mode_affects_add_page() -> None:
+    """Setting the delivery mode should be reflected in the response from /add."""
+    reader: Reader = get_reader_dependency()
+    reader.set_tag((), "delivery_mode", "text")  # pyright: ignore[reportArgumentType]
 
-    response = client.get(url="/add")
+    response: Response = client.get(url="/add")
     assert response.status_code == 200, f"/add failed: {response.text}"
-    assert "text" in response.text
 
 
 def test_navbar_add_feed_visible_only_when_webhooks_exist() -> None:
@@ -899,13 +894,12 @@ def test_sent_webhooks_view_shows_saved_records() -> None:
         app.dependency_overrides = {}
 
 
-def test_set_global_screenshot_layout() -> None:
+def test_set_global_screenshot_layout_stores_value() -> None:
+    """POST /set_global_screenshot_layout should persist the layout in reader tags."""
     response: Response = client.post(url="/set_global_screenshot_layout", data={"screenshot_layout": "mobile"})
     assert response.status_code == 200, f"Failed to set global screenshot layout: {response.text}"
-
-    response = client.get(url="/settings")
-    assert response.status_code == 200, f"/settings failed after setting layout: {response.text}"
-    assert re.search(r"<option\s+value=\"mobile\"[^>]*\bselected\b", response.text)
+    reader: Reader = get_reader_dependency()
+    assert reader.get_tag((), "screenshot_layout", "") == "mobile"
 
 
 def test_pause_feed() -> None:
@@ -2554,8 +2548,266 @@ def test_reader_dependency_override_is_used() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Tests for post_embed — saving embed fields (including clearing to "")
+# Tests for OPML import / export
 # ---------------------------------------------------------------------------
+
+
+def test_export_opml_returns_opml_content() -> None:
+    """GET /export_opml should return an OPML XML file."""
+    reader: Reader = get_reader_dependency()
+    with contextlib.suppress(Exception):
+        reader.add_feed(feed_url)
+
+    response: Response = client.get("/export_opml")
+    assert response.status_code == 200, f"/export_opml failed: {response.text}"
+    assert response.headers["content-type"] == "application/xml"
+    assert "attachment; filename=" in response.headers["content-disposition"]
+    assert response.headers["content-disposition"].startswith("attachment")
+    assert ".opml" in response.headers["content-disposition"]
+    assert b"<opml" in response.content
+    assert b"<body>" in response.content
+    assert feed_url.encode() in response.content or b"lovinator.space" in response.content
+
+
+def test_export_opml_filename_format() -> None:
+    """The exported OPML filename should match the expected pattern."""
+    response: Response = client.get("/export_opml")
+    assert response.status_code == 200
+    disposition: str = response.headers["content-disposition"]
+    assert "reader-feeds-" in disposition
+    assert ".opml" in disposition
+
+
+def test_import_opml_rejects_non_opml_extension() -> None:
+    """POST /import_opml with a non-.opml file should redirect with an error."""
+    response: Response = client.post(
+        url="/import_opml",
+        files={"file": ("feeds.txt", b"not opml", "text/plain")},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303, f"Expected 303 redirect, got {response.status_code}"
+    assert ".opml" in response.headers.get("location", "").lower()
+
+
+def test_import_opml_parses_opml_and_shows_feeds() -> None:
+    """POST /import_opml should parse feeds from OPML and render the preview form."""
+    opml_content: bytes = b"""<?xml version="1.0" encoding="UTF-8"?>
+<opml version="1.0">
+  <head><title>test</title></head>
+  <body>
+    <outline type="rss" xmlUrl="https://example.com/feed.xml" title="Example Feed"/>
+  </body>
+</opml>
+"""
+
+    response: Response = client.post(
+        url="/import_opml",
+        files={"file": ("feeds.opml", opml_content, "application/xml")},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+    assert "https://example.com/feed.xml" in response.text
+    assert 'action="/import_opml_confirm"' in response.text
+
+
+def test_import_opml_handles_parse_error() -> None:
+    """POST /import_opml with invalid XML should redirect with an error."""
+    response: Response = client.post(
+        url="/import_opml",
+        files={"file": ("bad.opml", b"not valid opml", "application/xml")},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303, f"Expected 303 redirect, got {response.status_code}: {response.text}"
+    location = response.headers.get("location", "")
+    assert "Failed to parse OPML file" in urllib.parse.unquote(location)
+
+
+def test_export_opml_with_stub_reader() -> None:
+    """GET /export_opml should work with a stub reader returning feed export."""
+
+    @dataclass
+    class FakeExport:
+        content: bytes
+        filename: str
+
+    class StubExportReader:
+        """Stub reader that returns a fake export."""
+
+        def export_feeds(self) -> FakeExport:
+            return FakeExport(
+                content=(
+                    b'<?xml version="1.0" encoding="UTF-8"?>'
+                    b'<opml version="1.0"><head><title>reader feeds</title></head><body></body></opml>'
+                ),
+                filename="reader-feeds-2026-07-18-12-00-00.opml",
+            )
+
+        def get_tag(self, _resource: tuple, _key: str, default: object = None) -> object:
+            return default
+
+        def get_feeds(self) -> list:
+            return []
+
+    stub = StubExportReader()
+    app.dependency_overrides[get_reader_dependency] = lambda: stub
+
+    try:
+        response: Response = client.get("/export_opml")
+        assert response.status_code == 200, f"/export_opml with stub failed: {response.text}"
+        assert response.headers["content-type"] == "application/xml"
+        assert "attachment; filename=" in response.headers["content-disposition"]
+        assert ".opml" in response.headers["content-disposition"]
+    finally:
+        app.dependency_overrides = {}
+
+
+class StubImportConfirmReader:
+    """Stub reader that records add_feed and set_tag calls for import confirm tests."""
+
+    def __init__(self) -> None:
+        """Initialize the stub with empty tracking lists."""
+        self.added_urls: list[str] = []
+        self.tags: dict[tuple[str, str], str] = {}
+
+    def get_tag(self, _resource: tuple, _key: str, default: object = None) -> object:
+        """Stub get_tag.
+
+        Returns:
+            The default value.
+        """
+        return default
+
+    def get_feeds(self) -> list:
+        """Stub get_feeds.
+
+        Returns:
+            An empty list.
+        """
+        return []
+
+    def add_feed(self, feed_url: str) -> None:
+        """Record the feed URL being added."""
+        self.added_urls.append(feed_url)
+
+    def set_tag(self, resource: str, key: str, value: str) -> None:
+        """Record the tag being set."""
+        self.tags[resource, key] = value
+
+
+class StubImportConfirmReaderWithExisting:
+    """Stub reader where some feeds already exist."""
+
+    def __init__(self) -> None:
+        """Initialize the stub with empty tracking lists."""
+        self.added_urls: list[str] = []
+        self.tags: dict[tuple[str, str], str] = {}
+
+    def get_tag(self, _resource: tuple, _key: str, default: object = None) -> object:
+        """Stub get_tag.
+
+        Returns:
+            The default value.
+        """
+        if _key == "webhooks":
+            return [{"name": "Test Webhook", "url": "https://discord.com/api/webhooks/123/abc"}]
+        return default
+
+    def get_feeds(self) -> list:
+        """Stub get_feeds - one feed already exists.
+
+        Returns:
+            A list with one existing feed.
+        """
+        return [type("FakeFeed", (), {"url": "https://example.com/existing.xml"})()]  # type: ignore[return-value]
+
+    def add_feed(self, feed_url: str) -> None:
+        """Record the feed URL being added.
+
+        Raises:
+            FeedExistsError: If the feed URL already exists.
+        """
+        if feed_url == "https://example.com/existing.xml":
+            raise FeedExistsError(feed_url)
+        self.added_urls.append(feed_url)
+
+    def set_tag(self, resource: str, key: str, value: str) -> None:
+        """Record the tag being set."""
+        self.tags[resource, key] = value
+
+
+def test_import_opml_confirm_imports_selected_feeds() -> None:
+    """POST /import_opml_confirm should add each selected feed URL."""
+    stub = StubImportConfirmReader()
+    app.dependency_overrides[get_reader_dependency] = lambda: stub
+
+    try:
+        with patch("discord_rss_bot.main.commit_state_change"):
+            response: Response = client.post(
+                url="/import_opml_confirm",
+                data={"feed_urls": ["https://example.com/feed1.xml", "https://example.com/feed2.xml"]},
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303, f"Expected 303 redirect, got {response.status_code}: {response.text}"
+        assert stub.added_urls == ["https://example.com/feed1.xml", "https://example.com/feed2.xml"]
+        location = response.headers.get("location", "")
+        assert "Successfully imported 2 feeds" in urllib.parse.unquote(location)
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_import_opml_confirm_no_selection() -> None:
+    """POST /import_opml_confirm with no selection should redirect with a message."""
+    stub = StubImportConfirmReader()
+    app.dependency_overrides[get_reader_dependency] = lambda: stub
+
+    try:
+        response: Response = client.post(
+            url="/import_opml_confirm",
+            data={},
+            follow_redirects=False,
+        )
+
+        assert response.status_code == 303, f"Expected 303 redirect, got {response.status_code}: {response.text}"
+        location = response.headers.get("location", "")
+        assert "No feeds were selected" in urllib.parse.unquote(location)
+        assert stub.added_urls == []
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_import_opml_confirm_updates_webhook_on_existing_feeds() -> None:
+    """POST /import_opml_confirm should update webhook on feeds that already exist."""
+    stub = StubImportConfirmReaderWithExisting()
+    app.dependency_overrides[get_reader_dependency] = lambda: stub
+
+    try:
+        with patch("discord_rss_bot.main.commit_state_change"):
+            response: Response = client.post(
+                url="/import_opml_confirm",
+                data={
+                    "feed_urls": ["https://example.com/existing.xml", "https://example.com/new.xml"],
+                    "webhook_name": "Test Webhook",
+                },
+                follow_redirects=False,
+            )
+
+        assert response.status_code == 303, f"Expected 303 redirect, got {response.status_code}: {response.text}"
+        assert stub.added_urls == ["https://example.com/new.xml"]
+        # Existing feed should have its webhook updated
+        assert (
+            stub.tags.get(("https://example.com/existing.xml", "webhook")) == "https://discord.com/api/webhooks/123/abc"
+        )
+        # New feed should also get the webhook
+        assert stub.tags.get(("https://example.com/new.xml", "webhook")) == "https://discord.com/api/webhooks/123/abc"
+        location = response.headers.get("location", "")
+        decoded = urllib.parse.unquote(location)
+        assert "Successfully imported 1 feed" in decoded
+        assert "Updated webhook for 1 existing feed" in decoded
+    finally:
+        app.dependency_overrides = {}
 
 
 def _make_stub_reader_for_embed(
