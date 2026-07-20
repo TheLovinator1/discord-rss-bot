@@ -56,9 +56,6 @@ from discord_rss_bot.custom_message import replace_tags_in_embed
 from discord_rss_bot.custom_message import replace_tags_in_text_message
 from discord_rss_bot.extensions import auto_enable_extensions_for_feed
 from discord_rss_bot.extensions import run_modify_webhook
-from discord_rss_bot.extensions.steam import extract_app_id as steam_extract_app_id
-from discord_rss_bot.extensions.steam import get_icon_file_for_app as steam_get_icon_file
-from discord_rss_bot.extensions.steam import is_steam_url
 from discord_rss_bot.filter.evaluator import get_entry_filter_decision_from_reader
 from discord_rss_bot.is_url_valid import is_url_valid
 from discord_rss_bot.settings import default_custom_embed
@@ -1765,7 +1762,7 @@ def create_components_v2_webhook(
     )
 
 
-def create_embed_webhook(  # ruff:ignore[complex-structure, too-many-branches, too-many-statements]
+def create_embed_webhook(  # ruff:ignore[complex-structure, too-many-branches]
     webhook_url: str,
     entry: Entry,
     reader: Reader,
@@ -1842,20 +1839,6 @@ def create_embed_webhook(  # ruff:ignore[complex-structure, too-many-branches, t
     if custom_embed.thumbnail_url:
         discord_embed.set_thumbnail(url=custom_embed.thumbnail_url)
 
-    # Steam feed: override thumbnail with the game's capsule image when enabled.
-    steam_thumbnail_file: WebhookFile | None = None
-    if custom_embed.show_steam_game_icon_in_thumbnail and is_steam_url(feed.url or ""):
-        app_id: str | None = steam_extract_app_id(feed.url) or steam_extract_app_id(str(entry.link or ""))
-        if app_id:
-            icon_file: WebhookFile | None = steam_get_icon_file(app_id)
-            if icon_file:
-                steam_thumbnail_file = icon_file
-                discord_embed.set_thumbnail(url=f"attachment://{icon_file.filename}")
-            else:
-                discord_embed.set_thumbnail(
-                    url=f"https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/capsule_sm_120.jpg",
-                )
-
     if custom_embed.image_url:
         discord_embed.set_image(url=custom_embed.image_url)
 
@@ -1867,9 +1850,6 @@ def create_embed_webhook(  # ruff:ignore[complex-structure, too-many-branches, t
 
     if custom_embed.footer_icon_url and not custom_embed.footer_text:
         discord_embed.set_footer(text="-", icon_url=custom_embed.footer_icon_url)
-
-    if steam_thumbnail_file:
-        webhook.add_file(file=steam_thumbnail_file.content, filename=steam_thumbnail_file.filename)
 
     webhook.add_embed(discord_embed)
     return webhook
