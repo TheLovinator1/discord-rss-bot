@@ -11,8 +11,8 @@ from reader import make_reader
 
 from discord_rss_bot.filter.evaluator import evaluate_entry_filters
 from discord_rss_bot.filter.evaluator import get_filter_values_from_reader
-from discord_rss_bot.filter.whitelist import has_white_tags
-from discord_rss_bot.filter.whitelist import should_be_sent
+from discord_rss_bot.filter.evaluator import has_white_tags
+from discord_rss_bot.filter.evaluator import should_be_sent
 
 if TYPE_CHECKING:
     from collections.abc import Iterable

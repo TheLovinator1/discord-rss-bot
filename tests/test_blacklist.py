@@ -11,9 +11,9 @@ from reader import Feed
 from reader import Reader
 from reader import make_reader
 
-from discord_rss_bot.filter.blacklist import entry_should_be_skipped
-from discord_rss_bot.filter.blacklist import feed_has_blacklist_tags
+from discord_rss_bot.filter.evaluator import entry_should_be_skipped
 from discord_rss_bot.filter.evaluator import evaluate_entry_filters
+from discord_rss_bot.filter.evaluator import feed_has_blacklist_tags
 from discord_rss_bot.filter.evaluator import get_entry_fields
 from discord_rss_bot.filter.evaluator import get_filter_values_from_reader
 

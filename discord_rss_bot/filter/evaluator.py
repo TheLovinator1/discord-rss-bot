@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import urllib.parse
 from dataclasses import dataclass
+from functools import cache
 from typing import TYPE_CHECKING
 
 from discord_rss_bot.filter.utils import is_regex_match
@@ -259,3 +261,46 @@ def get_entry_decision_key(entry: Entry) -> str:
         str: A stable key based on feed URL and entry id.
     """
     return f"{entry.feed.url}|{entry.id}"
+
+
+# ── Convenience wrappers (formerly in separate modules) ──────────────
+
+
+def feed_has_blacklist_tags(reader: Reader, feed: Feed) -> bool:
+    """Return True if the feed has any blacklist tags."""
+    return has_filter_values(get_filter_values_from_reader(reader, feed, "blacklist"))
+
+
+def entry_should_be_skipped(reader: Reader, entry: Entry) -> bool:
+    """Return True if the entry matches a blacklist rule."""
+    return bool(find_filter_match(entry, get_filter_values_from_reader(reader, entry.feed, "blacklist"), "blacklist"))
+
+
+def has_white_tags(reader: Reader, feed: Feed) -> bool:
+    """Return True if the feed has any whitelist tags."""
+    return has_filter_values(get_filter_values_from_reader(reader, feed, "whitelist"))
+
+
+def should_be_sent(reader: Reader, entry: Entry) -> bool:
+    """Return True if the entry matches a whitelist rule."""
+    return bool(find_filter_match(entry, get_filter_values_from_reader(reader, entry.feed, "whitelist"), "whitelist"))
+
+
+def entry_is_whitelisted(entry_to_check: Entry, reader: Reader) -> bool:
+    """Return True if the entry is whitelisted."""
+    return get_entry_filter_decision_from_reader(reader, entry_to_check).whitelist_match is not None
+
+
+def entry_is_blacklisted(entry_to_check: Entry, reader: Reader) -> bool:
+    """Return True if the entry is blacklisted."""
+    return get_entry_filter_decision_from_reader(reader, entry_to_check).blacklist_match is not None
+
+
+@cache
+def encode_url(url_to_quote: str | None) -> str:
+    """%-escape a URL so it can be used in a URL query parameter.
+
+    Returns:
+        str: The percent-encoded URL.
+    """
+    return urllib.parse.quote(string=url_to_quote) if url_to_quote else ""

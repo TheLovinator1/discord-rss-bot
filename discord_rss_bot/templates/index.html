@@ -73,11 +73,7 @@
                                         {% for feed in domain_feeds %}
                                             <li>
                                                 <a class="text-muted" href="/feed?feed_url={{ feed.url|encode_url }}">
-                                                    {% if feed.title %}
-                                                        {{ feed.title }}
-                                                    {% else %}
-                                                        {{ feed.url }}
-                                                    {% endif %}
+                                                    {{ feed | feed_display_name }}
                                                 </a>
                                                 {% if not feed.updates_enabled %}<span class="text-warning">Disabled</span>{% endif %}
                                                 {% if feed.last_exception %}<span class="text-danger">({{ feed.last_exception.value_str }})</span>{% endif %}
@@ -116,18 +112,7 @@
                     {% for broken_feed in broken_feeds %}
                         <a class="text-muted"
                            href="/feed?feed_url={{ broken_feed.url|encode_url }}">
-                            {# Display username@youtube for YouTube feeds #}
-                            {% if "youtube.com/feeds/videos.xml" in broken_feed.url %}
-                                {% if "user=" in broken_feed.url %}
-                                    {{ broken_feed.url.split("user=")[1] }}@youtube
-                                {% elif "channel_id=" in broken_feed.url %}
-                                    {{ broken_feed.title if broken_feed.title else broken_feed.url.split("channel_id=")[1] }}@youtube
-                                {% else %}
-                                    {{ broken_feed.url }}
-                                {% endif %}
-                            {% else %}
-                                {{ broken_feed.url }}
-                            {% endif %}
+                            {{ broken_feed | feed_display_name }}
                         </a>
                     {% endfor %}
                 </ul>
@@ -142,18 +127,7 @@
                         <li class="list-group-item bg-dark border-dark text-danger">
                             <div class="d-flex flex-wrap align-items-center gap-2">
                                 <a class="text-muted" href="/feed?feed_url={{ feed.url|encode_url }}">
-                                    {# Display username@youtube for YouTube feeds #}
-                                    {% if "youtube.com/feeds/videos.xml" in feed.url %}
-                                        {% if "user=" in feed.url %}
-                                            {{ feed.url.split("user=")[1] }}@youtube
-                                        {% elif "channel_id=" in feed.url %}
-                                            {{ feed.title if feed.title else feed.url.split("channel_id=")[1] }}@youtube
-                                        {% else %}
-                                            {{ feed.url }}
-                                        {% endif %}
-                                    {% else %}
-                                        {{ feed.url }}
-                                    {% endif %}
+                                    {{ feed | feed_display_name }}
                                 </a>
                                 {% if webhooks %}
                                     <form action="/attach_feed_webhook"

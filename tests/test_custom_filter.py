@@ -5,9 +5,9 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from discord_rss_bot.custom_filters import encode_url
-from discord_rss_bot.custom_filters import entry_is_blacklisted
-from discord_rss_bot.custom_filters import entry_is_whitelisted
+from discord_rss_bot.filter.evaluator import encode_url
+from discord_rss_bot.filter.evaluator import entry_is_blacklisted
+from discord_rss_bot.filter.evaluator import entry_is_whitelisted
 from discord_rss_bot.settings import get_reader
 
 if TYPE_CHECKING:

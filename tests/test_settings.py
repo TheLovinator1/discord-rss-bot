@@ -39,7 +39,7 @@ class _AutodiscoverHandler(BaseHTTPRequestHandler):
             b'type="application/rss+xml" title="Example"></head></html>',
         )
 
-    def log_message(self, _format: str, *_args: object) -> None:
+    def log_message(self, _format: str, *_args: str | int) -> None:
         """Suppress HTTP request logging during tests."""
 
 

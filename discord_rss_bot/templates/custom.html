@@ -202,7 +202,7 @@
                                         {% raw %}
                                             {{entry_text}}
                                         {% endraw %}
-                                    </code> Same as entry_content if it exists, otherwise entry_summary
+                                    </code>{{ entry.content[0].value|discord_markdown if entry and entry.content else (entry.summary|discord_markdown if entry and entry.summary else '') }}
                         </li>
                         <li>
                             <code>
@@ -217,18 +217,22 @@
                                         {% raw %}
                                             {{image_1}}
                                         {% endraw %}
-                                    </code>First image in the entry if it exists
+                                    </code>{{ first_image }}
                         </li>
-                    </ul>
-                    <ul class="list-inline">
-                        <li>Examples:</li>
-                        <li>
-                            <code>
-                                        {% raw %}
-                                            {{feed_title}}\n{{entry_content}}
-                                        {% endraw %}
-                                    </code>
-                        </li>
+                        {% if extension_variables %}
+                            <br />
+                            <li>Extension variables (from enabled extensions):</li>
+                            {% for var_name in extension_variables %}
+                                <li>
+                                    <code>{% raw %}{{{% endraw %}{{ var_name }}{% raw %}}}{% endraw %}</code>
+                                    {% if var_name in extension_values and extension_values[var_name] %}
+                                        {{ extension_values[var_name] }}
+                                    {% else %}
+                                        (empty)
+                                    {% endif %}
+                                </li>
+                            {% endfor %}
+                        {% endif %}
                     </ul>
                     {% else %}
                     Something went wrong, there was no entry found. If this feed has entries and you still see this

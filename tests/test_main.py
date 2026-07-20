@@ -32,6 +32,8 @@ if TYPE_CHECKING:
     from reader import Entry
     from reader import Reader
 
+    from discord_rss_bot.feeds import JsonValue
+
 client: TestClient = TestClient(app)
 webhook_name: str = "Hello, I am a webhook!"
 webhook_url: str = "https://discord.com/api/webhooks/1234567890/abcdefghijklmnopqrstuvwxyz"
@@ -318,7 +320,7 @@ def test_feed_page_shows_steam_thumbnail_hint_for_steam_feeds() -> None:
             assert feed_url == self.feed.url
             return self.feed
 
-        def get_tag(self, _resource: object, key: str, default: TestTagValue = None) -> TestTagValue:
+        def get_tag(self, _resource: str | DummyFeed, key: str, default: TestTagValue = None) -> TestTagValue:
             return {
                 "webhooks": [],
                 "delivery_mode": "embed",
@@ -2645,7 +2647,7 @@ def test_export_opml_with_stub_reader() -> None:
                 filename="reader-feeds-2026-07-18-12-00-00.opml",
             )
 
-        def get_tag(self, _resource: tuple, _key: str, default: object = None) -> object:
+        def get_tag(self, _resource: tuple[()], _key: str, default: TestTagValue = None) -> TestTagValue:
             return default
 
         def get_feeds(self) -> list:
@@ -2672,7 +2674,7 @@ class StubImportConfirmReader:
         self.added_urls: list[str] = []
         self.tags: dict[tuple[str, str], str] = {}
 
-    def get_tag(self, _resource: tuple, _key: str, default: object = None) -> object:
+    def get_tag(self, _resource: tuple[()], _key: str, default: TestTagValue = None) -> TestTagValue:
         """Stub get_tag.
 
         Returns:
@@ -2705,7 +2707,7 @@ class StubImportConfirmReaderWithExisting:
         self.added_urls: list[str] = []
         self.tags: dict[tuple[str, str], str] = {}
 
-    def get_tag(self, _resource: tuple, _key: str, default: object = None) -> object:
+    def get_tag(self, _resource: tuple[()], _key: str, default: TestTagValue = None) -> TestTagValue:
         """Stub get_tag.
 
         Returns:
@@ -2857,7 +2859,6 @@ def test_post_embed_saves_all_fields() -> None:
                     "thumbnail_url": "https://example.com/thumb.png",
                     "footer_text": "Footer Text",
                     "footer_icon_url": "https://example.com/footer.png",
-                    "show_steam_game_icon_in_thumbnail": "true",
                 },
                 follow_redirects=False,
             )
@@ -2880,7 +2881,6 @@ def test_post_embed_saves_all_fields() -> None:
         assert saved["thumbnail_url"] == "https://example.com/thumb.png"
         assert saved["footer_text"] == "Footer Text"
         assert saved["footer_icon_url"] == "https://example.com/footer.png"
-        assert saved["show_steam_game_icon_in_thumbnail"] is True
     finally:
         app.dependency_overrides = {}
 
@@ -2958,7 +2958,6 @@ def test_post_embed_allows_clearing_all_fields() -> None:
         "thumbnail_url": "https://old.example.com/thumb.png",
         "footer_text": "Old Footer",
         "footer_icon_url": "https://old.example.com/footer.png",
-        "show_steam_game_icon_in_thumbnail": True,
     })
     stub = _make_stub_reader_for_embed(stored_embed=existing)
     app.dependency_overrides[get_reader_dependency] = lambda: stub
@@ -2998,7 +2997,6 @@ def test_post_embed_allows_clearing_all_fields() -> None:
         assert not saved["thumbnail_url"]
         assert not saved["footer_text"]
         assert not saved["footer_icon_url"]
-        assert saved["show_steam_game_icon_in_thumbnail"] is False
     finally:
         app.dependency_overrides = {}
 
@@ -3016,7 +3014,6 @@ def test_post_embed_untouched_fields_retain_values() -> None:
         "thumbnail_url": "",
         "footer_text": "Old Footer",
         "footer_icon_url": "",
-        "show_steam_game_icon_in_thumbnail": False,
     })
     stub = _make_stub_reader_for_embed(stored_embed=existing)
     app.dependency_overrides[get_reader_dependency] = lambda: stub
@@ -3056,7 +3053,6 @@ def test_post_embed_untouched_fields_retain_values() -> None:
         assert saved["author_name"] == "Author"
         assert saved["author_url"] == "https://a.example.com"
         assert saved["footer_text"] == "Old Footer"
-        assert saved["show_steam_game_icon_in_thumbnail"] is False
     finally:
         app.dependency_overrides = {}
 
@@ -3094,7 +3090,6 @@ def test_post_embed_saves_empty_description_when_no_prior_embed_exists() -> None
         saved: dict[str, str] = json.loads(json_arg)
         assert saved["title"] == "Just a Title"
         assert not saved["description"], f"Expected empty description, got {saved['description']!r}"
-        assert saved["show_steam_game_icon_in_thumbnail"] is False
     finally:
         app.dependency_overrides = {}
 
@@ -3412,7 +3407,7 @@ class _StubReaderForMass:
             return self._webhook_url
         return default
 
-    def set_tag(self, resource: str, key: str, value: object) -> None:  # pyright: ignore[reportArgumentType]
+    def set_tag(self, resource: str, key: str, value: JsonValue) -> None:
         """Record tag set calls."""
         self.set_tag_calls.append((resource, key, value))
 

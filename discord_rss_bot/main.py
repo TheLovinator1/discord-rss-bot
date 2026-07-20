@@ -52,8 +52,6 @@ from reader import opml
 from starlette.responses import RedirectResponse
 from starlette.responses import Response as StarletteResponse
 
-from discord_rss_bot.custom_filters import entry_is_blacklisted
-from discord_rss_bot.custom_filters import entry_is_whitelisted
 from discord_rss_bot.custom_message import CustomEmbed
 from discord_rss_bot.custom_message import get_custom_message
 from discord_rss_bot.custom_message import get_embed
@@ -62,6 +60,14 @@ from discord_rss_bot.custom_message import get_message_avatar_url
 from discord_rss_bot.custom_message import get_message_username
 from discord_rss_bot.custom_message import replace_tags_in_text_message
 from discord_rss_bot.custom_message import save_embed
+from discord_rss_bot.extensions import FeedExtension as FeedExtensionABC
+from discord_rss_bot.extensions import get_registry as get_extension_registry
+from discord_rss_bot.extensions import run_extensions
+from discord_rss_bot.extensions.steam import is_steam_url as is_steam_feed_url
+from discord_rss_bot.extensions.storage import get_enabled_extensions_for_feed as get_enabled_extensions
+from discord_rss_bot.extensions.storage import set_enabled_extensions_for_feed as set_enabled_extensions
+from discord_rss_bot.extensions.youtube import extract_youtube_video_id
+from discord_rss_bot.extensions.youtube import is_youtube_feed_url
 from discord_rss_bot.feeds import FeedUpdateError
 from discord_rss_bot.feeds import JsonValue
 from discord_rss_bot.feeds import SentWebhookRecord
@@ -71,12 +77,12 @@ from discord_rss_bot.feeds import create_feed
 from discord_rss_bot.feeds import extract_domain
 from discord_rss_bot.feeds import feed_saves_sent_webhooks
 from discord_rss_bot.feeds import get_feed_delivery_mode
+from discord_rss_bot.feeds import get_feed_display_name
 from discord_rss_bot.feeds import get_feed_media_gallery_image_limit
 from discord_rss_bot.feeds import get_feed_webhook_text_length_limit
 from discord_rss_bot.feeds import get_screenshot_layout
 from discord_rss_bot.feeds import get_sent_webhook_records
 from discord_rss_bot.feeds import is_chromium_installed
-from discord_rss_bot.feeds import is_steam_feed_url
 from discord_rss_bot.feeds import send_entry_to_discord
 from discord_rss_bot.feeds import send_to_discord
 from discord_rss_bot.feeds import update_feed_and_collect_modified_entries
@@ -85,6 +91,8 @@ from discord_rss_bot.filter.evaluator import FILTER_FIELDS
 from discord_rss_bot.filter.evaluator import EntryFilterDecision
 from discord_rss_bot.filter.evaluator import FilterMatch
 from discord_rss_bot.filter.evaluator import coerce_filter_values
+from discord_rss_bot.filter.evaluator import entry_is_blacklisted
+from discord_rss_bot.filter.evaluator import entry_is_whitelisted
 from discord_rss_bot.filter.evaluator import evaluate_entry_filters
 from discord_rss_bot.filter.evaluator import get_entry_decision_key
 from discord_rss_bot.filter.evaluator import get_entry_fields
@@ -97,6 +105,7 @@ from discord_rss_bot.search import create_search_context
 from discord_rss_bot.settings import data_dir
 from discord_rss_bot.settings import default_custom_embed
 from discord_rss_bot.settings import default_custom_message
+from discord_rss_bot.settings import extensions_dir
 from discord_rss_bot.settings import get_reader
 from discord_rss_bot.settings import make_app_reader
 
@@ -283,6 +292,7 @@ templates: Jinja2Templates = Jinja2Templates(directory="discord_rss_bot/template
 templates.env.filters["encode_url"] = lambda url: urllib.parse.quote(str(url)) if url else ""
 templates.env.filters["discord_markdown"] = markdownify  # pyright: ignore[reportArgumentType]
 templates.env.filters["relative_time"] = relative_time
+templates.env.filters["feed_display_name"] = get_feed_display_name
 templates.env.globals["get_backup_path"] = get_backup_path  # pyright: ignore[reportArgumentType]
 templates.env.globals["has_webhooks"] = has_webhooks  # pyright: ignore[reportArgumentType]
 
@@ -493,7 +503,7 @@ def get_global_delivery_mode(reader: Reader) -> str:
 def get_autodiscover_links(
     reader: Reader,
     feed_url: str,
-    stored_links: object | None = None,
+    stored_links: JsonValue = None,
 ) -> list[AutodiscoverLink]:
     """Return valid autodiscovered links stored for a failed feed update.
 
@@ -1402,17 +1412,40 @@ async def get_custom(
     """
     feed: Feed = reader.get_feed(urllib.parse.unquote(feed_url.strip()))
 
-    context: dict[str, Request | Feed | str | Entry] = {
+    # Collect extension variable names for the template.
+    ext_registry: dict[str, type] = get_extension_registry()
+    enabled_ext_names: list[str] = get_enabled_extensions(reader, feed.url)
+    extension_variables: list[str] = FeedExtensionABC.get_enabled_variables(ext_registry, enabled_ext_names)
+
+    # Try to resolve extension values from the first entry.
+    extension_values: dict[str, str] = {}
+    first_entry: Entry | None = None
+    for entry in reader.get_entries(feed=feed, limit=1):
+        first_entry = entry
+        break
+    if first_entry is not None:
+        try:
+            extension_values = run_extensions(first_entry, reader)
+        except Exception:
+            logger.exception("Failed to run extensions for preview")
+
+    # Compute first_image for template preview.
+    first_image: str = ""
+    if first_entry is not None:
+        content_str: str = first_entry.content[0].value if first_entry.content else ""
+        first_image = get_first_image(first_entry.summary, content_str)
+
+    context: dict[str, object] = {
         "request": request,
         "feed": feed,
         "custom_message": get_custom_message(reader, feed),
         "message_username": get_message_username(reader, feed),
         "message_avatar_url": get_message_avatar_url(reader, feed),
+        "extension_variables": extension_variables,
+        "extension_values": extension_values,
+        "entry": first_entry,
+        "first_image": first_image,
     }
-
-    # Get the first entry, this is used to show the user what the custom message will look like.
-    for entry in reader.get_entries(feed=feed, limit=1):
-        context["entry"] = entry
 
     return templates.TemplateResponse(request=request, name="custom.html", context=context)
 
@@ -1431,34 +1464,58 @@ async def get_embed_page(
         reader: The Reader instance.
 
     Returns:
-        HTMLResponse: The embed page.
+        HTMLResponse: The custom message page.
     """
     feed: Feed = reader.get_feed(urllib.parse.unquote(feed_url.strip()))
 
-    # Get previous data, this is used when creating the form.
     embed: CustomEmbed = get_embed(reader, feed)
 
-    context: dict[str, Request | Feed | str | Entry | CustomEmbed | bool] = {
+    # Collect extension variables so the template can list them.
+    ext_registry: dict[str, type] = get_extension_registry()
+    enabled_ext_names: list[str] = get_enabled_extensions(reader, feed.url)
+    extension_variables: list[str] = FeedExtensionABC.get_enabled_variables(ext_registry, enabled_ext_names)
+
+    # Try to resolve extension values from the first entry.
+    extension_values: dict[str, str] = {}
+    first_entry: Entry | None = None
+    for entry in reader.get_entries(feed=feed, limit=1):
+        first_entry = entry
+        break
+    if first_entry is not None:
+        try:
+            extension_values = run_extensions(first_entry, reader)
+        except Exception:
+            logger.exception("Failed to run extensions for preview")
+
+    # Compute first_image for template preview.
+    first_image: str = ""
+    if first_entry is not None:
+        content_str: str = first_entry.content[0].value if first_entry.content else ""
+        first_image = get_first_image(first_entry.summary, content_str)
+
+    context: dict[str, object] = {
         "request": request,
         "feed": feed,
         "title": embed.title,
         "description": embed.description,
         "color": embed.color,
-        "image_url": embed.image_url,
-        "thumbnail_url": embed.thumbnail_url,
         "author_name": embed.author_name,
         "author_url": embed.author_url,
         "author_icon_url": embed.author_icon_url,
+        "image_url": embed.image_url,
+        "thumbnail_url": embed.thumbnail_url,
         "footer_text": embed.footer_text,
         "footer_icon_url": embed.footer_icon_url,
         "show_steam_game_icon_in_thumbnail": embed.show_steam_game_icon_in_thumbnail,
+        "is_steam_feed": is_steam_feed_url(feed.url or ""),
+        "extension_variables": extension_variables,
+        "extension_values": extension_values,
+        "entry": first_entry,
+        "first_image": first_image,
     }
     if custom_embed := get_embed(reader, feed):
         context["custom_embed"] = custom_embed
 
-    for entry in reader.get_entries(feed=feed, limit=1):
-        # Append to context.
-        context["entry"] = entry
     return templates.TemplateResponse(request=request, name="embed.html", context=context)
 
 
@@ -1476,8 +1533,7 @@ async def post_embed(  # ruff:ignore[complex-structure]
     author_icon_url: Annotated[str, Form()] = "",
     footer_text: Annotated[str, Form()] = "",
     footer_icon_url: Annotated[str, Form()] = "",
-    *,
-    show_steam_game_icon_in_thumbnail: Annotated[bool, Form()] = False,
+    show_steam_game_icon_in_thumbnail: Annotated[str, Form()] = "",
 ) -> RedirectResponse:
     """Set the embed settings.
 
@@ -1493,7 +1549,7 @@ async def post_embed(  # ruff:ignore[complex-structure]
         author_icon_url: The author icon url of the embed.
         footer_text: The footer text of the embed.
         footer_icon_url: The footer icon url of the embed.
-        show_steam_game_icon_in_thumbnail: Whether to use the Steam game icon as the embed thumbnail.
+        show_steam_game_icon_in_thumbnail: Whether to use Steam game icon as thumbnail.
         reader: The Reader instance.
 
     Returns:
@@ -1524,13 +1580,70 @@ async def post_embed(  # ruff:ignore[complex-structure]
         custom_embed.footer_text = footer_text
     if footer_icon_url != custom_embed.footer_icon_url:
         custom_embed.footer_icon_url = footer_icon_url
-    if show_steam_game_icon_in_thumbnail != custom_embed.show_steam_game_icon_in_thumbnail:
-        custom_embed.show_steam_game_icon_in_thumbnail = show_steam_game_icon_in_thumbnail
+
+    # Handle the steam thumbnail toggle (checkbox: "true" when checked, "" when unchecked).
+    new_steam_icon_toggle: bool = show_steam_game_icon_in_thumbnail.strip().lower() in {"true", "on", "1"}
+    if new_steam_icon_toggle != custom_embed.show_steam_game_icon_in_thumbnail:
+        custom_embed.show_steam_game_icon_in_thumbnail = new_steam_icon_toggle
 
     # Save the data.
     save_embed(reader, feed, custom_embed)
 
     commit_state_change(reader, f"Update embed settings for {clean_feed_url}")
+    return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
+
+
+@app.get("/extensions", response_class=HTMLResponse)
+async def get_extensions(
+    feed_url: str,
+    request: Request,
+    reader: Annotated[Reader, Depends(get_reader_dependency)],
+):
+    """Show the extensions configuration page for a feed.
+
+    Args:
+        feed_url: The feed to configure extensions for.
+        request: The request object.
+        reader: The Reader instance.
+
+    Returns:
+        HTMLResponse: The extensions configuration page.
+    """
+    feed: Feed = reader.get_feed(urllib.parse.unquote(feed_url.strip()))
+    registry: dict[str, type] = get_extension_registry()
+    enabled: list[str] = get_enabled_extensions(reader, feed.url)
+
+    context: dict[str, object] = {
+        "request": request,
+        "feed": feed,
+        "discovered_extensions": registry,
+        "enabled_extensions": enabled,
+        "extensions_dir": extensions_dir,
+    }
+    return templates.TemplateResponse(request=request, name="extensions.html", context=context)
+
+
+@app.post("/extensions")
+async def post_extensions(
+    feed_url: Annotated[str, Form()],
+    reader: Annotated[Reader, Depends(get_reader_dependency)],
+    enabled_extensions: Annotated[list[str] | None, Form()] = None,
+) -> RedirectResponse:
+    """Save the enabled extensions for a feed.
+
+    Args:
+        feed_url: The feed URL.
+        reader: The Reader instance.
+        enabled_extensions: List of extension names to enable.
+
+    Returns:
+        RedirectResponse: Redirect to the feed page.
+    """
+    if enabled_extensions is None:
+        enabled_extensions = []
+    clean_feed_url: str = feed_url.strip()
+    set_enabled_extensions(reader, clean_feed_url, enabled_extensions)
+    commit_state_change(reader, f"Update extensions for {clean_feed_url}")
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
 
@@ -2078,7 +2191,6 @@ async def get_feed(  # ruff:ignore[complex-structure, too-many-branches, too-man
                 "webhook_text_length_limit": get_feed_webhook_text_length_limit(reader, feed),
                 "max_webhook_text_length_limit": 4000,
                 "save_sent_webhooks": feed_saves_sent_webhooks(reader, feed),
-                "is_steam_feed": is_steam_feed_url(feed.url),
                 "chromium_installed": is_chromium_installed(),
             }
             return templates.TemplateResponse(request=request, name="feed.html", context=context)
@@ -2146,7 +2258,6 @@ async def get_feed(  # ruff:ignore[complex-structure, too-many-branches, too-man
         "webhook_text_length_limit": get_feed_webhook_text_length_limit(reader, feed),
         "max_webhook_text_length_limit": 4000,
         "save_sent_webhooks": feed_saves_sent_webhooks(reader, feed),
-        "is_steam_feed": is_steam_feed_url(feed.url),
         "chromium_installed": is_chromium_installed(),
     }
     return templates.TemplateResponse(request=request, name="feed.html", context=context)
@@ -2229,10 +2340,9 @@ def create_html_for_feed(  # ruff:ignore[complex-structure, too-many-locals]
         )
 
         # Check if this is a YouTube feed entry and the entry has a link
-        is_youtube_feed = "youtube.com/feeds/videos.xml" in entry.feed.url
         video_embed_html = ""
 
-        if is_youtube_feed and entry.link:
+        if is_youtube_feed_url(entry.feed.url) and entry.link:
             # Extract the video ID and create an embed if possible
             video_id: str | None = extract_youtube_video_id(entry.link)
             if video_id:
@@ -3211,29 +3321,6 @@ def modify_webhook(
 
     # Redirect to the requested page.
     return RedirectResponse(url=redirect_url, status_code=303)
-
-
-def extract_youtube_video_id(url: str) -> str | None:
-    """Extract YouTube video ID from a YouTube video URL.
-
-    Args:
-        url: The YouTube video URL.
-
-    Returns:
-        The video ID if found, None otherwise.
-    """
-    if not url:
-        return None
-
-    # Handle standard YouTube URLs (youtube.com/watch?v=VIDEO_ID)
-    if "youtube.com/watch" in url and "v=" in url:
-        return url.split("v=")[1].split("&", maxsplit=1)[0]
-
-    # Handle shortened YouTube URLs (youtu.be/VIDEO_ID)
-    if "youtu.be/" in url:
-        return url.split("youtu.be/")[1].split("?", maxsplit=1)[0]
-
-    return None
 
 
 def resolve_final_feed_url(url: str) -> tuple[str, str | None]:

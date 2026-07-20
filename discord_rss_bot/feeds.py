@@ -5,6 +5,7 @@ import concurrent.futures
 import datetime
 import functools
 import hashlib
+import html
 import json
 import logging
 import os
@@ -13,7 +14,6 @@ import re
 import time
 from collections.abc import Callable
 from contextlib import suppress
-from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Literal
@@ -54,11 +54,12 @@ from discord_rss_bot.custom_message import get_validated_message_avatar_url
 from discord_rss_bot.custom_message import get_validated_message_username
 from discord_rss_bot.custom_message import replace_tags_in_embed
 from discord_rss_bot.custom_message import replace_tags_in_text_message
+from discord_rss_bot.extensions import auto_enable_extensions_for_feed
+from discord_rss_bot.extensions import run_modify_webhook
+from discord_rss_bot.extensions.steam import extract_app_id as steam_extract_app_id
+from discord_rss_bot.extensions.steam import get_icon_file_for_app as steam_get_icon_file
+from discord_rss_bot.extensions.steam import is_steam_url
 from discord_rss_bot.filter.evaluator import get_entry_filter_decision_from_reader
-from discord_rss_bot.hoyolab_api import create_hoyolab_webhook
-from discord_rss_bot.hoyolab_api import extract_post_id_from_hoyolab_url
-from discord_rss_bot.hoyolab_api import fetch_hoyolab_post
-from discord_rss_bot.hoyolab_api import is_c3kay_feed
 from discord_rss_bot.is_url_valid import is_url_valid
 from discord_rss_bot.settings import default_custom_embed
 from discord_rss_bot.settings import default_custom_message
@@ -92,7 +93,7 @@ class FeedUpdateError(HTTPException):
         *,
         status_code: int,
         detail: str,
-        autodiscover_links: object | None = None,
+        autodiscover_links: JsonValue = None,
     ) -> None:
         """Initialize an initial-update error and preserve advertised feed links."""
         super().__init__(status_code=status_code, detail=detail)
@@ -142,6 +143,27 @@ MESSAGE_PAYLOAD_KEYS: tuple[str, ...] = (
 )
 
 
+def get_feed_display_name(feed: Feed) -> str:
+    """Return a human-readable display name for a feed.
+
+    For YouTube feeds whose title is just "Videos", shows
+    ``"{author}'s Videos"`` instead.  Other feeds return the title
+    as-is.
+    """
+    url: str = feed.url or ""
+    title: str = feed.title or ""
+
+    if "youtube.com/feeds/videos.xml" in url and (not title or title == "Videos"):
+        author: str = feed.authors_str or ""
+        if author:
+            return f"{author}'s Videos"
+
+    try:
+        return html.unescape(title) if title else url
+    except (TypeError, AttributeError):
+        return title or url
+
+
 def extract_domain(url: str) -> str:  # ruff:ignore[too-many-return-statements]
     """Extract the domain name from a URL.
 
@@ -156,11 +178,10 @@ def extract_domain(url: str) -> str:  # ruff:ignore[too-many-return-statements]
         return "Other"
 
     try:  # ruff:ignore[too-many-statements-in-try-clause]
-        # Special handling for YouTube feeds
+        # Special handling for YouTube and Reddit feeds
         if "youtube.com/feeds/videos.xml" in url:
             return "YouTube"
 
-        # Special handling for Reddit feeds
         if "reddit.com" in url and ".rss" in url:
             return "Reddit"
 
@@ -189,123 +210,6 @@ def extract_domain(url: str) -> str:  # ruff:ignore[too-many-return-statements]
     except (ValueError, AttributeError, TypeError) as e:
         logger.warning("Error extracting domain from %s: %s", url, e)
         return "Other"
-
-
-STEAM_STORE_APP_ID_PATH_PREFIXES: tuple[tuple[str, ...], ...] = (
-    ("feeds", "news", "app"),
-    ("news", "app"),
-    ("app",),
-)
-
-
-def is_steam_feed_url(url: str) -> bool:
-    """Return whether a feed URL belongs to Steam."""
-    if not url:
-        return False
-
-    try:
-        parsed_url: ParseResult = urlparse(url)
-    except ValueError:
-        return False
-
-    normalized_netloc: str = parsed_url.netloc.lower().removeprefix("www.")
-    return normalized_netloc in frozenset({"store.steampowered.com", "steamcommunity.com"})
-
-
-def _extract_steam_app_id_from_path(normalized_netloc: str, path_segments: list[str]) -> str | None:
-    if normalized_netloc == "store.steampowered.com":
-        for prefix in STEAM_STORE_APP_ID_PATH_PREFIXES:
-            prefix_length: int = len(prefix)
-            if len(path_segments) > prefix_length and tuple(path_segments[:prefix_length]) == prefix:
-                app_id: str = path_segments[prefix_length]
-                if app_id.isdigit():
-                    return app_id
-
-    if normalized_netloc == "steamcommunity.com" and len(path_segments) > 1:
-        app_type: str = path_segments[0]
-        app_id = path_segments[1]
-        if app_type in frozenset({"games", "app"}) and app_id.isdigit():
-            return app_id
-
-    return None
-
-
-def _extract_steam_app_id_from_query(parsed_url: ParseResult) -> str | None:
-    query_params: dict[str, list[str]] = parse_qs(parsed_url.query)
-    for key in ("appid", "app_id", "appids"):
-        for value in query_params.get(key, []):
-            cleaned_value: str = value.strip()
-            if cleaned_value.isdigit():
-                return cleaned_value
-    return None
-
-
-def extract_steam_app_id_from_url(url: str) -> str | None:
-    """Extract a Steam application ID from a Steam URL when present.
-
-    Args:
-        url: The Steam URL to inspect.
-
-    Returns:
-        str | None: The application ID when present in the path or query string, otherwise None.
-    """
-    if not url:
-        return None
-
-    try:
-        parsed_url: ParseResult = urlparse(url)
-    except ValueError:
-        return None
-
-    normalized_netloc: str = parsed_url.netloc.lower().removeprefix("www.")
-    path_segments: list[str] = [segment for segment in parsed_url.path.split("/") if segment]
-    return _extract_steam_app_id_from_path(normalized_netloc, path_segments) or _extract_steam_app_id_from_query(
-        parsed_url,
-    )
-
-
-def get_local_steam_game_icon_file(app_id: str) -> WebhookFile | None:
-    """Return a local Steam game icon file for Discord upload when available."""
-    icon_path: Path = Path(__file__).resolve().parent.parent / "icons" / f"{app_id}.png"
-    if not icon_path.is_file():
-        return None
-
-    try:
-        icon_bytes: bytes = icon_path.read_bytes()
-    except OSError:
-        logger.exception("Failed to read local Steam icon for app %s from %s", app_id, icon_path)
-        return None
-
-    if not icon_bytes:
-        logger.warning("Local Steam icon file is empty for app %s: %s", app_id, icon_path)
-        return None
-
-    content_hash: str = hashlib.sha256(icon_bytes).hexdigest()[:12]
-    return WebhookFile(
-        filename=f"steam-app-{app_id}-{content_hash}.png",
-        content=icon_bytes,
-    )
-
-
-def get_steam_game_thumbnail(entry: Entry) -> tuple[str | None, WebhookFile | None]:
-    """Return the preferred Steam thumbnail source for an entry.
-
-    Returns:
-        tuple[str | None, WebhookFile | None]: Thumbnail URL and optional uploaded file.
-    """
-    feed_url: str = str(getattr(entry.feed, "url", "") or "")
-    if not is_steam_feed_url(feed_url):
-        return None, None
-
-    app_id: str | None = extract_steam_app_id_from_url(feed_url) or extract_steam_app_id_from_url(str(entry.link or ""))
-    if not app_id:
-        return None, None
-
-    local_icon_file: WebhookFile | None = get_local_steam_game_icon_file(app_id)
-    if local_icon_file:
-        return f"attachment://{local_icon_file.filename}", local_icon_file
-
-    return f"https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/capsule_sm_120.jpg", None
 
 
 def send_entry_to_discord(entry: Entry, reader: Reader) -> str | None:
@@ -349,16 +253,12 @@ def get_entry_delivery_mode(reader: Reader, entry: Entry) -> DeliveryMode:
     """Resolve the effective delivery mode for an entry.
 
     Priority order:
-    1. YouTube feeds are forced to text mode.
-    2. New `delivery_mode` tag when valid.
-    3. Legacy `should_send_embed` flag for backwards compatibility.
+    1. New `delivery_mode` tag when valid.
+    2. Legacy `should_send_embed` flag for backwards compatibility.
 
     Returns:
         DeliveryMode: The effective delivery mode for this entry.
     """
-    if is_youtube_feed(entry.feed.url):
-        return "text"
-
     try:
         delivery_mode_raw: str = str(reader.get_tag(entry.feed, "delivery_mode", "")).strip().lower()
     except ReaderError:
@@ -385,9 +285,6 @@ def get_feed_delivery_mode(reader: Reader, feed: Feed) -> DeliveryMode:
     Returns:
         DeliveryMode: The effective delivery mode for this feed.
     """
-    if is_youtube_feed(feed.url):
-        return "text"
-
     try:
         delivery_mode_raw: str = str(reader.get_tag(feed, "delivery_mode", "")).strip().lower()
     except ReaderError:
@@ -973,11 +870,22 @@ def edit_sent_webhook_message(
 def apply_feed_webhook_identity(webhook: DiscordWebhook, entry: Entry, reader: Reader) -> DiscordWebhook:
     """Apply per-feed custom username and avatar when valid; ignore blank/invalid values.
 
+    Falls back to the feed's author or title when no custom username is set.
+
     Returns:
         The same webhook instance with optional identity overrides.
     """
-    username: str = get_validated_message_username(reader, entry.feed)
-    avatar_url: str = get_validated_message_avatar_url(reader, entry.feed)
+    feed: Feed = entry.feed
+    username: str = get_validated_message_username(reader, feed)
+    avatar_url: str = get_validated_message_avatar_url(reader, feed)
+
+    if not username:
+        # Fall back to feed author or title so the webhook name is
+        # identifiable rather than the generic Discord webhook default.
+        feed_author: str = feed.authors_str or feed.title or ""
+        if feed_author:
+            username = html.unescape(feed_author)[:80]
+
     if username:
         webhook.username = username
     if avatar_url:
@@ -998,22 +906,6 @@ def create_webhook_for_entry(
         tuple[DiscordWebhook, DeliveryMode]: Rendered webhook object and delivery mode.
     """
     delivery_mode: DeliveryMode = get_entry_delivery_mode(reader, entry)
-
-    if delivery_mode == "embed" and is_c3kay_feed(entry.feed.url):
-        entry_link: str | None = entry.link
-        if entry_link:
-            post_id: str | None = extract_post_id_from_hoyolab_url(entry_link)
-            if post_id:
-                post_data = fetch_hoyolab_post(post_id)
-                if post_data:
-                    webhook = create_hoyolab_webhook(webhook_url, entry, post_data)
-                    return apply_feed_webhook_identity(webhook, entry, reader), delivery_mode
-                logger.warning(
-                    "Failed to create Hoyolab webhook for feed %s, falling back to regular processing",
-                    entry.feed.url,
-                )
-        else:
-            logger.warning("No entry link found for feed %s, falling back to regular processing", entry.feed.url)
 
     if delivery_mode == "embed":
         webhook = create_embed_webhook(webhook_url, entry, reader=reader)
@@ -1873,7 +1765,7 @@ def create_components_v2_webhook(
     )
 
 
-def create_embed_webhook(  # ruff:ignore[complex-structure, too-many-branches]
+def create_embed_webhook(  # ruff:ignore[complex-structure, too-many-branches, too-many-statements]
     webhook_url: str,
     entry: Entry,
     reader: Reader,
@@ -1895,10 +1787,6 @@ def create_embed_webhook(  # ruff:ignore[complex-structure, too-many-branches]
     custom_embed: CustomEmbed = replace_tags_in_embed(feed=feed, entry=entry, reader=reader)
     media_gallery_image_limit: int = get_feed_media_gallery_image_limit(reader, feed)
     webhook_text_length_limit: int = get_feed_webhook_text_length_limit(reader, feed)
-    steam_game_thumbnail_url: str | None = None
-    steam_game_thumbnail_file: WebhookFile | None = None
-    if custom_embed.show_steam_game_icon_in_thumbnail:
-        steam_game_thumbnail_url, steam_game_thumbnail_file = get_steam_game_thumbnail(entry)
     if media_gallery_image_limit == 0:
         custom_embed.image_url = ""
         custom_embed.thumbnail_url = ""
@@ -1951,9 +1839,22 @@ def create_embed_webhook(  # ruff:ignore[complex-structure, too-many-branches]
             icon_url=custom_embed.author_icon_url,
         )
 
-    embed_thumbnail_url: str = steam_game_thumbnail_url or custom_embed.thumbnail_url
-    if embed_thumbnail_url:
-        discord_embed.set_thumbnail(url=embed_thumbnail_url)
+    if custom_embed.thumbnail_url:
+        discord_embed.set_thumbnail(url=custom_embed.thumbnail_url)
+
+    # Steam feed: override thumbnail with the game's capsule image when enabled.
+    steam_thumbnail_file: WebhookFile | None = None
+    if custom_embed.show_steam_game_icon_in_thumbnail and is_steam_url(feed.url or ""):
+        app_id: str | None = steam_extract_app_id(feed.url) or steam_extract_app_id(str(entry.link or ""))
+        if app_id:
+            icon_file: WebhookFile | None = steam_get_icon_file(app_id)
+            if icon_file:
+                steam_thumbnail_file = icon_file
+                discord_embed.set_thumbnail(url=f"attachment://{icon_file.filename}")
+            else:
+                discord_embed.set_thumbnail(
+                    url=f"https://cdn.cloudflare.steamstatic.com/steam/apps/{app_id}/capsule_sm_120.jpg",
+                )
 
     if custom_embed.image_url:
         discord_embed.set_image(url=custom_embed.image_url)
@@ -1967,8 +1868,8 @@ def create_embed_webhook(  # ruff:ignore[complex-structure, too-many-branches]
     if custom_embed.footer_icon_url and not custom_embed.footer_text:
         discord_embed.set_footer(text="-", icon_url=custom_embed.footer_icon_url)
 
-    if steam_game_thumbnail_file:
-        webhook.add_file(file=steam_game_thumbnail_file.content, filename=steam_game_thumbnail_file.filename)
+    if steam_thumbnail_file:
+        webhook.add_file(file=steam_thumbnail_file.content, filename=steam_thumbnail_file.filename)
 
     webhook.add_embed(discord_embed)
     return webhook
@@ -2098,6 +1999,9 @@ def execute_webhook(
         logger.warning("Feed not found in reader, not sending entry to Discord: %s", entry_feed.url)
         return
 
+    # Let enabled extensions modify the webhook before it is sent.
+    webhook = run_modify_webhook(webhook, entry, reader)
+
     request_payload: JsonObject = get_webhook_request_payload(webhook)
     payload: JsonObject = get_webhook_message_payload(webhook)
     response: Response = send_webhook_message(webhook, request_payload)
@@ -2114,31 +2018,6 @@ def execute_webhook(
             webhook_url: str = get_webhook_url(reader, entry)
             if webhook_url:
                 upsert_sent_webhook_record(reader, entry, webhook_url, webhook, response, payload)
-
-
-def is_youtube_feed(feed_url: str) -> bool:
-    """Check if the feed is a YouTube feed.
-
-    Args:
-        feed_url: The feed URL to check.
-
-    Returns:
-        bool: True if the feed is a YouTube feed, False otherwise.
-    """
-    return "youtube.com/feeds/videos.xml" in feed_url
-
-
-def should_send_embed_check(reader: Reader, entry: Entry) -> bool:
-    """Check if we should send an embed to Discord.
-
-    Args:
-        reader (Reader): The reader to use.
-        entry (Entry): The entry to check.
-
-    Returns:
-        bool: True if we should send an embed, False otherwise.
-    """
-    return get_entry_delivery_mode(reader, entry) == "embed"
 
 
 def truncate_webhook_message(
@@ -2165,7 +2044,7 @@ def truncate_webhook_message(
     return f"{webhook_message[:head_length]}...{webhook_message[-tail_length:]}"
 
 
-def get_raw_autodiscover_links(reader: Reader, feed_url: str) -> object | None:
+def get_raw_autodiscover_links(reader: Reader, feed_url: str):
     """Return advertised feed links stored after a failed initial update."""
     try:
         return reader.get_tag(feed_url, ".reader.autodiscover", None)
@@ -2181,7 +2060,7 @@ def remove_invalid_new_feed(reader: Reader, feed_url: str) -> None:
         logger.exception("Failed to remove invalid feed after initial update: %s", feed_url)
 
 
-def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:  # ruff:ignore[complex-structure, too-many-branches]
+def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:  # ruff:ignore[complex-structure, too-many-branches, too-many-statements]
     """Add a new feed, update it and mark every entry as read.
 
     Args:
@@ -2280,6 +2159,9 @@ def create_feed(reader: Reader, feed_url: str, webhook_dropdown: str) -> None:  
 
     # Set the default embed tag when creating the feed
     reader.set_tag(clean_feed_url, "embed", json.dumps(default_custom_embed))  # pyright: ignore[reportArgumentType]
+
+    # Auto-enable extensions whose URL patterns match this feed URL.
+    auto_enable_extensions_for_feed(reader, clean_feed_url)
 
     # Update the full-text search index so our new feed is searchable.
     reader.update_search()

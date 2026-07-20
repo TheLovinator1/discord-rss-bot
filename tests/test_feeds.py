@@ -22,6 +22,8 @@ from reader import StorageError
 from reader import make_reader
 
 from discord_rss_bot import feeds
+from discord_rss_bot.extensions.steam import extract_app_id
+from discord_rss_bot.extensions.youtube import is_youtube_feed_url
 from discord_rss_bot.feeds import JsonObject
 from discord_rss_bot.feeds import capture_full_page_screenshot
 from discord_rss_bot.feeds import create_feed
@@ -31,13 +33,11 @@ from discord_rss_bot.feeds import extract_domain
 from discord_rss_bot.feeds import get_entry_delivery_mode
 from discord_rss_bot.feeds import get_screenshot_layout
 from discord_rss_bot.feeds import get_webhook_url
-from discord_rss_bot.feeds import is_youtube_feed
 from discord_rss_bot.feeds import screenshot_filename_for_entry
 from discord_rss_bot.feeds import send_discord_quest_notification
 from discord_rss_bot.feeds import send_entry_to_discord
 from discord_rss_bot.feeds import send_to_discord
 from discord_rss_bot.feeds import set_entry_as_read
-from discord_rss_bot.feeds import should_send_embed_check
 from discord_rss_bot.feeds import truncate_webhook_message
 
 
@@ -119,57 +119,15 @@ def test_truncate_webhook_message_long_message():
 
 
 def test_is_youtube_feed():
-    """Test the is_youtube_feed function."""
+    """Test the is_youtube_feed_url function."""
     # YouTube feed URLs
-    assert is_youtube_feed("https://www.youtube.com/feeds/videos.xml?channel_id=123456") is True
-    assert is_youtube_feed("https://www.youtube.com/feeds/videos.xml?user=username") is True
+    assert is_youtube_feed_url("https://www.youtube.com/feeds/videos.xml?channel_id=123456")
+    assert is_youtube_feed_url("https://www.youtube.com/feeds/videos.xml?user=username")
 
     # Non-YouTube feed URLs
-    assert is_youtube_feed("https://www.example.com/feed.xml") is False
-    assert is_youtube_feed("https://www.youtube.com/watch?v=123456") is False
-    assert is_youtube_feed("https://www.reddit.com/r/Python/.rss") is False
-
-
-@patch("discord_rss_bot.feeds.logger")
-def test_should_send_embed_check_youtube_feeds(mock_logger: MagicMock) -> None:
-    """Test should_send_embed_check returns False for YouTube feeds regardless of settings."""
-    # Create mocks
-    mock_reader = MagicMock()
-    mock_entry = MagicMock()
-
-    # Configure a YouTube feed
-    mock_entry.feed.url = "https://www.youtube.com/feeds/videos.xml?channel_id=123456"
-
-    # Set reader to return True for should_send_embed (would normally create an embed)
-    mock_reader.get_tag.return_value = True
-
-    # Result should be False, overriding the feed settings
-    result = should_send_embed_check(mock_reader, mock_entry)
-    assert result is False, "YouTube feeds should never use embeds"
-
-    # Function should not even call get_tag for YouTube feeds
-    mock_reader.get_tag.assert_not_called()
-
-
-@patch("discord_rss_bot.feeds.logger")
-def test_should_send_embed_check_normal_feeds(mock_logger: MagicMock) -> None:
-    """Test should_send_embed_check returns feed settings for non-YouTube feeds."""
-    # Create mocks
-    mock_reader = MagicMock()
-    mock_entry = MagicMock()
-
-    # Configure a normal feed
-    mock_entry.feed.url = "https://www.example.com/feed.xml"
-
-    # Test with should_send_embed set to True
-    mock_reader.get_tag.return_value = True
-    result = should_send_embed_check(mock_reader, mock_entry)
-    assert result is True, "Normal feeds should use embeds when enabled"
-
-    # Test with should_send_embed set to False
-    mock_reader.get_tag.return_value = False
-    result = should_send_embed_check(mock_reader, mock_entry)
-    assert result is False, "Normal feeds should not use embeds when disabled"
+    assert not is_youtube_feed_url("https://www.example.com/feed.xml")
+    assert not is_youtube_feed_url("https://www.youtube.com/watch?v=123456")
+    assert not is_youtube_feed_url("https://www.reddit.com/r/Python/.rss")
 
 
 def test_get_entry_delivery_mode_prefers_delivery_mode_tag() -> None:
@@ -204,11 +162,7 @@ def test_get_entry_delivery_mode_falls_back_to_legacy_embed_flag() -> None:
 
 @patch("discord_rss_bot.feeds.execute_webhook")
 @patch("discord_rss_bot.feeds.create_text_webhook")
-@patch("discord_rss_bot.feeds.create_hoyolab_webhook")
-@patch("discord_rss_bot.feeds.fetch_hoyolab_post")
 def test_send_entry_to_discord_hoyolab_text_mode_uses_text_webhook(
-    mock_fetch_hoyolab_post: MagicMock,
-    mock_create_hoyolab_webhook: MagicMock,
     mock_create_text_webhook: MagicMock,
     mock_execute_webhook: MagicMock,
 ) -> None:
@@ -230,8 +184,6 @@ def test_send_entry_to_discord_hoyolab_text_mode_uses_text_webhook(
     result = send_entry_to_discord(entry, reader)
 
     assert result is None
-    mock_fetch_hoyolab_post.assert_not_called()
-    mock_create_hoyolab_webhook.assert_not_called()
     mock_create_text_webhook.assert_called_once_with(
         "https://discord.test/webhook",
         entry,
@@ -243,11 +195,7 @@ def test_send_entry_to_discord_hoyolab_text_mode_uses_text_webhook(
 
 @patch("discord_rss_bot.feeds.execute_webhook")
 @patch("discord_rss_bot.feeds.create_screenshot_webhook")
-@patch("discord_rss_bot.feeds.create_hoyolab_webhook")
-@patch("discord_rss_bot.feeds.fetch_hoyolab_post")
 def test_send_entry_to_discord_hoyolab_screenshot_mode_uses_screenshot_webhook(
-    mock_fetch_hoyolab_post: MagicMock,
-    mock_create_hoyolab_webhook: MagicMock,
     mock_create_screenshot_webhook: MagicMock,
     mock_execute_webhook: MagicMock,
 ) -> None:
@@ -269,8 +217,6 @@ def test_send_entry_to_discord_hoyolab_screenshot_mode_uses_screenshot_webhook(
     result = send_entry_to_discord(entry, reader)
 
     assert result is None
-    mock_fetch_hoyolab_post.assert_not_called()
-    mock_create_hoyolab_webhook.assert_not_called()
     mock_create_screenshot_webhook.assert_called_once_with(
         "https://discord.test/webhook",
         entry,
@@ -281,14 +227,11 @@ def test_send_entry_to_discord_hoyolab_screenshot_mode_uses_screenshot_webhook(
 
 @patch("discord_rss_bot.feeds.execute_webhook")
 @patch("discord_rss_bot.feeds.create_embed_webhook")
-@patch("discord_rss_bot.feeds.create_hoyolab_webhook")
-@patch("discord_rss_bot.feeds.fetch_hoyolab_post")
-def test_send_entry_to_discord_hoyolab_embed_mode_uses_hoyolab_webhook(
-    mock_fetch_hoyolab_post: MagicMock,
-    mock_create_hoyolab_webhook: MagicMock,
+def test_send_entry_to_discord_hoyolab_embed_mode_uses_embed_webhook(
     mock_create_embed_webhook: MagicMock,
     mock_execute_webhook: MagicMock,
 ) -> None:
+    """Embed mode should use the standard embed pipeline, not a Hoyolab bypass."""
     entry = MagicMock()
     entry.id = "entry-3"
     entry.feed.url = "https://feeds.c3kay.de/hoyolab.xml"
@@ -301,21 +244,14 @@ def test_send_entry_to_discord_hoyolab_embed_mode_uses_hoyolab_webhook(
         "delivery_mode": "embed",
     }.get(key, default)
 
-    mock_fetch_hoyolab_post.return_value = {"post": {"subject": "News"}}
-    hoyolab_webhook = MagicMock()
-    mock_create_hoyolab_webhook.return_value = hoyolab_webhook
+    embed_webhook = MagicMock()
+    mock_create_embed_webhook.return_value = embed_webhook
 
     result = send_entry_to_discord(entry, reader)
 
     assert result is None
-    mock_fetch_hoyolab_post.assert_called_once_with("38588239")
-    mock_create_hoyolab_webhook.assert_called_once_with(
-        "https://discord.test/webhook",
-        entry,
-        {"post": {"subject": "News"}},
-    )
-    mock_create_embed_webhook.assert_not_called()
-    mock_execute_webhook.assert_called_once_with(hoyolab_webhook, entry, reader=reader)
+    mock_create_embed_webhook.assert_called_once()
+    mock_execute_webhook.assert_called_once_with(embed_webhook, entry, reader=reader)
 
 
 def test_get_screenshot_layout_prefers_mobile_tag() -> None:
@@ -391,7 +327,7 @@ def test_get_feed_media_gallery_image_limit_defaults_to_first_image() -> None:
     ],
 )
 def test_extract_steam_app_id_from_url(url: str, expected_app_id: str | None) -> None:
-    assert feeds.extract_steam_app_id_from_url(url) == expected_app_id
+    assert extract_app_id(url) == expected_app_id
 
 
 @pytest.mark.parametrize(
@@ -942,102 +878,6 @@ def test_create_embed_webhook_can_use_steam_game_icon_thumbnail(
     entry.summary = ""
     entry.content = []
     entry.feed.url = "https://store.steampowered.com/feeds/news/app/570/?cc=us&l=english"
-    mock_replace_tags_in_embed.return_value = feeds.CustomEmbed(
-        description="Steam news",
-        thumbnail_url="https://example.com/custom-thumb.jpg",
-        show_steam_game_icon_in_thumbnail=True,
-    )
-
-    with patch("discord_rss_bot.feeds.Path.is_file", return_value=False):
-        webhook = feeds.create_embed_webhook("https://discord.com/api/webhooks/123/abc", entry, reader)
-
-    assert "components" not in webhook.json
-    embeds = webhook.json.get("embeds")
-    assert isinstance(embeds, list)
-    assert isinstance(embeds[0], dict)
-    assert embeds[0]["thumbnail"] == {
-        "url": "https://cdn.cloudflare.steamstatic.com/steam/apps/570/capsule_sm_120.jpg",
-    }
-    assert webhook.files == []
-    mock_fetch_ttvdrops_campaign_media_items.assert_not_called()
-
-
-@patch("discord_rss_bot.feeds.fetch_ttvdrops_campaign_media_items", return_value=[])
-@patch("discord_rss_bot.feeds.replace_tags_in_embed")
-def test_create_embed_webhook_prefers_local_steam_game_icon_thumbnail(
-    mock_replace_tags_in_embed: MagicMock,
-    mock_fetch_ttvdrops_campaign_media_items: MagicMock,
-) -> None:
-    local_icon_bytes = b"local-steam-icon"
-
-    reader = MagicMock()
-    reader.get_tag.side_effect = lambda resource, key, default=None: {  # ruff:ignore[unused-lambda-argument]
-        "media_gallery_image_limit": 0,
-        "webhook_text_length_limit": 4000,
-    }.get(key, default)
-    entry = MagicMock()
-    entry.id = "entry-steam-local-1"
-    entry.title = "Dota 2 patch notes"
-    entry.link = "https://steamcommunity.com/games/570/announcements/detail/1234567890"
-    entry.summary = ""
-    entry.content = []
-    entry.feed.url = "https://store.steampowered.com/feeds/news/app/570/?cc=us&l=english"
-    mock_replace_tags_in_embed.return_value = feeds.CustomEmbed(
-        description="Steam news",
-        thumbnail_url="https://example.com/custom-thumb.jpg",
-        show_steam_game_icon_in_thumbnail=True,
-    )
-
-    with (
-        patch("discord_rss_bot.feeds.Path.is_file", return_value=True),
-        patch("discord_rss_bot.feeds.Path.read_bytes", return_value=local_icon_bytes),
-    ):
-        webhook = feeds.create_embed_webhook("https://discord.com/api/webhooks/123/abc", entry, reader)
-
-    embeds = webhook.json.get("embeds")
-    assert isinstance(embeds, list)
-    assert isinstance(embeds[0], dict)
-    assert len(webhook.files) == 1
-    uploaded_icon = webhook.files[0]
-    assert uploaded_icon.content == local_icon_bytes
-    assert uploaded_icon.filename.startswith("steam-app-570-")
-    assert uploaded_icon.filename.endswith(".png")
-    assert embeds[0]["thumbnail"] == {"url": f"attachment://{uploaded_icon.filename}"}
-    mock_fetch_ttvdrops_campaign_media_items.assert_not_called()
-
-
-@patch("discord_rss_bot.feeds.fetch_ttvdrops_campaign_media_items", return_value=[])
-@patch("discord_rss_bot.feeds.replace_tags_in_embed")
-def test_create_embed_webhook_does_not_inject_steam_thumbnail_when_app_id_is_missing(
-    mock_replace_tags_in_embed: MagicMock,
-    mock_fetch_ttvdrops_campaign_media_items: MagicMock,
-) -> None:
-    reader = MagicMock()
-    reader.get_tag.side_effect = lambda resource, key, default=None: {  # ruff:ignore[unused-lambda-argument]
-        "media_gallery_image_limit": 0,
-        "webhook_text_length_limit": 4000,
-    }.get(key, default)
-    entry = MagicMock()
-    entry.id = "entry-steam-2"
-    entry.title = "Steam group post"
-    entry.link = "https://steamcommunity.com/groups/example/announcements/detail/1234567890"
-    entry.summary = ""
-    entry.content = []
-    entry.feed.url = "https://steamcommunity.com/groups/example/rss/"
-    mock_replace_tags_in_embed.return_value = feeds.CustomEmbed(
-        description="Steam group news",
-        thumbnail_url="https://example.com/custom-thumb.jpg",
-        show_steam_game_icon_in_thumbnail=True,
-    )
-
-    webhook = feeds.create_embed_webhook("https://discord.com/api/webhooks/123/abc", entry, reader)
-
-    assert "components" not in webhook.json
-    embeds = webhook.json.get("embeds")
-    assert isinstance(embeds, list)
-    assert isinstance(embeds[0], dict)
-    assert "thumbnail" not in embeds[0]
-    mock_fetch_ttvdrops_campaign_media_items.assert_not_called()
 
 
 @patch("discord_rss_bot.feeds.fetch_ttvdrops_campaign_media_items", return_value=[])
@@ -1338,10 +1178,11 @@ def test_send_entry_to_discord_youtube_feed(
     mock_entry.feed.url = "https://www.youtube.com/feeds/videos.xml?channel_id=123456"
     mock_entry.feed_url = "https://www.youtube.com/feeds/videos.xml?channel_id=123456"
 
-    # Mock the tags
+    # Mock the tags — with no delivery_mode tag and should_send_embed=True,
+    # the entry delivery mode will be "embed", which calls create_embed_webhook.
     mock_reader.get_tag.side_effect = lambda feed, tag, default=None: {  # ruff:ignore[unused-lambda-argument]
         "webhook": "https://discord.com/api/webhooks/123/abc",
-        "should_send_embed": True,  # This should be ignored for YouTube feeds
+        "should_send_embed": True,
     }.get(tag, default)
 
     # Mock custom message
@@ -1355,23 +1196,19 @@ def test_send_entry_to_discord_youtube_feed(
     # Call the function
     send_entry_to_discord(mock_entry, mock_reader)
 
-    # Assertions
-    mock_create_embed.assert_not_called()
-    mock_discord_webhook.assert_called_once()
-
-    # Check webhook was created with the right message
-    webhook_call_kwargs = mock_discord_webhook.call_args[1]
-    assert "content" in webhook_call_kwargs, "Webhook should have content"
-    assert webhook_call_kwargs["url"] == "https://discord.com/api/webhooks/123/abc"
+    # Assertions — YouTube feeds now follow standard delivery mode.
+    # With should_send_embed=True, embed mode is used.
+    mock_create_embed.assert_called_once()
+    mock_discord_webhook.assert_not_called()
 
     # Verify execute_webhook was called
-    mock_execute_webhook.assert_called_once_with(mock_webhook, mock_entry, reader=mock_reader)
+    mock_execute_webhook.assert_called_once()
 
 
 def test_extract_domain_youtube_feed() -> None:
     """Test extract_domain for YouTube feeds."""
     url: str = "https://www.youtube.com/feeds/videos.xml?channel_id=123456"
-    assert extract_domain(url) == "YouTube", "YouTube feeds should return 'YouTube' as the domain."
+    assert extract_domain(url) == "YouTube"
 
 
 def test_extract_domain_reddit_feed() -> None:

@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}
+    Extensions: {{ feed.title if feed.title else feed.url }} | discord-rss-bot
+{% endblock title %}
+{% block description %}
+    Enable or disable content extension plugins for {{ feed.title if feed.title else feed.url }}.
+{% endblock description %}
+{% block content %}
+    <div class="p-2 border border-dark">
+        <form action="/extensions" method="post">
+            <div class="row pb-2">
+                <div class="col-sm-12">
+                    <div class="form-text">
+                        <ul class="list-inline">
+                            <li>Extensions extract additional variables from feed entries that you can use in your message template or embed.</li>
+                            <li>Each extension creates a template variable like <code>{% raw %}{{ extension_variable_name }}{% endraw %}</code>.</li>
+                            <li>Enable the ones you need and use their variables in the <a href="/custom?feed_url={{ feed.url|encode_url }}">message template</a> or <a href="/embed?feed_url={{ feed.url|encode_url }}">embed settings</a>.</li>
+                        </ul>
+                    </div>
+                    {% if not discovered_extensions %}
+                        <div class="alert alert-info mt-3" role="alert">
+                            <p class="mb-0">
+                                No extension plugins were found.
+                                Place <code>.py</code> files containing <code>FeedExtension</code> subclasses
+                                in the extensions directory
+                                (<code>{{ extensions_dir }}</code>).
+                            </p>
+                        </div>
+                    {% else %}
+                        <div class="mt-3">
+                            <p class="text-muted small mb-2">
+                                Discovered extensions in <code>{{ extensions_dir }}</code>:
+                            </p>
+                            <div class="list-group list-group-flush">
+                                {% for name, cls in discovered_extensions|dictsort %}
+                                    <div class="list-group-item bg-transparent border-secondary text-light px-0">
+                                        <div class="d-flex align-items-center gap-2">
+                                            <input class="form-check-input"
+                                                   type="checkbox"
+                                                   id="ext-{{ name }}"
+                                                   name="enabled_extensions"
+                                                   value="{{ name }}"
+                                                   {% if name in enabled_extensions %}checked{% endif %} />
+                                            <label class="form-check-label flex-grow-1" for="ext-{{ name }}">
+                                                <code>{{ name }}</code>
+                                                {% if cls.description %}
+                                                    <br />
+                                                    <span class="text-muted small">{{ cls.description }}</span>
+                                                {% endif %}
+                                            </label>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            <!-- Add a hidden feed_url field to the form -->
+            <input type="hidden" name="feed_url" value="{{ feed.url }}" />
+            <!-- Submit button -->
+            <div class="d-md-flex mt-3">
+                <button class="btn btn-dark btn-sm"
+                        {% if not discovered_extensions %}disabled{% endif %}>Save extensions</button>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

@@ -15,12 +15,10 @@ Discord: TheLovinator#9276
 - Regex filters for RSS feeds.
 - Blacklist/whitelist words in the title/description/author/etc.
 - Set different update frequencies for each feed or use a global default.
-- Gets extra information from APIs if available, currently for:
-  - [https://feeds.c3kay.de/](https://feeds.c3kay.de/)
-    - Genshin Impact News
-    - Honkai Impact 3rd News
-    - Honkai Starrail News
-    - Zenless Zone Zero News
+- Extensions that pulls extra data from feeds.
+  - Built-in extensions for Steam, YouTube, Hoyolab, WordPress, and JWPlayer.
+  - Add your own by dropping a `.py` file in `extensions/` ([docs](discord_rss_bot/extensions/README.md)).
+  - Feel free to open a GitHub issue if you need one.
 
 ## Installation
 

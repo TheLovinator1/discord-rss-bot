@@ -91,7 +91,7 @@ lint.ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["assert", "undocumented-public-function", "magic-value-comparison"]
+"tests/*" = ["assert", "undocumented-public-function", "magic-value-comparison", "import-private-name"]
 
 [tool.pytest.ini_options]
 addopts = "-n 5 --dist loadfile -m \"not integration and not slow\""

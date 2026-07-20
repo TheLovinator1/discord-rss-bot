@@ -195,7 +195,7 @@
                                     {% raw %}
                                         {{entry_text}}
                                     {% endraw %}
-                                </code> Same as entry_content if it exists, otherwise entry_summary
+                                </code>{{ entry.content[0].value|discord_markdown if entry and entry.content else (entry.summary|discord_markdown if entry and entry.summary else '') }}
                         </li>
                         <li>
                             <code>
@@ -210,13 +210,27 @@
                                     {% raw %}
                                         {{image_1}}
                                     {% endraw %}
-                                </code>First image in the entry if it exists
-                        </li>
-                    </ul>
-                    {% else %}
-                    Something went wrong, there was no entry found. If this feed has entries and you still see this
-                    message, please contact the developer.
-                    {% endif %}
+                                </code>{{ first_image }}
+                            </li>
+                            {% if extension_variables %}
+                                <br />
+                                <li>Extension variables (from enabled extensions):</li>
+                                {% for var_name in extension_variables %}
+                                    <li>
+                                        <code>{% raw %}{{{% endraw %}{{ var_name }}{% raw %}}}{% endraw %}</code>
+                                        {% if var_name in extension_values and extension_values[var_name] %}
+                                            {{ extension_values[var_name] }}
+                                        {% else %}
+                                            (empty)
+                                        {% endif %}
+                                    </li>
+                                {% endfor %}
+                            {% endif %}
+                        </ul>
+                        {% else %}
+                        Something went wrong, there was no entry found. If this feed has entries and you still see this
+                        message, please contact the developer.
+                        {% endif %}
                 </div>
                 <div class="form-text">
                     <ul class="list-inline">
@@ -251,17 +265,16 @@
                 <label for="thumbnail_url" class="col-sm-6 col-form-label">Thumbnail</label>
                 <input name="thumbnail_url" type="text" class="form-control bg-dark border-dark text-muted"
                     id="thumbnail_url" {% if thumbnail_url %} value="{{- thumbnail_url -}}" {% endif %} />
+                {% if is_steam_feed %}
                 <div class="form-check mt-2">
-                    <input
-                        class="form-check-input"
-                        type="checkbox"
-                        id="show_steam_game_icon_in_thumbnail"
-                        name="show_steam_game_icon_in_thumbnail"
-                        value="true"
-                        {% if show_steam_game_icon_in_thumbnail %}checked{% endif %}
-                    />
-                    <label class="form-check-label" for="show_steam_game_icon_in_thumbnail"> Use Steam game icon as thumbnail when available </label>
+                    <input class="form-check-input" type="checkbox" name="show_steam_game_icon_in_thumbnail"
+                        id="show_steam_game_icon_in_thumbnail" value="true"
+                        {% if show_steam_game_icon_in_thumbnail %}checked{% endif %}>
+                    <label class="form-check-label" for="show_steam_game_icon_in_thumbnail">
+                        Use Steam game icon as thumbnail override
+                    </label>
                 </div>
+                {% endif %}
                 <label for="footer_text" class="col-sm-6 col-form-label">Footer text</label>
                 <input name="footer_text" type="text" class="form-control bg-dark border-dark text-muted"
                     id="footer_text" {% if footer_text %} value="{{- footer_text -}}" {% endif %} />

@@ -5,11 +5,18 @@ services:
     ports:
       - "5000:5000"
 
+    environment:
+      EXTENSIONS_DIR=/home/botuser/extensions
+
     volumes:
       # To use a host directory instead of a named volume:
       # Linux: - /Docker/Bots/discord-rss-bot:/home/botuser/.local/share/discord_rss_bot/
       # Windows: - C:\Docker\Bots\discord-rss-bot:/home/botuser/.local/share/discord_rss_bot/
       - data:/home/botuser/.local/share/discord_rss_bot/
+
+      # Uncomment and point to a directory with your .py extension plugins:
+      # Linux: - /path/to/extensions:/home/botuser/extensions
+      # Windows: - C:\Extensions:/home/botuser/extensions
 
     healthcheck:
       test: [ "CMD", "uv", "run", "./discord_rss_bot/healthcheck.py" ]

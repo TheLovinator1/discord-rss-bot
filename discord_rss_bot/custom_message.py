@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-import html
 import json
 import logging
-import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from bs4 import BeautifulSoup
 from bs4 import Tag
-from markdownify import markdownify
 
+from discord_rss_bot.extensions import run_extensions
+from discord_rss_bot.html_format import format_entry_html_for_discord
 from discord_rss_bot.is_url_valid import is_url_valid
 
 if TYPE_CHECKING:
@@ -22,8 +21,6 @@ if TYPE_CHECKING:
     from reader import Reader
 
 logger: logging.Logger = logging.getLogger(__name__)
-
-DISCORD_TIMESTAMP_TAG_RE: re.Pattern[str] = re.compile(r"<t:\d+(?::[tTdDfFrRsS])?>")
 
 # Discord webhook username: nickname rules, max 80 chars; no "clyde"/"discord" substrings.
 DISCORD_WEBHOOK_USERNAME_MAX_LENGTH: int = 80
@@ -43,7 +40,7 @@ class CustomEmbed:
     thumbnail_url: str = ""
     footer_text: str = ""
     footer_icon_url: str = ""
-    show_steam_game_icon_in_thumbnail: bool = False
+    show_steam_game_icon_in_thumbnail: bool = True
 
 
 def try_to_replace(custom_message: str, template: str, replace_with: str) -> str:
@@ -62,68 +59,6 @@ def try_to_replace(custom_message: str, template: str, replace_with: str) -> str
     except (TypeError, AttributeError, ValueError):
         logger.exception("Failed to replace %s with %s in %s", template, replace_with, custom_message)
         return custom_message
-
-
-def _preserve_discord_timestamp_tags(text: str) -> tuple[str, dict[str, str]]:
-    """Replace Discord timestamp tags with placeholders before markdown conversion.
-
-    Args:
-        text: The text to replace tags in.
-
-    Returns:
-        The text with Discord timestamp tags replaced by placeholders and a mapping of placeholders to original tags.
-    """
-    replacements: dict[str, str] = {}
-
-    def replace_match(match: re.Match[str]) -> str:
-        placeholder: str = f"DISCORDTIMESTAMPPLACEHOLDER{len(replacements)}"
-        replacements[placeholder] = match.group(0)
-        return placeholder
-
-    return DISCORD_TIMESTAMP_TAG_RE.sub(replace_match, text), replacements
-
-
-def _restore_discord_timestamp_tags(text: str, replacements: dict[str, str]) -> str:
-    """Restore preserved Discord timestamp tags after markdown conversion.
-
-    Args:
-        text: The text to restore tags in.
-        replacements: A mapping of placeholders to original Discord timestamp tags.
-
-    Returns:
-        The text with placeholders replaced by the original Discord timestamp tags.
-    """
-    for placeholder, original_value in replacements.items():
-        text = text.replace(placeholder, original_value)
-    return text
-
-
-def format_entry_html_for_discord(text: str) -> str:
-    """Convert entry HTML to Discord-friendly markdown while preserving Discord timestamp tags.
-
-    Args:
-        text: The HTML text to format.
-
-    Returns:
-        The formatted text with Discord timestamp tags preserved.
-    """
-    if not text:
-        return ""
-
-    unescaped_text: str = html.unescape(text)
-    protected_text, replacements = _preserve_discord_timestamp_tags(unescaped_text)
-    formatted_text: str = markdownify(
-        html=protected_text,
-        strip=["img", "table", "td", "tr", "tbody", "thead"],
-        escape_misc=False,
-        heading_style="ATX",
-    )
-
-    if "[https://" in formatted_text or "[https://www." in formatted_text:
-        formatted_text = formatted_text.replace("[https://", "[")
-        formatted_text = formatted_text.replace("[https://www.", "[")
-
-    return _restore_discord_timestamp_tags(formatted_text, replacements)
 
 
 def replace_tags_in_text_message(entry: Entry, reader: Reader) -> str:
@@ -190,6 +125,12 @@ def replace_tags_in_text_message(entry: Entry, reader: Reader) -> str:
         {"{{entry_updated}}": entry_updated},
         {"{{image_1}}": first_image},
     ]
+
+    # Compute extension variables (handled separately so they can use
+    # the already-computed values above without ordering issues).
+    extension_vars: dict[str, str] = run_extensions(entry, reader)
+    for var_name, var_value in extension_vars.items():
+        list_of_replacements.append({f"{{{{{var_name}}}}}": var_value})
 
     for replacement in list_of_replacements:
         for template, replace_with in replacement.items():
@@ -353,6 +294,12 @@ def replace_tags_in_embed(feed: Feed, entry: Entry, reader: Reader) -> CustomEmb
         {"{{entry_updated}}": entry_updated or ""},
         {"{{image_1}}": first_image or ""},
     ]
+    # Compute extension variables (handled separately so they can use
+    # the already-computed values above without ordering issues).
+    extension_vars: dict[str, str] = run_extensions(entry, reader)
+    for var_name, var_value in extension_vars.items():
+        list_of_replacements.append({f"{{{{{var_name}}}}}": var_value})
+
     for replacement in list_of_replacements:
         for template, replace_with in replacement.items():
             _replace_embed_tags(embed, template, replace_with)
@@ -547,23 +494,8 @@ def get_embed(reader: Reader, feed: Feed) -> CustomEmbed:
         thumbnail_url="",
         footer_text="",
         footer_icon_url="",
-        show_steam_game_icon_in_thumbnail=False,
+        show_steam_game_icon_in_thumbnail=True,
     )
-
-
-def coerce_embed_bool(value: object) -> bool:
-    """Normalize stored embed booleans from JSON or form-like values.
-
-    Returns:
-        The coerced boolean value.
-    """
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, int):
-        return value != 0
-    if isinstance(value, str):
-        return value.strip().lower() in {"1", "true", "on", "yes"}
-    return False
 
 
 def get_embed_data(embed_data: dict[str, str | int | bool]) -> CustomEmbed:
@@ -585,8 +517,9 @@ def get_embed_data(embed_data: dict[str, str | int | bool]) -> CustomEmbed:
     thumbnail_url: str = str(embed_data.get("thumbnail_url", ""))
     footer_text: str = str(embed_data.get("footer_text", ""))
     footer_icon_url: str = str(embed_data.get("footer_icon_url", ""))
-    show_steam_game_icon_in_thumbnail: bool = coerce_embed_bool(
-        embed_data.get("show_steam_game_icon_in_thumbnail", False),
+    show_steam_game_icon_in_thumbnail: bool = embed_data.get(  # pyright: ignore[reportAssignmentType]
+        "show_steam_game_icon_in_thumbnail",
+        True,
     )
 
     return CustomEmbed(

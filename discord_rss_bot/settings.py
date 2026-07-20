@@ -20,6 +20,10 @@ data_dir: str = os.getenv("DISCORD_RSS_BOT_DATA_DIR", "").strip() or user_data_d
     ensure_exists=True,
 )
 
+#: Directory where user-supplied Python extension plugins live.
+#: Override with the ``EXTENSIONS_DIR`` environment variable.
+extensions_dir: str = os.getenv("EXTENSIONS_DIR", "").strip() or str(Path.cwd() / "extensions")
+
 
 # TODO(TheLovinator): Add default things to the database and make the edible.
 default_custom_message: JSONType | str = "{{entry_title}}\n{{entry_link}}"

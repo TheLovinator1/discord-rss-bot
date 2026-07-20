@@ -14,7 +14,7 @@
                         <div class="feed-page__content">
                             <h2 class="h3 mb-1">
                                 <a class="text-muted text-decoration-none feed-page__wrap"
-                                   href="{{ feed.url }}">{{ feed.title }}</a>
+                                   href="{{ feed.url }}">{{ feed | feed_display_name }}</a>
                             </h2>
                             <p class="text-muted mb-0">{{ total_entries }} entries</p>
                         </div>
@@ -30,18 +30,16 @@
                                     Text
                                 {% endif %}
                             </span>
-                            {% if not "youtube.com/feeds/videos.xml" in feed.url %}
-                                <span class="badge status-chip bg-secondary">
-                                    Images:
-                                    {% if media_gallery_image_limit == 0 %}
-                                        No images
-                                    {% elif media_gallery_image_limit == 1 %}
-                                        First image only
-                                    {% else %}
-                                        Up to {{ media_gallery_image_limit }} images
-                                    {% endif %}
-                                </span>
-                            {% endif %}
+                            <span class="badge status-chip bg-secondary">
+                                Images:
+                                {% if media_gallery_image_limit == 0 %}
+                                    No images
+                                {% elif media_gallery_image_limit == 1 %}
+                                    First image only
+                                {% else %}
+                                    Up to {{ media_gallery_image_limit }} images
+                                {% endif %}
+                            </span>
                             {% if delivery_mode == "screenshot" %}
                                 <span class="badge status-chip bg-secondary">
                                     Screenshot layout:
@@ -177,10 +175,8 @@
                                             <br>
                                             Embed: a Discord embed with title, description, and images.
                                             <br>
-                                            {% if not "youtube.com/feeds/videos.xml" in feed.url %}
-                                                Screenshot: full-page screenshot of the entry link.
-                                                <br>
-                                            {% endif %}
+                                            Screenshot: full-page screenshot of the entry link.
+                                            <br>
                                             Text: plain message.
                                         </p>
                                         <div class="d-flex" role="group" aria-label="Delivery mode">
@@ -197,23 +193,21 @@
                                                       style="border-top-right-radius: 0;
                                                              border-bottom-right-radius: 0">Embed</span>
                                             {% endif %}
-                                            {% if not "youtube.com/feeds/videos.xml" in feed.url %}
-                                                {% if chromium_installed %}
-                                                    {% if delivery_mode != "screenshot" %}
-                                                        <form action="/use_screenshot" method="post" class="d-inline">
-                                                            <button class="btn btn-outline-light btn-sm rounded-0"
-                                                                    name="feed_url"
-                                                                    value="{{ feed.url }}">Screenshot</button>
-                                                        </form>
-                                                    {% else %}
-                                                        <span class="btn btn-primary btn-sm disabled rounded-0">Screenshot</span>
-                                                    {% endif %}
+                                            {% if chromium_installed %}
+                                                {% if delivery_mode != "screenshot" %}
+                                                    <form action="/use_screenshot" method="post" class="d-inline">
+                                                        <button class="btn btn-outline-light btn-sm rounded-0"
+                                                                name="feed_url"
+                                                                value="{{ feed.url }}">Screenshot</button>
+                                                    </form>
                                                 {% else %}
-                                                    <span class="btn btn-outline-light btn-sm rounded-0"
-                                                          title="Playwright Chromium is not installed. Run 'uv run playwright install chromium' to enable."
-                                                          style="opacity: 0.5;
-                                                                 cursor: not-allowed">Screenshot</span>
+                                                    <span class="btn btn-primary btn-sm disabled rounded-0">Screenshot</span>
                                                 {% endif %}
+                                            {% else %}
+                                                <span class="btn btn-outline-light btn-sm rounded-0"
+                                                      title="Playwright Chromium is not installed. Run 'uv run playwright install chromium' to enable."
+                                                      style="opacity: 0.5;
+                                                             cursor: not-allowed">Screenshot</span>
                                             {% endif %}
                                             {% if delivery_mode != "text" %}
                                                 <form action="/use_text" method="post" class="d-inline">
@@ -229,14 +223,14 @@
                                                              border-bottom-left-radius: 0">Text</span>
                                             {% endif %}
                                         </div>
-                                        {% if not chromium_installed and not "youtube.com/feeds/videos.xml" in feed.url %}
+                                        {% if not chromium_installed %}
                                             <div class="mt-2 small text-muted">
                                                 Screenshot mode requires Chromium for Playwright.
                                                 Run <code class="text-light">uv run playwright install chromium</code> to enable it.
                                             </div>
                                         {% endif %}
                                     </section>
-                                    {% if delivery_mode == "screenshot" and chromium_installed and not "youtube.com/feeds/videos.xml" in feed.url %}
+                                    {% if delivery_mode == "screenshot" and chromium_installed %}
                                         <hr class="border-secondary" />
                                         <section class="mb-3">
                                             <h4 class="h6 text-muted mb-2">Screenshot Layout</h4>
@@ -259,54 +253,52 @@
                                             </div>
                                         </section>
                                     {% endif %}
-                                    {% if not "youtube.com/feeds/videos.xml" in feed.url %}
-                                        <hr class="border-secondary" />
-                                        <section class="mb-3">
-                                            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
-                                                <h4 class="h6 text-muted mb-0">Image Delivery</h4>
-                                                <span class="badge {{ 'bg-info' if media_gallery_image_limit < max_media_gallery_items else 'bg-secondary' }}">
-                                                    {% if media_gallery_image_limit == 0 %}
-                                                        No images
-                                                    {% elif media_gallery_image_limit == 1 %}
-                                                        First image only
-                                                    {% else %}
-                                                        Up to {{ media_gallery_image_limit }} images
-                                                    {% endif %}
-                                                </span>
-                                            </div>
-                                            <p id="imageDeliveryHelp" class="text-muted small mb-2">
-                                                How many images to include per entry. Only applies to embed mode.
-                                            </p>
-                                            <form action="/set_feed_media_gallery_image_limit"
-                                                  method="post"
-                                                  class="mb-0">
-                                                <input type="hidden" name="feed_url" value="{{ feed.url }}" />
-                                                <label class="form-label small text-muted mb-2" for="image_limit">
-                                                    Images per entry:
-                                                    <output name="image_limit_value" for="image_limit">{{ media_gallery_image_limit }}</output>
-                                                </label>
-                                                <div class="d-flex flex-wrap align-items-center gap-3">
-                                                    <div class="flex-grow-1 image-limit-control">
-                                                        <input id="image_limit"
-                                                               class="form-range"
-                                                               type="range"
-                                                               name="image_limit"
-                                                               min="0"
-                                                               max="{{ max_media_gallery_items }}"
-                                                               step="1"
-                                                               value="{{ media_gallery_image_limit }}"
-                                                               aria-describedby="imageDeliveryHelp"
-                                                               oninput="this.form.elements.image_limit_value.value = this.value" />
-                                                        <div class="d-flex justify-content-between text-muted small">
-                                                            <span>0</span>
-                                                            <span>{{ max_media_gallery_items }}</span>
-                                                        </div>
+                                    <hr class="border-secondary" />
+                                    <section class="mb-3">
+                                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                                            <h4 class="h6 text-muted mb-0">Image Delivery</h4>
+                                            <span class="badge {{ 'bg-info' if media_gallery_image_limit < max_media_gallery_items else 'bg-secondary' }}">
+                                                {% if media_gallery_image_limit == 0 %}
+                                                    No images
+                                                {% elif media_gallery_image_limit == 1 %}
+                                                    First image only
+                                                {% else %}
+                                                    Up to {{ media_gallery_image_limit }} images
+                                                {% endif %}
+                                            </span>
+                                        </div>
+                                        <p id="imageDeliveryHelp" class="text-muted small mb-2">
+                                            How many images to include per entry. Only applies to embed mode.
+                                        </p>
+                                        <form action="/set_feed_media_gallery_image_limit"
+                                              method="post"
+                                              class="mb-0">
+                                            <input type="hidden" name="feed_url" value="{{ feed.url }}" />
+                                            <label class="form-label small text-muted mb-2" for="image_limit">
+                                                Images per entry:
+                                                <output name="image_limit_value" for="image_limit">{{ media_gallery_image_limit }}</output>
+                                            </label>
+                                            <div class="d-flex flex-wrap align-items-center gap-3">
+                                                <div class="flex-grow-1 image-limit-control">
+                                                    <input id="image_limit"
+                                                           class="form-range"
+                                                           type="range"
+                                                           name="image_limit"
+                                                           min="0"
+                                                           max="{{ max_media_gallery_items }}"
+                                                           step="1"
+                                                           value="{{ media_gallery_image_limit }}"
+                                                           aria-describedby="imageDeliveryHelp"
+                                                           oninput="this.form.elements.image_limit_value.value = this.value" />
+                                                    <div class="d-flex justify-content-between text-muted small">
+                                                        <span>0</span>
+                                                        <span>{{ max_media_gallery_items }}</span>
                                                     </div>
-                                                    <button class="btn btn-outline-light btn-sm" type="submit">Save image limit</button>
                                                 </div>
-                                            </form>
-                                        </section>
-                                    {% endif %}
+                                                <button class="btn btn-outline-light btn-sm" type="submit">Save image limit</button>
+                                            </div>
+                                        </form>
+                                    </section>
                                     <hr class="border-secondary" />
                                     <section>
                                         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
@@ -489,15 +481,12 @@
                                         <div class="btn-group btn-group-sm" role="group">
                                             <a class="btn {{ 'btn-primary' if delivery_mode == 'text' else 'btn-outline-light' }}"
                                                href="/custom?feed_url={{ feed.url|encode_url }}">Customize message</a>
-                                            {% if not "youtube.com/feeds/videos.xml" in feed.url %}
-                                                <a class="btn {{ 'btn-primary' if delivery_mode == 'embed' else 'btn-outline-light' }}"
-                                                   href="/embed?feed_url={{ feed.url|encode_url }}">Customize embed</a>
-                                            {% endif %}
+                                            <a class="btn {{ 'btn-primary' if delivery_mode == 'embed' else 'btn-outline-light' }}"
+                                               href="/embed?feed_url={{ feed.url|encode_url }}">Customize embed</a>
                                         </div>
+                                        <a class="btn btn-sm btn-outline-light"
+                                           href="/extensions?feed_url={{ feed.url|encode_url }}">Extensions</a>
                                     </div>
-                                    {% if is_steam_feed %}
-                                        <div class="form-text small mt-2">Steam feeds can enable thumbnails in embed settings.</div>
-                                    {% endif %}
                                 </div>
                             </div>
                         </div>
