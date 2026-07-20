@@ -16,6 +16,7 @@ import contextlib
 import json
 import logging
 import re
+import time
 from typing import TYPE_CHECKING
 from typing import ClassVar
 from typing import cast
@@ -102,6 +103,36 @@ def fetch_post(post_id: str) -> JsonObject | None:
 http_ok: int = 200
 
 
+# ---------------------------------------------------------------------------
+# In-memory cache for Hoyolab post data.
+# Key: post_id (str)
+# Value: tuple of (JsonObject | None, expiry_timestamp)
+#
+# Prevents redundant API calls when the same post is processed by both
+# ``process_entry()`` and ``modify_webhook()`` within a short timeframe.
+# ---------------------------------------------------------------------------
+_POST_CACHE: dict[str, tuple[JsonObject | None, float]] = {}
+
+#: Cache TTL in seconds.  Entries older than this are re-fetched.
+_CACHE_TTL_SECONDS: int = 300  # 5 minutes
+
+
+def _cached_fetch_post(post_id: str) -> JsonObject | None:
+    """Return cached post data if fresh, otherwise fetch and cache."""
+    now: float = time.time()
+    if post_id in _POST_CACHE:
+        cached_data, expiry = _POST_CACHE[post_id]
+        if now < expiry:
+            logger.debug("Cache hit for Hoyolab post %s", post_id)
+            return cached_data
+        logger.debug("Cache expired for Hoyolab post %s", post_id)
+
+    # Cache miss or expired — fetch fresh data.
+    post_data: JsonObject | None = fetch_post(post_id)
+    _POST_CACHE[post_id] = (post_data, now + _CACHE_TTL_SECONDS)
+    return post_data
+
+
 def _as_json_object(value: JsonValue) -> JsonObject:
     return cast("JsonObject", value) if isinstance(value, dict) else {}
 
@@ -148,7 +179,7 @@ class HoyolabExtension(FeedExtension):
         if not post_id:
             return {}
 
-        post_data: JsonObject | None = fetch_post(post_id)
+        post_data: JsonObject | None = _cached_fetch_post(post_id)
         if not post_data:
             return {}
 
@@ -202,7 +233,7 @@ class HoyolabExtension(FeedExtension):
         if not post_id:
             return webhook
 
-        post_data: JsonObject | None = fetch_post(post_id)
+        post_data: JsonObject | None = _cached_fetch_post(post_id)
         if not post_data:
             return webhook
 
