@@ -146,15 +146,42 @@ class HoyolabExtension(FeedExtension):
 
     name = "hoyolab"
     description = (
-        "Detects c3kay.de / Hoyolab feeds and replaces the Discord embed "
-        "with full post data from the Hoyolab API "
-        "(Genshin Impact, Honkai Starrail, Honkai Impact 3rd, ZZZ)."
+        "Fetches post data from the Hoyolab API for c3kay.de feeds. "
+        "Provides 20+ template variables (stats, topics, game info, "
+        "event dates, etc.) for text-mode messages, and replaces the "
+        "Discord embed with richer content for embed-mode."
     )
     provides_variables: ClassVar[list[str]] = [
         "hoyolab_subject",
         "hoyolab_description",
         "hoyolab_image",
         "hoyolab_author",
+        # Stats
+        "hoyolab_view_num",
+        "hoyolab_like_num",
+        "hoyolab_reply_num",
+        "hoyolab_bookmark_num",
+        "hoyolab_share_num",
+        # Post metadata
+        "hoyolab_post_id",
+        "hoyolab_created_at",
+        "hoyolab_reply_time",
+        "hoyolab_official_type",
+        # Author extras
+        "hoyolab_author_avatar_url",
+        "hoyolab_author_introduce",
+        "hoyolab_author_certification",
+        # Game
+        "hoyolab_game_name",
+        # Media
+        "hoyolab_cover",
+        "hoyolab_video_url",
+        # Classification / Topics
+        "hoyolab_classification",
+        "hoyolab_topics",
+        # Event dates
+        "hoyolab_event_start",
+        "hoyolab_event_end",
     ]
     auto_enable_url_patterns: ClassVar[list[str]] = [
         r"feeds\.c3kay\.de",
@@ -168,9 +195,10 @@ class HoyolabExtension(FeedExtension):
             reader: The reader instance.
 
         Returns:
-            Dict with ``hoyolab_subject``, ``hoyolab_description``,
-            ``hoyolab_image`` and ``hoyolab_author`` if the data was
-            fetched successfully, otherwise empty dict.
+            Dict with up to 20+ ``hoyolab_*`` variables (subject,
+            description, image, author, stats, post metadata, game
+            name, topics, event dates, etc.) if the data was fetched
+            successfully, otherwise empty dict.
         """
         if not is_c3kay_feed_url(entry.feed.url):
             return {}
@@ -183,7 +211,30 @@ class HoyolabExtension(FeedExtension):
         if not post_data:
             return {}
 
+        return self._collect_template_variables(post_data)
+
+    @staticmethod
+    def _collect_template_variables(post_data: JsonObject) -> dict[str, str]:
+        """Extract all template variables from the Hoyolab post payload.
+
+        Returns:
+            Dict of ``hoyolab_*`` template variables.
+        """
         post: JsonObject = _as_json_object(post_data.get("post"))
+        user: JsonObject = _as_json_object(post_data.get("user"))
+        result: dict[str, str] = {}
+        result.update(HoyolabExtension._collect_core_and_stat_vars(post_data, post, user))
+        result.update(HoyolabExtension._collect_meta_vars(post, user))
+        result.update(HoyolabExtension._collect_content_vars(post_data, post))
+        return result
+
+    @staticmethod
+    def _collect_core_and_stat_vars(post_data: JsonObject, post: JsonObject, user: JsonObject) -> dict[str, str]:
+        """Extract core post fields and engagement stats.
+
+        Returns:
+            Dict with subject, description, image, author, and stats.
+        """
         subject: str = str(post.get("subject", ""))
         description: str = str(post.get("desc", ""))
 
@@ -194,16 +245,96 @@ class HoyolabExtension(FeedExtension):
             if isinstance(first_image, dict):
                 image_url = str(first_image.get("url", ""))
 
-        author: str = ""
-        user: JsonObject = _as_json_object(post_data.get("user"))
-        if user:
-            author = str(user.get("nickname", ""))
+        author: str = str(user.get("nickname", "")) if user else ""
+
+        stat: JsonObject = _as_json_object(post_data.get("stat"))
+        view_num: str = str(stat.get("view_num", ""))
+        like_num: str = str(stat.get("like_num", ""))
+        reply_num: str = str(stat.get("reply_num", ""))
+        bookmark_num: str = str(stat.get("bookmark_num", ""))
+        share_num: str = str(stat.get("share_num", ""))
 
         return {
             "hoyolab_subject": subject,
             "hoyolab_description": description,
             "hoyolab_image": image_url,
             "hoyolab_author": author,
+            "hoyolab_view_num": view_num,
+            "hoyolab_like_num": like_num,
+            "hoyolab_reply_num": reply_num,
+            "hoyolab_bookmark_num": bookmark_num,
+            "hoyolab_share_num": share_num,
+        }
+
+    @staticmethod
+    def _collect_meta_vars(post: JsonObject, user: JsonObject) -> dict[str, str]:
+        """Extract post metadata and author extras.
+
+        Returns:
+            Dict with post ID, timestamps, official type, and author info.
+        """
+        post_id_str: str = str(post.get("post_id", ""))
+        created_at: str = str(post.get("created_at", ""))
+        reply_time: str = str(post.get("reply_time", ""))
+        official_type: str = str(post.get("official_type", ""))
+
+        avatar_url_field: str = str(user.get("avatar_url", ""))
+        introduce: str = str(user.get("introduce", ""))
+        certification: JsonObject = _as_json_object(user.get("certification"))
+        certification_desc: str = str(certification.get("desc", "")) if certification else ""
+
+        return {
+            "hoyolab_post_id": post_id_str,
+            "hoyolab_created_at": created_at,
+            "hoyolab_reply_time": reply_time,
+            "hoyolab_official_type": official_type,
+            "hoyolab_author_avatar_url": avatar_url_field,
+            "hoyolab_author_introduce": introduce,
+            "hoyolab_author_certification": certification_desc,
+        }
+
+    @staticmethod
+    def _collect_content_vars(post_data: JsonObject, post: JsonObject) -> dict[str, str]:
+        """Extract game, media, classification, topics and event dates.
+
+        Returns:
+            Dict with game name, media URLs, classification, topics, and event dates.
+        """
+        game: JsonObject = _as_json_object(post_data.get("game"))
+        game_name: str = str(game.get("game_name", "")) if game else ""
+
+        cover_url: str = str(post.get("cover", ""))
+        video: JsonObject = _as_json_object(post_data.get("video"))
+        video_url: str = str(video.get("url", "")) if video else ""
+
+        classification: JsonObject = _as_json_object(post_data.get("classification"))
+        classification_name: str = str(classification.get("name", "")) if classification else ""
+
+        topics_value: JsonValue = post_data.get("topics", [])
+        topic_names: list[str] = []
+        if isinstance(topics_value, list):
+            for t in topics_value:
+                if isinstance(t, dict):
+                    tn: str = str(t.get("name", ""))
+                    if tn:
+                        topic_names.append(tn)
+        topics_str: str = ", ".join(topic_names)
+
+        event_start: str = str(post.get("event_start_date", ""))
+        if event_start == "0":
+            event_start = ""
+        event_end: str = str(post.get("event_end_date", ""))
+        if event_end == "0":
+            event_end = ""
+
+        return {
+            "hoyolab_game_name": game_name,
+            "hoyolab_cover": cover_url,
+            "hoyolab_video_url": video_url,
+            "hoyolab_classification": classification_name,
+            "hoyolab_topics": topics_str,
+            "hoyolab_event_start": event_start,
+            "hoyolab_event_end": event_end,
         }
 
     def modify_webhook(
