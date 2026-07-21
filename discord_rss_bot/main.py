@@ -1506,6 +1506,8 @@ async def get_embed_page(
         "thumbnail_url": embed.thumbnail_url,
         "footer_text": embed.footer_text,
         "footer_icon_url": embed.footer_icon_url,
+        "avatar_url": embed.avatar_url,
+        "username": embed.username,
         "show_steam_game_icon_in_thumbnail": embed.show_steam_game_icon_in_thumbnail,
         "is_steam_feed": is_steam_feed_url(feed.url or ""),
         "extension_variables": extension_variables,
@@ -1520,7 +1522,7 @@ async def get_embed_page(
 
 
 @app.post("/embed", response_class=HTMLResponse)
-async def post_embed(  # ruff:ignore[complex-structure]
+async def post_embed(  # ruff:ignore[complex-structure, too-many-branches]
     feed_url: Annotated[str, Form()],
     reader: Annotated[Reader, Depends(get_reader_dependency)],
     title: Annotated[str, Form()] = "",
@@ -1534,6 +1536,8 @@ async def post_embed(  # ruff:ignore[complex-structure]
     footer_text: Annotated[str, Form()] = "",
     footer_icon_url: Annotated[str, Form()] = "",
     show_steam_game_icon_in_thumbnail: Annotated[str, Form()] = "",
+    avatar_url: Annotated[str, Form()] = "",
+    username: Annotated[str, Form()] = "",
 ) -> RedirectResponse:
     """Set the embed settings.
 
@@ -1550,6 +1554,8 @@ async def post_embed(  # ruff:ignore[complex-structure]
         footer_text: The footer text of the embed.
         footer_icon_url: The footer icon url of the embed.
         show_steam_game_icon_in_thumbnail: Whether to use Steam game icon as thumbnail.
+        avatar_url: Optional webhook avatar URL override for embed messages.
+        username: Optional webhook display name override for embed messages.
         reader: The Reader instance.
 
     Returns:
@@ -1580,6 +1586,10 @@ async def post_embed(  # ruff:ignore[complex-structure]
         custom_embed.footer_text = footer_text
     if footer_icon_url != custom_embed.footer_icon_url:
         custom_embed.footer_icon_url = footer_icon_url
+    if avatar_url != custom_embed.avatar_url:
+        custom_embed.avatar_url = avatar_url
+    if username != custom_embed.username:
+        custom_embed.username = username
 
     # Handle the steam thumbnail toggle (checkbox: "true" when checked, "" when unchecked).
     new_steam_icon_toggle: bool = show_steam_game_icon_in_thumbnail.strip().lower() in {"true", "on", "1"}

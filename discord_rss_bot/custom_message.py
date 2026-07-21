@@ -41,6 +41,8 @@ class CustomEmbed:
     footer_text: str = ""
     footer_icon_url: str = ""
     show_steam_game_icon_in_thumbnail: bool = True
+    avatar_url: str = ""
+    username: str = ""
 
 
 def try_to_replace(custom_message: str, template: str, replace_with: str) -> str:
@@ -313,7 +315,6 @@ def replace_tags_in_embed(feed: Feed, entry: Entry, reader: Reader) -> CustomEmb
     embed.thumbnail_url = embed.thumbnail_url.replace("\\n", "\n")
     embed.footer_text = embed.footer_text.replace("\\n", "\n")
     embed.footer_icon_url = embed.footer_icon_url.replace("\\n", "\n")
-
     return embed
 
 
@@ -334,6 +335,8 @@ def _replace_embed_tags(embed: CustomEmbed, template: str, replace_with: str) ->
     embed.thumbnail_url = try_to_replace(embed.thumbnail_url, template, replace_with)
     embed.footer_text = try_to_replace(embed.footer_text, template, replace_with)
     embed.footer_icon_url = try_to_replace(embed.footer_icon_url, template, replace_with)
+    embed.avatar_url = try_to_replace(embed.avatar_url, template, replace_with)
+    embed.username = try_to_replace(embed.username, template, replace_with)
 
 
 def get_custom_message(reader: Reader, feed: Feed) -> str:
@@ -461,6 +464,8 @@ def save_embed(reader: Reader, feed: Feed, embed: CustomEmbed) -> None:
         "footer_text": embed.footer_text,
         "footer_icon_url": embed.footer_icon_url,
         "show_steam_game_icon_in_thumbnail": embed.show_steam_game_icon_in_thumbnail,
+        "avatar_url": embed.avatar_url,
+        "username": embed.username,
     }
     reader.set_tag(feed, "embed", json.dumps(embed_dict))  # pyright: ignore[reportArgumentType]
 
@@ -495,6 +500,8 @@ def get_embed(reader: Reader, feed: Feed) -> CustomEmbed:
         footer_text="",
         footer_icon_url="",
         show_steam_game_icon_in_thumbnail=True,
+        avatar_url="",
+        username="",
     )
 
 
@@ -521,6 +528,8 @@ def get_embed_data(embed_data: dict[str, str | int | bool]) -> CustomEmbed:
         "show_steam_game_icon_in_thumbnail",
         True,
     )
+    avatar_url: str = str(embed_data.get("avatar_url", ""))
+    username: str = str(embed_data.get("username", ""))
 
     return CustomEmbed(
         title=title,
@@ -534,4 +543,6 @@ def get_embed_data(embed_data: dict[str, str | int | bool]) -> CustomEmbed:
         footer_text=footer_text,
         footer_icon_url=footer_icon_url,
         show_steam_game_icon_in_thumbnail=show_steam_game_icon_in_thumbnail,
+        avatar_url=avatar_url,
+        username=username,
     )

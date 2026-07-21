@@ -238,6 +238,8 @@
                         <li>You can remove the embed from links by adding &lt; and &gt; around the link. (For example &lt;{% raw %}{{entry_link}}{% endraw %}&gt;)</li>
                     </ul>
                 </div>
+                <hr class="border-secondary my-3" />
+                <h5>Embed content</h5>
                 <label for="title" class="col-sm-6 col-form-label">Title</label>
                 <input name="title" type="text" class="form-control bg-dark border-dark text-muted" id="title"
                     {% if title %} value="{{- title -}}" {% endif %} />
@@ -247,15 +249,6 @@
                 <label for="color" class="col-sm-6 col-form-label">Embed color</label>
                 <input name="color" type="color" class="form-control form-control-color bg-dark border-dark text-muted"
                     id="color" {% if color %} value="{{- color -}}" {% endif %} />
-                <label for="author_name" class="col-sm-6 col-form-label">Author name</label>
-                <input name="author_name" type="text" class="form-control bg-dark border-dark text-muted"
-                    id="author_name" {% if author_name %} value="{{- author_name -}}" {% endif %} />
-                <label for="author_url" class="col-sm-6 col-form-label">Author URL</label>
-                <input name="author_url" type="text" class="form-control bg-dark border-dark text-muted" id="author_url"
-                    {% if author_url %} value="{{- author_url -}}" {% endif %} />
-                <label for="author_icon_url" class="col-sm-6 col-form-label">Author icon URL</label>
-                <input name="author_icon_url" type="text" class="form-control bg-dark border-dark text-muted"
-                    id="author_icon_url" {% if author_icon_url %} value="{{- author_icon_url -}}" {% endif %} />
                 <label for="image_url" class="col-sm-6 col-form-label">Image URL</label>
                 <input name="image_url" type="text" class="form-control bg-dark border-dark text-muted" id="image_url"
                     {% if image_url %} value="{{- image_url -}}" {% endif %} />
@@ -265,7 +258,31 @@
                 <label for="thumbnail_url" class="col-sm-6 col-form-label">Thumbnail</label>
                 <input name="thumbnail_url" type="text" class="form-control bg-dark border-dark text-muted"
                     id="thumbnail_url" {% if thumbnail_url %} value="{{- thumbnail_url -}}" {% endif %} />
+
+                <hr class="border-secondary my-3" />
+                <h5>Author</h5>
+                <label for="author_name" class="col-sm-6 col-form-label">Author name</label>
+                <input name="author_name" type="text" class="form-control bg-dark border-dark text-muted"
+                    id="author_name" {% if author_name %} value="{{- author_name -}}" {% endif %} />
+                <label for="author_url" class="col-sm-6 col-form-label">Author URL</label>
+                <input name="author_url" type="text" class="form-control bg-dark border-dark text-muted" id="author_url"
+                    {% if author_url %} value="{{- author_url -}}" {% endif %} />
+                <label for="author_icon_url" class="col-sm-6 col-form-label">Author icon URL</label>
+                <input name="author_icon_url" type="text" class="form-control bg-dark border-dark text-muted"
+                    id="author_icon_url" {% if author_icon_url %} value="{{- author_icon_url -}}" {% endif %} />
+
+                <hr class="border-secondary my-3" />
+                <h5>Footer</h5>
+                <label for="footer_text" class="col-sm-6 col-form-label">Footer text</label>
+                <input name="footer_text" type="text" class="form-control bg-dark border-dark text-muted"
+                    id="footer_text" {% if footer_text %} value="{{- footer_text -}}" {% endif %} />
+                <label for="footer_icon_url" class="col-sm-6 col-form-label">Footer icon</label>
+                <input name="footer_icon_url" type="text" class="form-control bg-dark border-dark text-muted"
+                    id="footer_icon_url" {% if footer_icon_url %} value="{{- footer_icon_url -}}" {% endif %} />
+
                 {% if is_steam_feed %}
+                <hr class="border-secondary my-3" />
+                <h5>Options</h5>
                 <div class="form-check mt-2">
                     <input class="form-check-input" type="checkbox" name="show_steam_game_icon_in_thumbnail"
                         id="show_steam_game_icon_in_thumbnail" value="true"
@@ -275,12 +292,25 @@
                     </label>
                 </div>
                 {% endif %}
-                <label for="footer_text" class="col-sm-6 col-form-label">Footer text</label>
-                <input name="footer_text" type="text" class="form-control bg-dark border-dark text-muted"
-                    id="footer_text" {% if footer_text %} value="{{- footer_text -}}" {% endif %} />
-                <label for="footer_icon_url" class="col-sm-6 col-form-label">Footer icon</label>
-                <input name="footer_icon_url" type="text" class="form-control bg-dark border-dark text-muted"
-                    id="footer_icon_url" {% if footer_icon_url %} value="{{- footer_icon_url -}}" {% endif %} />
+
+                <hr class="border-secondary my-3" />
+                <h5>Webhook identity</h5>
+                <div class="form-text">
+                    <ul class="list-inline">
+                        <li>These override the webhook's display name and avatar (profile picture) for messages from this feed.</li>
+                        <li>Leave blank to use the webhook's default name and avatar.</li>
+                        <li>Username rules: 1–80 characters; cannot contain <code>@</code>, <code>#</code>, <code>:</code>, or <code>`</code>; cannot contain <code>clyde</code> or <code>discord</code>.</li>
+                        <li>Avatar must be a full <code>http://</code> or <code>https://</code> image URL.</li>
+                    </ul>
+                </div>
+                <label for="username" class="col-sm-6 col-form-label">Webhook name</label>
+                <input name="username" type="text" class="form-control bg-dark border-dark text-muted"
+                    id="username" maxlength="80" placeholder="e.g. My Feed Bot"
+                    {% if username %} value="{{- username -}}" {% endif %} />
+                <label for="avatar_url" class="col-sm-6 col-form-label">Webhook avatar</label>
+                <input name="avatar_url" type="text" class="form-control bg-dark border-dark text-muted"
+                    id="avatar_url" placeholder="e.g. https://example.com/avatar.png or {% raw %}{{hoyolab_author_avatar_url}}{% endraw %}"
+                    {% if avatar_url %} value="{{- avatar_url -}}" {% endif %} />
             </div>
         </div>
         <!-- Add a hidden feed_url field to the form -->

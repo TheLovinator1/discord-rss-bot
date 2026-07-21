@@ -454,13 +454,19 @@ class HoyolabExtension(FeedExtension):
                 webhook.add_file(file=video_response.content, filename=f"{entry.id}.mp4")
 
     def _apply_author_from_post(self, webhook: DiscordWebhook, post_data: JsonObject) -> None:
-        """Set webhook author (username and avatar) from post user data."""
+        """Set webhook author (username and avatar) from post user data.
+
+        Only sets values that haven't been explicitly configured via
+        the feed's embed or message template settings.
+        """
         user: JsonObject = _as_json_object(post_data.get("user"))
         author_name: str = str(user.get("nickname", ""))
         avatar_url: str = str(user.get("avatar_url", ""))
         if author_name:
-            webhook.avatar_url = avatar_url
-            webhook.username = author_name
+            if not webhook.username:
+                webhook.username = author_name
+            if not webhook.avatar_url:
+                webhook.avatar_url = avatar_url
 
     def _apply_structured_content(self, webhook: DiscordWebhook, post_data: JsonObject) -> None:
         """Parse structured content for YouTube embeds and add them to the webhook."""

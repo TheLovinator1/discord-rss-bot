@@ -52,6 +52,7 @@ from discord_rss_bot.custom_message import get_custom_message
 from discord_rss_bot.custom_message import get_image_urls
 from discord_rss_bot.custom_message import get_validated_message_avatar_url
 from discord_rss_bot.custom_message import get_validated_message_username
+from discord_rss_bot.custom_message import normalize_message_username
 from discord_rss_bot.custom_message import replace_tags_in_embed
 from discord_rss_bot.custom_message import replace_tags_in_text_message
 from discord_rss_bot.extensions import auto_enable_extensions_for_feed
@@ -1754,12 +1755,14 @@ def create_components_v2_webhook(
         },
         create_media_gallery_component(media_items),
     ]
-    return DiscordWebhook(
+    webhook: DiscordWebhook = DiscordWebhook(
         url=webhook_url,
         flags=1 << 15,
         components=components,
         rate_limit_retry=True,
     )
+    _apply_embed_identity(webhook, custom_embed)
+    return webhook
 
 
 def create_embed_webhook(  # ruff:ignore[complex-structure, too-many-branches]
@@ -1851,8 +1854,23 @@ def create_embed_webhook(  # ruff:ignore[complex-structure, too-many-branches]
     if custom_embed.footer_icon_url and not custom_embed.footer_text:
         discord_embed.set_footer(text="-", icon_url=custom_embed.footer_icon_url)
 
+    _apply_embed_identity(webhook, custom_embed)
     webhook.add_embed(discord_embed)
     return webhook
+
+
+def _apply_embed_identity(webhook: DiscordWebhook, custom_embed: CustomEmbed) -> None:
+    """Apply the embed's avatar_url and username to the webhook.
+
+    Sets the webhook-level avatar and display name from the custom embed
+    configuration, if valid. These can be overridden later by per-feed
+    ``message_avatar_url`` / ``message_username`` tags.
+    """
+    if custom_embed.avatar_url and is_url_valid(custom_embed.avatar_url):
+        webhook.avatar_url = custom_embed.avatar_url
+    embed_username: str = normalize_message_username(custom_embed.username)
+    if embed_username:
+        webhook.username = embed_username
 
 
 def get_webhook_url(reader: Reader, entry: Entry) -> str:
