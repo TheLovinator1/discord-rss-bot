@@ -71,7 +71,6 @@ def test_search() -> None:
     feeds: Response = client.get("/")
     if feed_url in feeds.text:
         client.post(url="/remove", data={"feed_url": feed_url})
-        client.post(url="/remove", data={"feed_url": encoded_feed_url(feed_url)})
 
     # Delete the webhook if it already exists before we run the test.
     response: Response = client.post(url="/delete_webhook", data={"webhook_url": webhook_url})
@@ -181,7 +180,6 @@ def test_create_feed() -> None:
     feeds: Response = client.get(url="/")
     if feed_url in feeds.text:
         client.post(url="/remove", data={"feed_url": feed_url})
-        client.post(url="/remove", data={"feed_url": encoded_feed_url(feed_url)})
 
     # Add the feed.
     response: Response = client.post(url="/add", data={"feed_url": feed_url, "webhook_dropdown": webhook_name})
@@ -255,7 +253,6 @@ def test_get() -> None:
     feeds: Response = client.get("/")
     if feed_url in feeds.text:
         client.post(url="/remove", data={"feed_url": feed_url})
-        client.post(url="/remove", data={"feed_url": encoded_feed_url(feed_url)})
 
     # Add the feed.
     response: Response = client.post(url="/add", data={"feed_url": feed_url, "webhook_dropdown": webhook_name})
@@ -272,16 +269,16 @@ def test_get() -> None:
     response: Response = client.get(url="/add_webhook")
     assert response.status_code == 200, f"/add_webhook failed: {response.text}"
 
-    response: Response = client.get(url="/blacklist", params={"feed_url": encoded_feed_url(feed_url)})
+    response: Response = client.get(url="/blacklist", params={"feed_url": feed_url})
     assert response.status_code == 200, f"/blacklist failed: {response.text}"
 
-    response: Response = client.get(url="/custom", params={"feed_url": encoded_feed_url(feed_url)})
+    response: Response = client.get(url="/custom", params={"feed_url": feed_url})
     assert response.status_code == 200, f"/custom failed: {response.text}"
 
-    response: Response = client.get(url="/embed", params={"feed_url": encoded_feed_url(feed_url)})
+    response: Response = client.get(url="/embed", params={"feed_url": feed_url})
     assert response.status_code == 200, f"/embed failed: {response.text}"
 
-    response: Response = client.get(url="/feed", params={"feed_url": encoded_feed_url(feed_url)})
+    response: Response = client.get(url="/feed", params={"feed_url": feed_url})
     assert response.status_code == 200, f"/feed failed: {response.text}"
 
     response: Response = client.get(url="/")
@@ -293,7 +290,7 @@ def test_get() -> None:
     response = client.get(url="/webhook_entries", params={"webhook_url": webhook_url})
     assert response.status_code == 200, f"/webhook_entries failed: {response.text}"
 
-    response: Response = client.get(url="/whitelist", params={"feed_url": encoded_feed_url(feed_url)})
+    response: Response = client.get(url="/whitelist", params={"feed_url": feed_url})
     assert response.status_code == 200, f"/whitelist failed: {response.text}"
 
 
@@ -351,10 +348,98 @@ def test_feed_page_shows_steam_thumbnail_hint_for_steam_feeds() -> None:
         app.dependency_overrides = {}
 
 
+@pytest.mark.parametrize(
+    "encoded_url",
+    [
+        pytest.param(
+            "https://gazellegames.net/feeds.php?feed=test&name=Halo%3A+Campaign+Evolved",
+            id="percent-encoded-colon",
+        ),
+        pytest.param(
+            "https://example.com/path%2Fwith%2Fslashes?q=val",
+            id="percent-encoded-slash",
+        ),
+        pytest.param(
+            "https://example.com/feed?title=A%23B%26C%3D",
+            id="percent-encoded-special-chars",
+        ),
+        pytest.param(
+            "https://example.com/feed?name=with+plus+signs",
+            id="literal-plus-signs",
+        ),
+        pytest.param(
+            "https://example.com/feed?filter=%7B%22key%22%3A+%22val%22%7D",
+            id="percent-encoded-json",
+        ),
+        pytest.param(
+            "https://example.com/feed?redirect=https%3A%2F%2Fother.com%2F",
+            id="percent-encoded-nested-url",
+        ),
+    ],
+)
+def test_feed_page_with_percent_encoded_url(encoded_url: str) -> None:
+    """Feed lookups with percent-encoded URLs should not double-decode them.
+
+    FastAPI already decodes query parameters. Previously, get_feed() called
+    urllib.parse.unquote() on the already-decoded value, which caused %3A to
+    become : and broke the lookup. This test verifies that all common
+    percent-encoded characters survive the query parameter round-trip.
+    """
+
+    @dataclass(slots=True)
+    class DummyFeed:
+        url: str
+        title: str
+        updates_enabled: bool = True
+        last_exception: None = None
+        added: None = None
+        last_updated: None = None
+        last_retrieved: None = None
+        update_after: None = None
+
+    class StubReader:
+        def __init__(self) -> None:
+            self.feed = DummyFeed(url=encoded_url, title="Test Feed")
+
+        def get_feed(self, feed_url: str) -> DummyFeed:
+            assert feed_url == self.feed.url, f"Expected {self.feed.url!r}, got {feed_url!r}"
+            return self.feed
+
+        def get_tag(self, _resource: str | DummyFeed, key: str, default: TestTagValue = None) -> TestTagValue:
+            return {
+                "webhooks": [],
+                "delivery_mode": "embed",
+                "screenshot_layout": "desktop",
+                "media_gallery_image_limit": 0,
+                "webhook_text_length_limit": 4000,
+                "save_sent_webhooks": True,
+            }.get(key, default)
+
+        def get_entry_counts(self, **_kwargs: TestKwargValue) -> SimpleNamespace:
+            return SimpleNamespace(total=0)
+
+        def get_entries(self, **_kwargs: TestKwargValue) -> list[Entry]:
+            return []
+
+        def get_feed_counts(self, **_kwargs: TestKwargValue) -> SimpleNamespace:
+            return SimpleNamespace()
+
+    stub = StubReader()
+    app.dependency_overrides[get_reader_dependency] = lambda: stub
+
+    try:
+        with patch("discord_rss_bot.main.create_html_for_feed", return_value=""):
+            response: Response = client.get(url="/feed", params={"feed_url": encoded_url})
+
+        assert response.status_code == 200, f"/feed failed: {response.text}"
+    finally:
+        app.dependency_overrides = {}
+
+
 def test_blacklist_page_uses_live_preview_layout() -> None:
     ensure_preview_feed_exists()
 
-    response: Response = client.get(url="/blacklist", params={"feed_url": encoded_feed_url(feed_url)})
+    response: Response = client.get(url="/blacklist", params={"feed_url": feed_url})
 
     assert response.status_code == 200, f"/blacklist failed: {response.text}"
     assert 'hx-get="/blacklist_preview"' in response.text
@@ -365,7 +450,7 @@ def test_blacklist_page_uses_live_preview_layout() -> None:
 def test_whitelist_page_uses_live_preview_layout() -> None:
     ensure_preview_feed_exists()
 
-    response: Response = client.get(url="/whitelist", params={"feed_url": encoded_feed_url(feed_url)})
+    response: Response = client.get(url="/whitelist", params={"feed_url": feed_url})
 
     assert response.status_code == 200, f"/whitelist failed: {response.text}"
     assert 'hx-get="/whitelist_preview"' in response.text
@@ -919,7 +1004,6 @@ def test_pause_feed() -> None:
     feeds: Response = client.get(url="/")
     if feed_url in feeds.text:
         client.post(url="/remove", data={"feed_url": feed_url})
-        client.post(url="/remove", data={"feed_url": encoded_feed_url(feed_url)})
 
     # Add the feed.
     response: Response = client.post(url="/add", data={"feed_url": feed_url, "webhook_dropdown": webhook_name})
@@ -955,7 +1039,6 @@ def test_unpause_feed() -> None:
     feeds: Response = client.get("/")
     if feed_url in feeds.text:
         client.post(url="/remove", data={"feed_url": feed_url})
-        client.post(url="/remove", data={"feed_url": encoded_feed_url(feed_url)})
 
     # Add the feed.
     response: Response = client.post(url="/add", data={"feed_url": feed_url, "webhook_dropdown": webhook_name})
@@ -991,7 +1074,6 @@ def test_remove_feed() -> None:
     feeds: Response = client.get(url="/")
     if feed_url in feeds.text:
         client.post(url="/remove", data={"feed_url": feed_url})
-        client.post(url="/remove", data={"feed_url": encoded_feed_url(feed_url)})
 
     # Add the feed.
     response: Response = client.post(url="/add", data={"feed_url": feed_url, "webhook_dropdown": webhook_name})
@@ -1317,7 +1399,7 @@ def test_update_feed_not_found() -> None:
     nonexistent_feed_url = "https://nonexistent-feed.example.com/rss.xml"
 
     # Try to update the non-existent feed
-    response: Response = client.get(url="/update", params={"feed_url": urllib.parse.quote(nonexistent_feed_url)})
+    response: Response = client.get(url="/update", params={"feed_url": nonexistent_feed_url})
 
     # Check that it returns a 404 status code
     assert response.status_code == 404, f"Expected 404 for non-existent feed, got: {response.status_code}"
@@ -1376,15 +1458,13 @@ def test_post_entry_send_to_discord() -> None:
     entries: list[Entry] = list(reader.get_entries(feed=feed_url, limit=1))
     assert entries, "Feed should have at least one entry to send"
     entry_to_send: main_module.Entry = entries[0]
-    encoded_id: str = urllib.parse.quote(entry_to_send.id)
-
     no_redirect_client = TestClient(app, follow_redirects=False)
 
     # Patch execute_webhook so no real HTTP requests are made to Discord.
     with patch("discord_rss_bot.feeds.execute_webhook") as mock_execute:
         response = no_redirect_client.get(
             url="/post_entry",
-            params={"entry_id": encoded_id, "feed_url": urllib.parse.quote(feed_url)},
+            params={"entry_id": entry_to_send.id, "feed_url": feed_url},
         )
 
     assert response.status_code == 303, f"Expected redirect after sending, got {response.status_code}: {response.text}"
@@ -1445,7 +1525,7 @@ def test_post_entry_uses_feed_url_to_disambiguate_duplicate_ids() -> None:
         with patch("discord_rss_bot.main.send_entry_to_discord", side_effect=fake_send_entry_to_discord):
             response: Response = no_redirect_client.get(
                 url="/post_entry",
-                params={"entry_id": urllib.parse.quote(shared_id), "feed_url": urllib.parse.quote(feed_b)},
+                params={"entry_id": shared_id, "feed_url": feed_b},
             )
 
         assert response.status_code == 303, f"Expected redirect after sending, got {response.status_code}"
@@ -2075,10 +2155,9 @@ def test_webhook_entries_url_encoding() -> None:
     assert response.status_code == 200, f"Failed to add feed: {response.text}"
 
     # Get webhook_entries with URL-encoded webhook URL
-    encoded_webhook_url = urllib.parse.quote(webhook_url)
     response = client.get(
         url="/webhook_entries",
-        params={"webhook_url": encoded_webhook_url},
+        params={"webhook_url": webhook_url},
     )
 
     assert response.status_code == 200, f"Failed to get /webhook_entries with encoded URL: {response.text}"

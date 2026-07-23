@@ -709,7 +709,7 @@ async def post_attach_feed_webhook(
     Raises:
         HTTPException: If feed or webhook cannot be found.
     """
-    clean_feed_url: str = urllib.parse.unquote(feed_url.strip())
+    clean_feed_url: str = feed_url.strip()
     selected_webhook_name: str = webhook_dropdown.strip()
 
     try:
@@ -834,7 +834,8 @@ async def get_whitelist(
         HTMLResponse: The whitelist page.
     """
     clean_feed_url: str = feed_url.strip()
-    feed: Feed = reader.get_feed(urllib.parse.unquote(clean_feed_url))
+    feed: Feed = reader.get_feed(clean_feed_url)
+
     context = {
         "request": request,
         "feed": feed,
@@ -876,7 +877,7 @@ async def get_whitelist_preview(
     Returns:
         HTMLResponse: Rendered filter preview fragment.
     """
-    clean_feed_url: str = urllib.parse.unquote(feed_url.strip())
+    clean_feed_url: str = feed_url.strip()
     feed: Feed = reader.get_feed(clean_feed_url)
 
     form_values: dict[str, str] = {
@@ -963,7 +964,8 @@ async def get_blacklist(
     Returns:
         HTMLResponse: The blacklist page.
     """
-    feed: Feed = reader.get_feed(urllib.parse.unquote(feed_url))
+    clean_feed_url: str = feed_url.strip()
+    feed: Feed = reader.get_feed(clean_feed_url)
 
     context = {
         "request": request,
@@ -1006,8 +1008,9 @@ async def get_blacklist_preview(
     Returns:
         HTMLResponse: Rendered filter preview fragment.
     """
-    clean_feed_url: str = urllib.parse.unquote(feed_url.strip())
+    clean_feed_url: str = feed_url.strip()
     feed: Feed = reader.get_feed(clean_feed_url)
+
     form_values: dict[str, str] = {
         "blacklist_title": blacklist_title,
         "blacklist_summary": blacklist_summary,
@@ -1384,7 +1387,7 @@ async def post_set_custom(
     reader.set_tag(feed_url, "message_avatar_url", typing.cast("JSONType", message_avatar_url.strip()))
 
     clean_feed_url: str = feed_url.strip()
-    feed: Feed = reader.get_feed(urllib.parse.unquote(clean_feed_url))
+    feed: Feed = reader.get_feed(clean_feed_url)
 
     stored_custom_message: str = get_custom_message(reader, feed)
     if our_custom_message != stored_custom_message:
@@ -1410,7 +1413,8 @@ async def get_custom(
     Returns:
         HTMLResponse: The custom message page.
     """
-    feed: Feed = reader.get_feed(urllib.parse.unquote(feed_url.strip()))
+    clean_feed_url: str = feed_url.strip()
+    feed: Feed = reader.get_feed(clean_feed_url)
 
     # Collect extension variable names for the template.
     ext_registry: dict[str, type] = get_extension_registry()
@@ -1466,7 +1470,8 @@ async def get_embed_page(
     Returns:
         HTMLResponse: The custom message page.
     """
-    feed: Feed = reader.get_feed(urllib.parse.unquote(feed_url.strip()))
+    clean_feed_url: str = feed_url.strip()
+    feed: Feed = reader.get_feed(clean_feed_url)
 
     embed: CustomEmbed = get_embed(reader, feed)
 
@@ -1562,7 +1567,7 @@ async def post_embed(  # ruff:ignore[complex-structure, too-many-branches]
         RedirectResponse: Redirect to the embed page.
     """
     clean_feed_url: str = feed_url.strip()
-    feed: Feed = reader.get_feed(urllib.parse.unquote(clean_feed_url))
+    feed: Feed = reader.get_feed(clean_feed_url)
 
     custom_embed: CustomEmbed = get_embed(reader, feed)
 
@@ -1619,7 +1624,9 @@ async def get_extensions(
     Returns:
         HTMLResponse: The extensions configuration page.
     """
-    feed: Feed = reader.get_feed(urllib.parse.unquote(feed_url.strip()))
+    clean_feed_url: str = feed_url.strip()
+    feed: Feed = reader.get_feed(clean_feed_url)
+
     registry: dict[str, type] = get_extension_registry()
     enabled: list[str] = get_enabled_extensions(reader, feed.url)
 
@@ -2128,7 +2135,7 @@ async def get_feed(  # ruff:ignore[complex-structure, too-many-branches, too-man
     """
     entries_per_page: int = 20
 
-    clean_feed_url: str = urllib.parse.unquote(feed_url.strip())
+    clean_feed_url: str = feed_url.strip()
 
     try:
         feed: Feed = reader.get_feed(clean_feed_url)
@@ -2557,8 +2564,8 @@ async def get_sent_webhooks(
     Returns:
         sent_webhooks.html HTML
     """
-    clean_feed_url: str = urllib.parse.unquote(feed_url.strip())
-    clean_webhook_url: str = urllib.parse.unquote(webhook_url.strip())
+    clean_feed_url: str = feed_url.strip()
+    clean_webhook_url: str = webhook_url.strip()
 
     records: list[SentWebhookRecord] = get_sent_webhook_records(reader)
     if clean_feed_url:
@@ -2673,12 +2680,13 @@ async def remove_feed(
     Raises:
         HTTPException: Feed not found
     """
+    clean_feed_url: str = feed_url.strip()
     try:
-        reader.delete_feed(urllib.parse.unquote(feed_url))
+        reader.delete_feed(clean_feed_url)
     except FeedNotFoundError as e:
         raise HTTPException(status_code=404, detail="Feed not found") from e
 
-    commit_state_change(reader, f"Remove feed {urllib.parse.unquote(feed_url)}")
+    commit_state_change(reader, f"Remove feed {clean_feed_url}")
 
     return RedirectResponse(url="/", status_code=303)
 
@@ -2703,7 +2711,7 @@ async def update_feed(
         HTTPException: If the feed is not found.
     """
     try:
-        clean_feed_url: str = urllib.parse.unquote(feed_url)
+        clean_feed_url: str = feed_url.strip()
         modified_entries: list[tuple[str, str]] = update_feed_and_collect_modified_entries(reader, clean_feed_url)
     except FeedNotFoundError as e:
         raise HTTPException(status_code=404, detail="Feed not found") from e
@@ -3239,19 +3247,18 @@ async def post_entry(
     Returns:
         RedirectResponse: Redirect to the feed page.
     """
-    unquoted_entry_id: str = urllib.parse.unquote(entry_id)
-    clean_feed_url: str = urllib.parse.unquote(feed_url.strip()) if feed_url else ""
+    clean_feed_url: str = feed_url.strip() if feed_url else ""
 
     # Prefer feed-scoped lookup when feed_url is provided. This avoids ambiguity when
     # multiple feeds contain entries with the same ID.
     entry: Entry | None = None
     if clean_feed_url:
         entry = next(
-            (entry for entry in reader.get_entries(feed=clean_feed_url) if entry.id == unquoted_entry_id),
+            (entry for entry in reader.get_entries(feed=clean_feed_url) if entry.id == entry_id),
             None,
         )
     else:
-        entry = next((entry for entry in reader.get_entries() if entry.id == unquoted_entry_id), None)
+        entry = next((entry for entry in reader.get_entries() if entry.id == entry_id), None)
 
     if entry is None:
         return HTMLResponse(status_code=404, content=f"Entry '{entry_id}' not found.")
@@ -3511,8 +3518,9 @@ async def get_webhook_entries_mass_update_preview(
     Returns:
         HTMLResponse: Rendered partial template containing summary + preview table.
     """
-    clean_webhook_url: str = urllib.parse.unquote(webhook_url.strip())
+    clean_webhook_url: str = webhook_url.strip()
     all_feeds: list[Feed] = list(reader.get_feeds())
+
     webhook_feeds: list[Feed] = [
         feed for feed in all_feeds if str(reader.get_tag(feed.url, "webhook", "")) == clean_webhook_url
     ]
@@ -3564,7 +3572,7 @@ async def get_webhook_entries(  # ruff:ignore[complex-structure, too-many-locals
         HTTPException: If no feeds are found for this webhook or webhook doesn't exist.
     """
     entries_per_page: int = 20
-    clean_webhook_url: str = urllib.parse.unquote(webhook_url.strip())
+    clean_webhook_url: str = webhook_url.strip()
 
     # Get the webhook name from the webhooks list
     webhooks: list[dict[str, str]] = cast("list[dict[str, str]]", list(reader.get_tag((), "webhooks", [])))
@@ -3656,7 +3664,7 @@ async def get_webhook_entries(  # ruff:ignore[complex-structure, too-many-locals
         "is_show_more_entries_button_visible": is_show_more_entries_button_visible,
         "total_entries": total_entries,
         "feeds_count": len(webhook_feeds),
-        "message": urllib.parse.unquote(message) if message else "",
+        "message": message,
         **mass_update_context,
     }
     return templates.TemplateResponse(request=request, name="webhook_entries.html", context=context)
@@ -3687,7 +3695,7 @@ async def post_bulk_change_feed_urls(  # ruff:ignore[complex-structure, too-many
     Raises:
         HTTPException: If webhook is missing or replace_from is empty.
     """
-    clean_webhook_url: str = urllib.parse.unquote(webhook_url.strip())
+    clean_webhook_url: str = webhook_url.strip()
     clean_replace_from: str = replace_from.strip()
     clean_replace_to: str = replace_to.strip()
 
