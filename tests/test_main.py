@@ -325,6 +325,7 @@ def test_feed_page_shows_steam_thumbnail_hint_for_steam_feeds() -> None:
                 "media_gallery_image_limit": 0,
                 "webhook_text_length_limit": 4000,
                 "save_sent_webhooks": True,
+                "steam_game_name": "Dota 2",
             }.get(key, default)
 
         def get_entry_counts(self, **_kwargs: TestKwargValue) -> SimpleNamespace:
@@ -344,6 +345,47 @@ def test_feed_page_shows_steam_thumbnail_hint_for_steam_feeds() -> None:
             response: Response = client.get(url="/feed", params={"feed_url": stub.feed.url})
 
         assert response.status_code == 200, f"/feed failed: {response.text}"
+        assert "Dota 2" in response.text
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_embed_page_shows_steam_game_name_for_feed_title() -> None:
+    """The /embed page's {{feed_title}} preview should show the cached game name."""
+
+    @dataclass(slots=True)
+    class DummyFeed:
+        url: str
+        title: str
+
+    class StubReader:
+        def __init__(self) -> None:
+            self.feed = DummyFeed(
+                url="https://store.steampowered.com/feeds/news/app/570/?cc=US&l=english",
+                title="570 RSS Feed",
+            )
+
+        def get_feed(self, feed_url: str) -> DummyFeed:
+            assert feed_url == self.feed.url
+            return self.feed
+
+        def get_tag(self, _resource: object, key: str, default: TestTagValue = None) -> TestTagValue:
+            return {
+                "embed": "",
+                "steam_game_name": "Dota 2",
+            }.get(key, default)
+
+        def get_entries(self, **_kwargs: TestKwargValue) -> list[Entry]:
+            return []
+
+    stub = StubReader()
+    app.dependency_overrides[get_reader_dependency] = lambda: stub
+
+    try:
+        response: Response = client.get(url="/embed", params={"feed_url": stub.feed.url})
+
+        assert response.status_code == 200, f"/embed failed: {response.text}"
+        assert "Dota 2" in response.text
     finally:
         app.dependency_overrides = {}
 

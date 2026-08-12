@@ -72,9 +72,7 @@
                                     <ul class="list-group list-unstyled mb-0">
                                         {% for feed in domain_feeds %}
                                             <li>
-                                                <a class="text-muted" href="/feed?feed_url={{ feed.url|encode_url }}">
-                                                    {{ feed | feed_display_name }}
-                                                </a>
+                                                <a class="text-muted" href="/feed?feed_url={{ feed.url|encode_url }}">{{ feed | feed_display_name(reader) }}</a>
                                                 {% if not feed.updates_enabled %}<span class="text-warning">Disabled</span>{% endif %}
                                                 {% if feed.last_exception %}<span class="text-danger">({{ feed.last_exception.value_str }})</span>{% endif %}
                                             </li>
@@ -112,7 +110,7 @@
                     {% for broken_feed in broken_feeds %}
                         <a class="text-muted"
                            href="/feed?feed_url={{ broken_feed.url|encode_url }}">
-                            {{ broken_feed | feed_display_name }}
+                            {{ broken_feed | feed_display_name(reader) }}
                         </a>
                     {% endfor %}
                 </ul>
@@ -126,9 +124,7 @@
                     {% for feed in feeds_without_attached_webhook %}
                         <li class="list-group-item bg-dark border-dark text-danger">
                             <div class="d-flex flex-wrap align-items-center gap-2">
-                                <a class="text-muted" href="/feed?feed_url={{ feed.url|encode_url }}">
-                                    {{ feed | feed_display_name }}
-                                </a>
+                                <a class="text-muted" href="/feed?feed_url={{ feed.url|encode_url }}">{{ feed | feed_display_name(reader) }}</a>
                                 {% if webhooks %}
                                     <form action="/attach_feed_webhook"
                                           method="post"

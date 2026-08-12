@@ -330,6 +330,49 @@ def test_extract_steam_app_id_from_url(url: str, expected_app_id: str | None) ->
     assert extract_app_id(url) == expected_app_id
 
 
+def test_get_feed_display_name_uses_cached_steam_game_name() -> None:
+    """Steam feeds should display the cached game name when a reader is provided."""
+    reader = MagicMock()
+    reader.get_tag.return_value = "Dota"
+    feed = MagicMock()
+    feed.url = "https://store.steampowered.com/feeds/news/app/570/"
+    feed.title = "570 RSS Feed"
+    feed.authors_str = ""
+
+    result: str = feeds.get_feed_display_name(feed, reader)
+
+    assert result == "Dota"
+
+
+def test_get_feed_display_name_without_reader_returns_feed_title() -> None:
+    """Without a reader, Steam feeds should keep their raw title."""
+    feed = MagicMock()
+    feed.url = "https://store.steampowered.com/feeds/news/app/570/"
+    feed.title = "570 RSS Feed"
+    feed.authors_str = ""
+
+    assert feeds.get_feed_display_name(feed) == "570 RSS Feed"
+
+
+def test_apply_feed_webhook_identity_uses_steam_game_name_for_username_fallback() -> None:
+    """Webhook username fallback should use the Steam game name, not the raw title."""
+    feed = MagicMock()
+    feed.url = "https://store.steampowered.com/feeds/news/app/570/"
+    feed.title = "570 RSS Feed"
+    feed.authors_str = ""
+    entry = MagicMock()
+    entry.feed = feed
+    reader = MagicMock()
+    reader.get_tag.side_effect = lambda resource, key, default=None: (  # ruff:ignore[unused-lambda-argument]
+        "Dota 2" if key == "steam_game_name" else default
+    )
+
+    webhook = feeds.DiscordWebhook(url="https://discord.com/api/webhooks/123/abc")
+    result: feeds.DiscordWebhook = feeds.apply_feed_webhook_identity(webhook, entry, reader)
+
+    assert result.username == "Dota 2"
+
+
 @pytest.mark.parametrize(
     ("tag_value", "expected_limit"),
     [

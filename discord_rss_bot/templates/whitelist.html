@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block title %}
-    Whitelist: {{ feed.title if feed.title else feed.url }} | discord-rss-bot
+    Whitelist: {{ feed_title if feed_title else feed.url }} | discord-rss-bot
 {% endblock title %}
 {% block description %}
-    Allow only matching entries from {{ feed.title if feed.title else feed.url }} to reach Discord.
+    Allow only matching entries from {{ feed_title if feed_title else feed.url }} to reach Discord.
 {% endblock description %}
 {% block content %}
     <div class="row g-3 filter-page">

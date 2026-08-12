@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html
 import json
 import logging
 from dataclasses import dataclass
@@ -7,13 +8,16 @@ from typing import TYPE_CHECKING
 
 from bs4 import BeautifulSoup
 from bs4 import Tag
+from markupsafe import Markup
 
 from discord_rss_bot.extensions import run_extensions
 from discord_rss_bot.extensions.steam import fix_steam_image_url
+from discord_rss_bot.extensions.steam import get_feed_display_title
 from discord_rss_bot.html_format import format_entry_html_for_discord
 from discord_rss_bot.is_url_valid import is_url_valid
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from collections.abc import Sequence
 
     from reader import Content
@@ -105,7 +109,7 @@ def replace_tags_in_text_message(entry: Entry, reader: Reader) -> str:
         {"{{feed_last_updated}}": feed_last_updated},
         {"{{feed_link}}": feed.link or ""},
         {"{{feed_subtitle}}": feed.subtitle or ""},
-        {"{{feed_title}}": feed.title or ""},
+        {"{{feed_title}}": get_feed_display_title(feed, reader)},
         {"{{feed_updated}}": feed_updated},
         {"{{feed_updates_enabled}}": str(feed.updates_enabled) or ""},
         {"{{feed_url}}": feed.url or ""},
@@ -278,7 +282,7 @@ def replace_tags_in_embed(feed: Feed, entry: Entry, reader: Reader) -> CustomEmb
         {"{{feed_last_updated}}": feed_last_updated or ""},
         {"{{feed_link}}": feed.link or ""},
         {"{{feed_subtitle}}": feed.subtitle or ""},
-        {"{{feed_title}}": feed.title or ""},
+        {"{{feed_title}}": get_feed_display_title(feed, reader)},
         {"{{feed_updated}}": feed_updated or ""},
         {"{{feed_updates_enabled}}": "True" if feed.updates_enabled else "False"},
         {"{{feed_url}}": feed.url or ""},
@@ -342,6 +346,143 @@ def _replace_embed_tags(embed: CustomEmbed, template: str, replace_with: str) ->
     embed.footer_icon_url = try_to_replace(embed.footer_icon_url, template, replace_with)
     embed.avatar_url = try_to_replace(embed.avatar_url, template, replace_with)
     embed.username = try_to_replace(embed.username, template, replace_with)
+
+
+def _tag_reference_item(tag: str, value: object) -> str:
+    """Return one reference row for the template-variable preview list.
+
+    Args:
+        tag: The template variable name without braces, e.g. ``feed_title``.
+        value: The preview value to display next to the tag.
+
+    Returns:
+        An HTML ``<li>`` with the tag in ``<code>`` and the escaped value.
+    """
+    escaped_value: str = html.escape(str(value), quote=True)
+    return f"<li><code>{{{{{tag}}}}}</code> {escaped_value}</li>"
+
+
+def _tag_reference_value(obj: object, name: str) -> object:
+    """Read ``obj.name``, returning an empty string when the attribute is missing.
+
+    Mirrors Jinja's lenient attribute lookup so the reference list also works
+    with the minimal stubs used in tests.
+
+    Args:
+        obj: The object to read the attribute from.
+        name: The attribute name.
+
+    Returns:
+        The attribute value, or an empty string when it is missing.
+    """
+    return getattr(obj, name, "")
+
+
+def render_tag_reference_html(
+    *,
+    feed: Feed,
+    entry: Entry | None,
+    feed_title: str,
+    first_image: str,
+    extension_variables: Sequence[str] = (),
+    extension_values: Mapping[str, str] | None = None,
+) -> Markup:
+    """Render the template-variable reference list for the custom/embed pages.
+
+    The list used to be hardcoded in ``custom.html`` and ``embed.html`` with
+    many ``{% raw %}`` blocks, which broke whenever a formatter touched the
+    templates. Building the markup here keeps the ``{{ ... }}`` tags intact
+    because Jinja does not re-parse the returned string.
+
+    Args:
+        feed: The feed whose values are previewed.
+        entry: The first entry to preview, or None when the feed has no entries.
+        feed_title: The resolved display title for the feed (``{{feed_title}}``).
+        first_image: The first image URL found in the entry (``{{image_1}}``).
+        extension_variables: Names of the enabled extension variables.
+        extension_values: Values produced by the enabled extensions.
+
+    Returns:
+        A ``<ul>`` list of reference rows, safe to embed directly in HTML.
+    """
+    if extension_values is None:
+        extension_values = {}
+
+    rows: list[str] = ['<ul class="list-inline">', "<br />"]
+    rows.extend(
+        [
+            _tag_reference_item("feed_author", _tag_reference_value(feed, "authors_str")),
+            _tag_reference_item("feed_added", _tag_reference_value(feed, "added")),
+            _tag_reference_item("feed_last_exception", _tag_reference_value(feed, "last_exception")),
+            _tag_reference_item("feed_last_updated", _tag_reference_value(feed, "last_updated")),
+            _tag_reference_item("feed_link", _tag_reference_value(feed, "link")),
+            _tag_reference_item("feed_subtitle", _tag_reference_value(feed, "subtitle")),
+            _tag_reference_item("feed_title", feed_title),
+            _tag_reference_item("feed_updated", _tag_reference_value(feed, "updated")),
+            _tag_reference_item("feed_updates_enabled", _tag_reference_value(feed, "updates_enabled")),
+            _tag_reference_item("feed_url", _tag_reference_value(feed, "url")),
+            _tag_reference_item("feed_user_title", _tag_reference_value(feed, "user_title")),
+            _tag_reference_item("feed_version", _tag_reference_value(feed, "version")),
+        ],
+    )
+    rows.append("<br />")
+
+    if entry is not None:
+        content_html: str = entry.content[0].value if entry.content else ""
+        summary: str = entry.summary or ""
+        entry_content: str = format_entry_html_for_discord(content_html) if entry.content else ""
+        entry_summary: str = format_entry_html_for_discord(summary) if entry.summary else ""
+        entry_text: str = entry_content if entry.content else entry_summary
+
+        rows.extend(
+            [
+                _tag_reference_item("entry_added", entry.added),
+                _tag_reference_item("entry_author", entry.authors_str or ""),
+            ],
+        )
+        if entry.content:
+            rows.extend((
+                _tag_reference_item("entry_content", entry_content),
+                _tag_reference_item("entry_content_raw", content_html),
+            ))
+        rows.extend(
+            [
+                _tag_reference_item("entry_id", entry.id),
+                _tag_reference_item("entry_important", entry.important),
+                _tag_reference_item("entry_link", entry.link or ""),
+                _tag_reference_item("entry_published", entry.published),
+                _tag_reference_item("entry_read", entry.read),
+                _tag_reference_item("entry_read_modified", entry.read_modified),
+            ],
+        )
+        if entry.summary:
+            rows.extend((
+                _tag_reference_item("entry_summary", entry_summary),
+                _tag_reference_item("entry_summary_raw", summary),
+            ))
+        rows.extend(
+            [
+                _tag_reference_item("entry_title", entry.title or ""),
+                _tag_reference_item("entry_text", entry_text),
+                _tag_reference_item("entry_updated", entry.updated),
+            ],
+        )
+        rows.extend(("<br />", _tag_reference_item("image_1", first_image)))
+
+        if extension_variables:
+            rows.extend(("<br />", "<li>Extension variables (from enabled extensions):</li>"))
+            for var_name in extension_variables:
+                var_value: str = extension_values.get(var_name, "") or "(empty)"
+                rows.append(_tag_reference_item(var_name, var_value))
+    else:
+        rows.append(
+            "Something went wrong, there was no entry found. If this feed has entries and you still see this "
+            "message, please contact the developer.",
+        )
+
+    rows.append("</ul>")
+    # Safe: every dynamic value is HTML-escaped by _tag_reference_item.
+    return Markup("\n".join(rows))  # ruff: ignore[unsafe-markup-use]
 
 
 def get_custom_message(reader: Reader, feed: Feed) -> str:

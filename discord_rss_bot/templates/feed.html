@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block title %}
-    {{ feed.title if feed.title else feed.url }} | discord-rss-bot
+    {{ feed_title if feed_title else feed.url }} | discord-rss-bot
 {% endblock title %}
 {% block description %}
-    Review feed health, delivery settings, filters, webhook attachment, and update intervals for {{ feed.title if feed.title else feed.url }}.
+    Review feed health, delivery settings, filters, webhook attachment, and update intervals for {{ feed_title if feed_title else feed.url }}.
 {% endblock description %}
 {% block content %}
     <div class="row g-3 feed-page">
@@ -14,7 +14,7 @@
                         <div class="feed-page__content">
                             <h2 class="h3 mb-1">
                                 <a class="text-muted text-decoration-none feed-page__wrap"
-                                   href="{{ feed.url }}">{{ feed | feed_display_name }}</a>
+                                   href="{{ feed.url }}">{{ feed | feed_display_name(reader) }}</a>
                             </h2>
                             <p class="text-muted mb-0">{{ total_entries }} entries</p>
                         </div>

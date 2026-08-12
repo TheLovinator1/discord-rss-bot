@@ -17,8 +17,10 @@ from threading import Thread
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
+from unittest.mock import patch
 
 import pytest
+from httpx2 import HTTPError
 from reader import Reader as ReaderType
 from reader import make_reader
 
@@ -39,6 +41,11 @@ from discord_rss_bot.extensions.jwplayer_thumbnail import JWPlayerThumbnailExten
 from discord_rss_bot.extensions.steam import SteamExtension
 from discord_rss_bot.extensions.steam import fix_steam_image_url
 from discord_rss_bot.extensions.steam import fix_steam_image_urls_in_payload
+from discord_rss_bot.extensions.steam import get_cached_feed_display_title
+from discord_rss_bot.extensions.steam import get_cached_steam_game_name
+from discord_rss_bot.extensions.steam import get_feed_display_title
+from discord_rss_bot.extensions.steam import get_steam_game_name
+from discord_rss_bot.extensions.steam import set_steam_game_name
 from discord_rss_bot.extensions.storage import get_enabled_extensions_for_feed
 from discord_rss_bot.extensions.storage import set_enabled_extensions_for_feed
 from discord_rss_bot.extensions.wordpress import WordPressExtension
@@ -827,6 +834,175 @@ def test_steam_modify_webhook_skips_non_steam_feed() -> None:
     result: DiscordWebhook = SteamExtension().modify_webhook(webhook, entry, MagicMock())  # type: ignore[arg-type]
 
     assert result.json["content"] == "https://clan.akamai.steamstatic.com/images/123/abc/english.png"
+
+
+def _steam_feed(url: str = "https://store.steampowered.com/feeds/news/app/570/") -> SimpleNamespace:
+    """Build a minimal Steam feed object.
+
+    Returns:
+        A ``SimpleNamespace`` with a Steam feed URL and its raw title.
+    """
+    return SimpleNamespace(url=url, title="570 RSS Feed")
+
+
+def _appdetails_response(app_id: str, name: str) -> MagicMock:
+    """Build a mock Steam Store API response carrying a game name.
+
+    Returns:
+        A mock response whose ``json()`` returns an app-details payload.
+    """
+    response = MagicMock()
+    response.json.return_value = {app_id: {"success": True, "data": {"name": name}}}
+    return response
+
+
+@patch("discord_rss_bot.extensions.steam.httpx2.get")
+def test_get_steam_game_name_fetches_from_api(mock_get: MagicMock) -> None:
+    """get_steam_game_name should return the name from the Steam Store API."""
+    mock_get.return_value = _appdetails_response("570", "Dota")
+
+    result: str | None = get_steam_game_name("570")
+
+    assert result == "Dota"
+    mock_get.assert_called_once()
+    assert mock_get.call_args.kwargs["params"]["appids"] == "570"
+
+
+@patch("discord_rss_bot.extensions.steam.httpx2.get")
+def test_get_steam_game_name_returns_none_on_api_error(mock_get: MagicMock) -> None:
+    """get_steam_game_name should return None when the API call fails."""
+    mock_get.side_effect = HTTPError("boom")
+
+    assert get_steam_game_name("570") is None
+
+
+@patch("discord_rss_bot.extensions.steam.httpx2.get")
+def test_get_steam_game_name_returns_none_on_missing_details(mock_get: MagicMock) -> None:
+    """get_steam_game_name should return None when the API lacks game details."""
+    mock_get.return_value = _appdetails_response("570", "")
+    mock_get.return_value.json.return_value = {"570": {"success": False, "data": {}}}
+
+    assert get_steam_game_name("570") is None
+
+
+def test_get_cached_steam_game_name_reads_reader_tag(mock_reader: MagicMock) -> None:
+    """get_cached_steam_game_name should read the cached name from the reader."""
+    feed: SimpleNamespace = _steam_feed()
+    assert get_cached_steam_game_name(mock_reader, feed) is None
+
+    set_steam_game_name(mock_reader, feed, "Dota")
+    assert get_cached_steam_game_name(mock_reader, feed) == "Dota"
+
+
+def test_set_steam_game_name_stores_reader_tag(mock_reader: MagicMock) -> None:
+    """set_steam_game_name should persist the name in the reader DB."""
+    feed: SimpleNamespace = _steam_feed()
+    set_steam_game_name(mock_reader, feed, "Dota 2")
+
+    assert mock_reader.tags[feed.url]["steam_game_name"] == "Dota 2"
+
+
+@patch("discord_rss_bot.extensions.steam.httpx2.get")
+def test_get_feed_display_title_uses_cached_game_name(
+    mock_get: MagicMock,
+    mock_reader: MagicMock,
+) -> None:
+    """A cached game name should be used without any network request."""
+    feed: SimpleNamespace = _steam_feed()
+    set_steam_game_name(mock_reader, feed, "Dota")
+
+    result: str = get_feed_display_title(feed, mock_reader)  # type: ignore[arg-type]
+
+    assert result == "Dota"
+    mock_get.assert_not_called()
+
+
+@patch("discord_rss_bot.extensions.steam.httpx2.get")
+def test_get_feed_display_title_fetches_and_caches_once(mock_get: MagicMock) -> None:
+    """A missing game name should be fetched once, cached, then reused."""
+    mock_get.return_value = _appdetails_response("570", "Dota")
+    feed: SimpleNamespace = _steam_feed()
+    reader: MagicMock = MagicMock()
+    reader.tags = {}  # type: ignore[valid-type]
+
+    def set_tag(feed_url: object, key: str, value: object) -> None:
+        reader.tags.setdefault(str(feed_url), {})[key] = value
+
+    def get_tag(feed_url: object, key: str, default: object = None) -> object:
+        return reader.tags.get(str(feed_url), {}).get(key, default)
+
+    reader.set_tag.side_effect = set_tag
+    reader.get_tag.side_effect = get_tag
+
+    first: str = get_feed_display_title(feed, reader)  # type: ignore[arg-type]
+    second: str = get_feed_display_title(feed, reader)  # type: ignore[arg-type]
+
+    assert first == "Dota"
+    assert second == "Dota"
+    mock_get.assert_called_once()
+
+
+@patch("discord_rss_bot.extensions.steam.httpx2.get")
+def test_get_feed_display_title_falls_back_to_feed_title_on_error(mock_get: MagicMock) -> None:
+    """When the API fails, the feed's own title should be returned."""
+    mock_get.side_effect = HTTPError("boom")
+    feed: SimpleNamespace = _steam_feed(url="https://store.steampowered.com/feeds/news/app/111111/")
+
+    result: str = get_feed_display_title(feed, MagicMock())  # type: ignore[arg-type]
+
+    assert result == "570 RSS Feed"
+
+
+@patch("discord_rss_bot.extensions.steam.httpx2.get")
+def test_get_feed_display_title_does_not_repeat_failed_fetch(mock_get: MagicMock) -> None:
+    """A failed lookup should not trigger a network request on every call."""
+    mock_get.side_effect = HTTPError("boom")
+    feed: SimpleNamespace = _steam_feed(url="https://store.steampowered.com/feeds/news/app/999999/")
+    reader: MagicMock = MagicMock()
+    reader.tags = {}  # type: ignore[valid-type]
+
+    def set_tag(feed_url: object, key: str, value: object) -> None:
+        reader.tags.setdefault(str(feed_url), {})[key] = value
+
+    def get_tag(feed_url: object, key: str, default: object = None) -> object:
+        return reader.tags.get(str(feed_url), {}).get(key, default)
+
+    reader.set_tag.side_effect = set_tag
+    reader.get_tag.side_effect = get_tag
+
+    first: str = get_feed_display_title(feed, reader)  # type: ignore[arg-type]
+    second: str = get_feed_display_title(feed, reader)  # type: ignore[arg-type]
+
+    assert first == "570 RSS Feed"
+    assert second == "570 RSS Feed"
+    mock_get.assert_called_once()
+
+
+def test_get_feed_display_title_returns_title_for_non_steam_feed() -> None:
+    """Non-Steam feeds should be returned with their title unchanged."""
+    feed: SimpleNamespace = SimpleNamespace(url="https://example.com/feed.xml", title="Example Feed")
+
+    result: str = get_feed_display_title(feed, MagicMock())  # type: ignore[arg-type]
+
+    assert result == "Example Feed"
+
+
+@patch("discord_rss_bot.extensions.steam.httpx2.get")
+def test_get_cached_feed_display_title_never_fetches(
+    mock_get: MagicMock,
+    mock_reader: MagicMock,
+) -> None:
+    """get_cached_feed_display_title should be read-only and never hit the network."""
+    feed: SimpleNamespace = _steam_feed()
+
+    uncached: str = get_cached_feed_display_title(feed, mock_reader)  # type: ignore[arg-type]
+    assert uncached == "570 RSS Feed"
+    mock_get.assert_not_called()
+
+    set_steam_game_name(mock_reader, feed, "Dota")
+    cached: str = get_cached_feed_display_title(feed, mock_reader)  # type: ignore[arg-type]
+    assert cached == "Dota"
+    mock_get.assert_not_called()
 
 
 def test_youtube_extension_has_auto_enable_patterns() -> None:

@@ -57,6 +57,8 @@ from discord_rss_bot.custom_message import replace_tags_in_embed
 from discord_rss_bot.custom_message import replace_tags_in_text_message
 from discord_rss_bot.extensions import auto_enable_extensions_for_feed
 from discord_rss_bot.extensions import run_modify_webhook
+from discord_rss_bot.extensions.steam import get_cached_feed_display_title
+from discord_rss_bot.extensions.steam import get_feed_display_title
 from discord_rss_bot.filter.evaluator import get_entry_filter_decision_from_reader
 from discord_rss_bot.is_url_valid import is_url_valid
 from discord_rss_bot.settings import default_custom_embed
@@ -141,12 +143,14 @@ MESSAGE_PAYLOAD_KEYS: tuple[str, ...] = (
 )
 
 
-def get_feed_display_name(feed: Feed) -> str:
+def get_feed_display_name(feed: Feed, reader: Reader | None = None) -> str:
     """Return a human-readable display name for a feed.
 
     For YouTube feeds whose title is just "Videos", shows
-    ``"{author}'s Videos"`` instead.  Other feeds return the title
-    as-is.
+    ``"{author}'s Videos"`` instead.  For Steam feeds, shows the game name
+    (e.g. "Dota") instead of the raw feed title (e.g. "570 RSS Feed") when
+    *reader* is provided and the name is cached.  Other feeds return the
+    title as-is.
     """
     url: str = feed.url or ""
     title: str = feed.title or ""
@@ -155,6 +159,14 @@ def get_feed_display_name(feed: Feed) -> str:
         author: str = feed.authors_str or ""
         if author:
             return f"{author}'s Videos"
+
+    if reader is not None:
+        steam_title: str = get_cached_feed_display_title(feed, reader)
+        if steam_title and steam_title != title:
+            try:
+                return html.unescape(steam_title)
+            except (TypeError, AttributeError):
+                return steam_title
 
     try:
         return html.unescape(title) if title else url
@@ -648,7 +660,7 @@ def upsert_sent_webhook_record(
     delivery_mode: DeliveryMode = get_entry_delivery_mode(reader, entry)
     record: SentWebhookRecord = {
         "feed_url": entry.feed.url,
-        "feed_title": entry.feed.title or "",
+        "feed_title": get_feed_display_title(entry.feed, reader),
         "entry_id": entry.id,
         "entry_title": entry.title or "",
         "entry_link": entry.link or "",
@@ -878,9 +890,9 @@ def apply_feed_webhook_identity(webhook: DiscordWebhook, entry: Entry, reader: R
     avatar_url: str = get_validated_message_avatar_url(reader, feed)
 
     if not username:
-        # Fall back to feed author or title so the webhook name is
+        # Fall back to feed author or display title so the webhook name is
         # identifiable rather than the generic Discord webhook default.
-        feed_author: str = feed.authors_str or feed.title or ""
+        feed_author: str = feed.authors_str or get_feed_display_title(feed, reader) or ""
         if feed_author:
             username = html.unescape(feed_author)[:80]
 
@@ -1043,7 +1055,7 @@ def update_sent_webhook_record_for_entry(
         return (
             {
                 **record,
-                "feed_title": entry.feed.title or "",
+                "feed_title": get_feed_display_title(entry.feed, reader),
                 "entry_title": entry.title or "",
                 "entry_link": entry.link or "",
                 "entry_updated": get_entry_timestamp(entry.updated),

@@ -1,277 +1,65 @@
 {% extends "base.html" %}
-{% block title %}Message Template: {{ feed.title if feed.title else feed.url }} | discord-rss-bot{% endblock title %}
-{% block description %}Customize the plain text Discord message template for {{ feed.title if feed.title else feed.url }}.{% endblock description %}
+{% block title %}Message Template: {{ feed_title if feed_title else feed.url }} | discord-rss-bot{% endblock title %}
+{% block description %}Customize the plain text Discord message template for {{ feed_title if feed_title else feed.url }}.{% endblock description %}
 {% block content %}
-<div class="p-2 border border-dark">
-    <form action="/custom" method="post">
-        <!-- Feed URL -->
-        <div class="row pb-2">
-            <div class="col-sm-12">
-                <div class="form-text">
-                    <ul class="list-inline">
-                        <li>You can modify the message that is sent to Discord.</li>
-                        <li>You can use \n to create a new line.</li>
-                        <li>
-                            You can remove the embed from links by adding < and> around the link. (For example <
-                                    {% raw %} {{entry_link}} {% endraw %}>)
-                        </li>
-                        <br />
-                        <li>
-                            <code>
-                                    {% raw %}
-                                        {{feed_author}}
-                                    {% endraw %}
-                                </code>{{ feed.authors_str }}
-                        </li>
-                        <li>
-                            <code>
-                                    {% raw %}
-                                        {{feed_added}}
-                                    {% endraw %}
-                                </code>{{ feed.added }}
-                        </li>
-                        <li>
-                            <code>
-                                    {% raw %}
-                                        {{feed_last_exception}}
-                                    {% endraw %}
-                                </code>{{ feed.last_exception }}
-                        </li>
-                        <li>
-                            <code>
-                                    {% raw %}
-                                        {{feed_last_updated}}
-                                    {% endraw %}
-                                </code>{{ feed.last_updated }}
-                        </li>
-                        <li>
-                            <code>
-                                    {% raw %}
-                                        {{feed_link}}
-                                    {% endraw %}
-                                </code>{{ feed.link }}
-                        </li>
-                        <li>
-                            <code>
-                                    {% raw %}
-                                        {{feed_subtitle}}
-                                    {% endraw %}
-                                </code>{{ feed.subtitle }}
-                        </li>
-                        <li>
-                            <code>
-                                    {% raw %}
-                                        {{feed_title}}
-                                    {% endraw %}
-                                </code>{{ feed.title }}
-                        </li>
-                        <li>
-                            <code>
-                                    {% raw %}
-                                        {{feed_updated}}
-                                    {% endraw %}
-                                </code>{{ feed.updated }}
-                        </li>
-                        <li>
-                            <code>
-                                    {% raw %}
-                                        {{feed_updates_enabled}}
-                                    {% endraw %}
-                                </code>{{ feed.updates_enabled }}
-                        </li>
-                        <li>
-                            <code>
-                                    {% raw %}
-                                        {{feed_url}}
-                                    {% endraw %}
-                                </code>{{ feed.url }}
-                        </li>
-                        <li>
-                            <code>
-                                    {% raw %}
-                                        {{feed_user_title}}
-                                    {% endraw %}
-                                </code>{{ feed.user_title }}
-                        </li>
-                        <li>
-                            <code>
-                                    {% raw %}
-                                        {{feed_version}}
-                                    {% endraw %}
-                                </code>{{ feed.version }}
-                        </li>
-                        <br />
-                        {% if entry %}
-                        <li>
-                            <code>
-                                        {% raw %}
-                                            {{entry_added}}
-                                        {% endraw %}
-                                    </code>{{ entry.added }}
-                        </li>
-                        <li>
-                            <code>
-                                        {% raw %}
-                                            {{entry_author}}
-                                        {% endraw %}
-                                    </code>{{ entry.authors_str }}
-                        </li>
-                        {% if entry.content %}
-                        <li>
-                            <code>
-                                            {% raw %}
-                                                {{entry_content}}
-                                            {% endraw %}
-                                        </code>{{ entry.content[0].value|discord_markdown }}
-                        </li>
-                        <li>
-                            <code>
-                                            {% raw %}
-                                                {{entry_content_raw}}
-                                            {% endraw %}
-                                        </code>{{ entry.content[0].value }}
-                        </li>
-                        {% endif %}
-                        <li>
-                            <code>
-                                        {% raw %}
-                                            {{entry_id}}
-                                        {% endraw %}
-                                    </code>{{ entry.id }}
-                        </li>
-                        <li>
-                            <code>
-                                        {% raw %}
-                                            {{entry_important}}
-                                        {% endraw %}
-                                    </code>{{ entry.important }}
-                        </li>
-                        <li>
-                            <code>
-                                        {% raw %}
-                                            {{entry_link}}
-                                        {% endraw %}
-                                    </code>{{ entry.link }}
-                        </li>
-                        <li>
-                            <code>
-                                        {% raw %}
-                                            {{entry_published}}
-                                        {% endraw %}
-                                    </code>{{ entry.published }}
-                        </li>
-                        <li>
-                            <code>
-                                        {% raw %}
-                                            {{entry_read}}
-                                        {% endraw %}
-                                    </code>{{ entry.read }}
-                        </li>
-                        <li>
-                            <code>
-                                        {% raw %}
-                                            {{entry_read_modified}}
-                                        {% endraw %}
-                                    </code>{{ entry.read_modified }}
-                        </li>
-                        {% if entry.summary %}
-                        <li>
-                            <code>
-                                            {% raw %}
-                                                {{entry_summary}}
-                                            {% endraw %}
-                                        </code>{{ entry.summary|discord_markdown }}
-                        </li>
-                        <li>
-                            <code>
-                                            {% raw %}
-                                                {{entry_summary_raw}}
-                                            {% endraw %}
-                                        </code>{{ entry.summary }}
-                        </li>
-                        {% endif %}
-                        <li>
-                            <code>
-                                        {% raw %}
-                                            {{entry_title}}
-                                        {% endraw %}
-                                    </code>{{ entry.title }}
-                        </li>
-                        <li>
-                            <code>
-                                        {% raw %}
-                                            {{entry_text}}
-                                        {% endraw %}
-                                    </code>{{ entry.content[0].value|discord_markdown if entry and entry.content else (entry.summary|discord_markdown if entry and entry.summary else '') }}
-                        </li>
-                        <li>
-                            <code>
-                                        {% raw %}
-                                            {{entry_updated}}
-                                        {% endraw %}
-                                    </code>{{ entry.updated }}
-                        </li>
-                        <br />
-                        <li>
-                            <code>
-                                        {% raw %}
-                                            {{image_1}}
-                                        {% endraw %}
-                                    </code>{{ first_image }}
-                        </li>
-                        {% if extension_variables %}
-                            <br />
-                            <li>Extension variables (from enabled extensions):</li>
-                            {% for var_name in extension_variables %}
-                                <li>
-                                    <code>{% raw %}{{{% endraw %}{{ var_name }}{% raw %}}}{% endraw %}</code>
-                                    {% if var_name in extension_values and extension_values[var_name] %}
-                                        {{ extension_values[var_name] }}
-                                    {% else %}
-                                        (empty)
-                                    {% endif %}
-                                </li>
-                            {% endfor %}
-                        {% endif %}
-                    </ul>
-                    {% else %}
-                    Something went wrong, there was no entry found. If this feed has entries and you still see this
-                    message, please contact the developer.
-                    {% endif %}
+    <div class="p-2 border border-dark">
+        <form action="/custom" method="post">
+            <!-- Feed URL -->
+            <div class="row pb-2">
+                <div class="col-sm-12">
+                    <div class="form-text">
+                        <ul class="list-inline">
+                            <li>You can modify the message that is sent to Discord.</li>
+                            <li>You can use \n to create a new line.</li>
+                            <li>
+                                You can remove the embed from links by adding &lt; and &gt; around the link. (For example &lt;{% raw %}{{ entry_link }}{% endraw %}&gt;)
+                            </li>
+                        </ul>
+                        {{ render_tag_reference_html(feed=feed, entry=entry, feed_title=feed_title, first_image=first_image, extension_variables=extension_variables, extension_values=extension_values) }}
+                    </div>
+                    <label for="custom_message" class="col-sm-6 col-form-label">Message</label>
+                    <input name="custom_message"
+                           type="text"
+                           class="form-control bg-dark border-dark text-muted"
+                           id="custom_message"
+                           {% if custom_message %} value="{{- custom_message -}}" {% endif %} />
                 </div>
-                <label for="custom_message" class="col-sm-6 col-form-label">Message</label>
-                <input name="custom_message" type="text" class="form-control bg-dark border-dark text-muted"
-                    id="custom_message" {% if custom_message %} value="{{- custom_message -}}" {% endif %} />
             </div>
-        </div>
-        <!-- Optional Discord webhook username & avatar for this feed -->
-        <div class="row pb-2">
-            <div class="col-sm-12">
-                <div class="form-text">
-                    <ul class="list-inline">
-                        <li>Optional: override the Discord webhook username and avatar for messages from this feed.</li>
-                        <li>Leave blank to use the webhook's default name and avatar.</li>
-                        <li>Invalid values (empty, disallowed characters, or bad avatar URLs) are ignored when sending.</li>
-                        <li>Username rules: 1–80 characters; cannot contain <code>@</code>, <code>#</code>, <code>:</code>, or <code>`</code>; cannot contain <code>clyde</code> or <code>discord</code>.</li>
-                        <li>Avatar must be a full <code>http://</code> or <code>https://</code> image URL.</li>
-                    </ul>
+            <!-- Optional Discord webhook username & avatar for this feed -->
+            <div class="row pb-2">
+                <div class="col-sm-12">
+                    <div class="form-text">
+                        <ul class="list-inline">
+                            <li>Optional: override the Discord webhook username and avatar for messages from this feed.</li>
+                            <li>Leave blank to use the webhook's default name and avatar.</li>
+                            <li>Invalid values (empty, disallowed characters, or bad avatar URLs) are ignored when sending.</li>
+                            <li>Username rules: 1–80 characters; cannot contain <code>@</code>, <code>#</code>, <code>:</code>, or <code>`</code>; cannot contain <code>clyde</code> or <code>discord</code>.</li>
+                            <li>Avatar must be a full <code>http://</code> or <code>https://</code> image URL.</li>
+                        </ul>
+                    </div>
+                    <label for="message_username" class="col-sm-6 col-form-label">Message Username</label>
+                    <input name="message_username"
+                           type="text"
+                           class="form-control bg-dark border-dark text-muted"
+                           id="message_username"
+                           maxlength="80"
+                           placeholder="e.g. Power Of The Shell"
+                           {% if message_username %} value="{{- message_username -}}" {% endif %} />
+                    <label for="message_avatar_url" class="col-sm-6 col-form-label">Message Avatar Image</label>
+                    <input name="message_avatar_url"
+                           type="url"
+                           class="form-control bg-dark border-dark text-muted"
+                           id="message_avatar_url"
+                           placeholder="e.g. https://example.com/icon.png"
+                           {% if message_avatar_url %} value="{{- message_avatar_url -}}" {% endif %} />
                 </div>
-                <label for="message_username" class="col-sm-6 col-form-label">Message Username</label>
-                <input name="message_username" type="text" class="form-control bg-dark border-dark text-muted"
-                    id="message_username" maxlength="80" placeholder="e.g. Power Of The Shell"
-                    {% if message_username %} value="{{- message_username -}}" {% endif %} />
-                <label for="message_avatar_url" class="col-sm-6 col-form-label">Message Avatar Image</label>
-                <input name="message_avatar_url" type="url" class="form-control bg-dark border-dark text-muted"
-                    id="message_avatar_url" placeholder="e.g. https://example.com/icon.png"
-                    {% if message_avatar_url %} value="{{- message_avatar_url -}}" {% endif %} />
             </div>
-        </div>
-        <!-- Add a hidden feed_url field to the form -->
-        <input type="hidden" name="feed_url" value="{{ feed.url }}" />
-        <!-- Submit button -->
-        <div class="d-md-flex">
-            <button class="btn btn-dark btn-sm">Update message</button>
-        </div>
-    </form>
-</div>
+            <!-- Add a hidden feed_url field to the form -->
+            <input type="hidden" name="feed_url" value="{{ feed.url }}" />
+            <!-- Submit button -->
+            <div class="d-md-flex">
+                <button class="btn btn-dark btn-sm">Update message</button>
+            </div>
+        </form>
+    </div>
 {% endblock content %}

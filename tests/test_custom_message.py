@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import inspect
+import re
 import typing
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -16,6 +18,7 @@ from discord_rss_bot.custom_message import get_first_image
 from discord_rss_bot.custom_message import get_image_urls
 from discord_rss_bot.custom_message import normalize_message_avatar_url
 from discord_rss_bot.custom_message import normalize_message_username
+from discord_rss_bot.custom_message import render_tag_reference_html
 from discord_rss_bot.custom_message import replace_tags_in_embed
 from discord_rss_bot.custom_message import replace_tags_in_text_message
 from discord_rss_bot.custom_message import save_embed
@@ -223,6 +226,42 @@ def test_replace_tags_in_embed_uses_authors_str(mock_get_embed: MagicMock) -> No
     )
 
     assert embed.description == "Feed Author One, Feed Author Two | Entry Author One, Entry Author Two"
+
+
+@patch("discord_rss_bot.custom_message.get_custom_message")
+def test_replace_tags_in_text_message_uses_steam_game_name_for_feed_title(
+    mock_get_custom_message: MagicMock,
+) -> None:
+    """{{feed_title}} should render the cached Steam game name for Steam feeds."""
+    mock_reader = MagicMock()
+    mock_reader.get_tag.return_value = "Dota"
+    mock_get_custom_message.return_value = "{{feed_title}}"
+    entry_ns: SimpleNamespace = make_entry("<p>Summary</p>")
+    entry_ns.feed.url = "https://store.steampowered.com/feeds/news/app/570/?cc=US&l=english"
+    entry_ns.feed.title = "570 RSS Feed"
+
+    rendered: str = replace_tags_in_text_message(typing.cast("Entry", entry_ns), reader=mock_reader)
+
+    assert rendered == "Dota"
+
+
+@patch("discord_rss_bot.custom_message.get_embed")
+def test_replace_tags_in_embed_uses_steam_game_name_for_feed_title(mock_get_embed: MagicMock) -> None:
+    """{{feed_title}} in an embed should render the cached Steam game name."""
+    mock_reader = MagicMock()
+    mock_reader.get_tag.return_value = "Dota"
+    mock_get_embed.return_value = CustomEmbed(description="{{feed_title}}")
+    entry_ns: SimpleNamespace = make_entry("<p>Summary</p>")
+    entry_ns.feed.url = "https://store.steampowered.com/feeds/news/app/570/?cc=US&l=english"
+    entry_ns.feed.title = "570 RSS Feed"
+
+    embed: CustomEmbed = replace_tags_in_embed(
+        entry_ns.feed,
+        typing.cast("Entry", entry_ns),
+        reader=mock_reader,
+    )
+
+    assert embed.description == "Dota"
 
 
 def test_get_first_image_prefers_content_image_over_summary_image() -> None:
@@ -556,3 +595,123 @@ class TestNormalizeMessageAvatarUrl:
 
     def test_invalid_url_returns_empty(self) -> None:
         assert not normalize_message_avatar_url("not-a-url")
+
+
+def test_render_tag_reference_html_renders_feed_tags() -> None:
+    """The reference list should show every feed tag with its preview value."""
+    feed = typing.cast("Feed", make_feed())
+
+    output = render_tag_reference_html(
+        feed=feed,
+        entry=None,
+        feed_title="Example Feed",
+        first_image="",
+    )
+
+    assert '<ul class="list-inline">' in output
+    assert "{{feed_author}}</code> Entry Author" in output
+    assert "{{feed_title}}</code> Example Feed" in output
+    assert "{{feed_url}}</code> https://example.com/feed.xml" in output
+    assert "{{ feed_author }}" not in output
+    assert "{{entry_added}}" not in output
+
+
+def test_render_tag_reference_html_renders_entry_tags() -> None:
+    """The reference list should include entry tags, content, and image tags."""
+    feed = typing.cast("Feed", make_feed())
+    entry_ns = make_entry("<p>Summary text</p>")
+    entry_ns.content = [SimpleNamespace(value="<p>Content text</p>")]
+    entry = typing.cast("Entry", entry_ns)
+
+    output = render_tag_reference_html(
+        feed=feed,
+        entry=entry,
+        feed_title="Example Feed",
+        first_image="https://example.com/first.jpg",
+    )
+
+    assert "{{entry_title}}</code> Entry Title" in output
+    assert "{{entry_content}}</code> Content text" in output
+    assert "{{entry_content_raw}}" in output
+    assert "{{entry_summary}}</code> Summary text" in output
+    assert "{{entry_summary_raw}}" in output
+    assert "{{entry_text}}" in output
+    assert "{{image_1}}</code> https://example.com/first.jpg" in output
+    assert "{{ entry_title }}" not in output
+
+
+def test_render_tag_reference_html_no_entry_shows_message() -> None:
+    """Without an entry the list should show the fallback message instead."""
+    feed = typing.cast("Feed", make_feed())
+
+    output = render_tag_reference_html(
+        feed=feed,
+        entry=None,
+        feed_title="Example Feed",
+        first_image="",
+    )
+
+    assert "Something went wrong, there was no entry found" in output
+    assert "{{entry_title}}" not in output
+
+
+def test_render_tag_reference_html_escapes_values() -> None:
+    """Values containing HTML should be escaped so they render as text."""
+    feed_ns = make_feed()
+    feed_ns.subtitle = "<b>bold & loud</b>"
+    feed = typing.cast("Feed", feed_ns)
+
+    output = render_tag_reference_html(
+        feed=feed,
+        entry=None,
+        feed_title="Example Feed",
+        first_image="",
+    )
+
+    assert "<b>bold & loud</b>" not in output
+    assert "&lt;b&gt;bold &amp; loud&lt;/b&gt;" in output
+
+
+def test_render_tag_reference_html_shows_extension_variables() -> None:
+    """Enabled extension variables should be listed with their values."""
+    feed = typing.cast("Feed", make_feed())
+    entry = typing.cast("Entry", make_entry("<p>Summary text</p>"))
+
+    output = render_tag_reference_html(
+        feed=feed,
+        entry=entry,
+        feed_title="Example Feed",
+        first_image="",
+        extension_variables=["wp_content", "wp_excerpt"],
+        extension_values={"wp_content": "Full <p>post</p>", "wp_excerpt": ""},
+    )
+
+    assert "Extension variables (from enabled extensions):" in output
+    assert "{{wp_content}}</code> Full &lt;p&gt;post&lt;/p&gt;" in output
+    assert "{{wp_excerpt}}</code> (empty)" in output
+    assert "{{ wp_content }}" not in output
+
+
+def test_render_tag_reference_html_lists_all_replaceable_tags() -> None:
+    """Every replaceable tag should be listed on the reference preview."""
+    feed = typing.cast("Feed", make_feed())
+    entry_ns = make_entry("<p>Summary text</p>")
+    entry_ns.content = [SimpleNamespace(value="<p>Content text</p>")]
+    entry = typing.cast("Entry", entry_ns)
+
+    output = render_tag_reference_html(
+        feed=feed,
+        entry=entry,
+        feed_title="Example Feed",
+        first_image="https://example.com/first.jpg",
+    )
+
+    # Extract the literal {{...}} tags from both replacement tables so this
+    # test automatically catches any tag that is replaceable but not shown.
+    tag_pattern: re.Pattern[str] = re.compile(r'\{"\{\{([a-z_0-9]+)\}\}":')
+    replaceable_tags: set[str] = set(tag_pattern.findall(inspect.getsource(replace_tags_in_text_message)))
+    replaceable_tags.update(tag_pattern.findall(inspect.getsource(replace_tags_in_embed)))
+
+    assert replaceable_tags, "No replaceable tags were found to compare"
+    for tag in sorted(replaceable_tags):
+        assert f"{{{{{tag}}}}}" in output, f"Replaceable tag {{{{{tag}}}}} is missing from the reference list"

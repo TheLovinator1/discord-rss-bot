@@ -58,11 +58,14 @@ from discord_rss_bot.custom_message import get_embed
 from discord_rss_bot.custom_message import get_first_image
 from discord_rss_bot.custom_message import get_message_avatar_url
 from discord_rss_bot.custom_message import get_message_username
+from discord_rss_bot.custom_message import render_tag_reference_html
 from discord_rss_bot.custom_message import replace_tags_in_text_message
 from discord_rss_bot.custom_message import save_embed
 from discord_rss_bot.extensions import FeedExtension as FeedExtensionABC
 from discord_rss_bot.extensions import get_registry as get_extension_registry
 from discord_rss_bot.extensions import run_extensions
+from discord_rss_bot.extensions.steam import get_cached_feed_display_title
+from discord_rss_bot.extensions.steam import get_feed_display_title
 from discord_rss_bot.extensions.steam import is_steam_url as is_steam_feed_url
 from discord_rss_bot.extensions.storage import get_enabled_extensions_for_feed as get_enabled_extensions
 from discord_rss_bot.extensions.storage import set_enabled_extensions_for_feed as set_enabled_extensions
@@ -295,6 +298,7 @@ templates.env.filters["relative_time"] = relative_time
 templates.env.filters["feed_display_name"] = get_feed_display_name
 templates.env.globals["get_backup_path"] = get_backup_path  # pyright: ignore[reportArgumentType]
 templates.env.globals["has_webhooks"] = has_webhooks  # pyright: ignore[reportArgumentType]
+templates.env.globals["render_tag_reference_html"] = render_tag_reference_html  # pyright: ignore[reportArgumentType]
 
 
 @app.get("/export_opml")
@@ -839,6 +843,7 @@ async def get_whitelist(
     context = {
         "request": request,
         "feed": feed,
+        "feed_title": get_feed_display_title(feed, reader),
         **build_filter_form_context("whitelist", get_filter_values_from_reader(reader, feed, "whitelist")),
         **build_filter_preview_context(reader, feed, "whitelist"),
     }
@@ -970,6 +975,7 @@ async def get_blacklist(
     context = {
         "request": request,
         "feed": feed,
+        "feed_title": get_feed_display_title(feed, reader),
         **build_filter_form_context("blacklist", get_filter_values_from_reader(reader, feed, "blacklist")),
         **build_filter_preview_context(reader, feed, "blacklist"),
     }
@@ -1442,6 +1448,7 @@ async def get_custom(
     context: dict[str, object] = {
         "request": request,
         "feed": feed,
+        "feed_title": get_feed_display_title(feed, reader),
         "custom_message": get_custom_message(reader, feed),
         "message_username": get_message_username(reader, feed),
         "message_avatar_url": get_message_avatar_url(reader, feed),
@@ -1501,6 +1508,7 @@ async def get_embed_page(
     context: dict[str, object] = {
         "request": request,
         "feed": feed,
+        "feed_title": get_feed_display_title(feed, reader),
         "title": embed.title,
         "description": embed.description,
         "color": embed.color,
@@ -1633,6 +1641,7 @@ async def get_extensions(
     context: dict[str, object] = {
         "request": request,
         "feed": feed,
+        "feed_title": get_feed_display_title(feed, reader),
         "discovered_extensions": registry,
         "enabled_extensions": enabled,
         "extensions_dir": extensions_dir,
@@ -2185,7 +2194,9 @@ async def get_feed(  # ruff:ignore[complex-structure, too-many-branches, too-man
 
             context = {
                 "request": request,
+                "reader": reader,
                 "feed": feed,
+                "feed_title": get_feed_display_title(feed, reader),
                 "entries": current_entries,
                 "feed_counts": reader.get_feed_counts(feed=clean_feed_url),
                 "html": html,
@@ -2253,7 +2264,9 @@ async def get_feed(  # ruff:ignore[complex-structure, too-many-branches, too-man
 
     context = {
         "request": request,
+        "reader": reader,
         "feed": feed,
+        "feed_title": get_feed_display_title(feed, reader),
         "entries": entries,
         "feed_counts": reader.get_feed_counts(feed=clean_feed_url),
         "html": html,
@@ -2343,7 +2356,7 @@ def create_html_for_feed(  # ruff:ignore[complex-structure, too-many-locals]
         feed_link: str = ""
         if not current_feed_url or source_feed_url != current_feed_url:
             encoded_feed_url: str = urllib.parse.quote(source_feed_url)
-            feed_title: str = entry.feed.title if hasattr(entry.feed, "title") and entry.feed.title else source_feed_url
+            feed_title: str = get_cached_feed_display_title(entry.feed, reader) or source_feed_url
             feed_link = (
                 f"<a class='text-muted' style='font-size: 0.85em;' "
                 f"href='/feed?feed_url={encoded_feed_url}'>{feed_title}</a><br>"
@@ -2582,7 +2595,9 @@ async def get_sent_webhooks(
     webhook_names: dict[str, str] = {
         hook.get("url", ""): hook.get("name", "") for hook in webhooks if isinstance(hook, dict)
     }
-    feed_titles: dict[str, str] = {feed.url: (feed.title or feed.url) for feed in reader.get_feeds()}
+    feed_titles: dict[str, str] = {
+        feed.url: (get_cached_feed_display_title(feed, reader) or feed.url) for feed in reader.get_feeds()
+    }
 
     context = {
         "request": request,
@@ -2653,6 +2668,7 @@ def make_context_index(request: Request, message: str = "", reader: Reader | Non
 
     return {
         "request": request,
+        "reader": effective_reader,
         "feeds": feed_list,
         "feed_count": effective_reader.get_feed_counts(),
         "entry_count": effective_reader.get_entry_counts(),

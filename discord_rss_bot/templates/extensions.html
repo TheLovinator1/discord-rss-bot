@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block title %}
-    Extensions: {{ feed.title if feed.title else feed.url }} | discord-rss-bot
+    Extensions: {{ feed_title if feed_title else feed.url }} | discord-rss-bot
 {% endblock title %}
 {% block description %}
-    Enable or disable content extension plugins for {{ feed.title if feed.title else feed.url }}.
+    Enable or disable content extension plugins for {{ feed_title if feed_title else feed.url }}.
 {% endblock description %}
 {% block content %}
     <div class="p-2 border border-dark">

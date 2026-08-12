@@ -8,6 +8,11 @@ It also rewrites broken Steam CDN image URLs: some news feeds reference
 localized image names such as ``.../english.png`` that return a 404, and
 the working URL omits the language segment (``.../<hash>.png``).
 
+Steam feeds' ``{{feed_title}}`` (and web UI display names) use the game
+name (e.g. "Dota") instead of the raw feed title (e.g. "570 RSS Feed").
+The name is fetched once from the Steam Store API and cached in the reader
+DB per feed, so no repeated network requests are needed.
+
 Usage:
     1. Enable ``steam`` on the feed's Extensions page.
     2. In embed settings, set Thumbnail URL to ``{{steam_thumbnail_url}}``.
@@ -19,6 +24,7 @@ import hashlib
 import json
 import logging
 import re
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import ClassVar
@@ -28,6 +34,9 @@ from urllib.parse import parse_qs
 from urllib.parse import urlparse
 from urllib.parse import urlunsplit
 
+import httpx2
+from httpx2 import HTTPError
+from httpx2 import Response
 from reader import ReaderError
 
 from discord_rss_bot.extensions.base import FeedExtension
@@ -256,6 +265,172 @@ def fix_steam_image_urls_in_payload(value: JsonValue) -> JsonValue:
     if isinstance(value, dict):
         return {key: fix_steam_image_urls_in_payload(item) for key, item in value.items()}
     return value
+
+
+#: Reader tag under which the Steam game name is cached per feed.  Populated
+#: once per feed so title rendering never needs a second network request.
+STEAM_GAME_NAME_TAG: str = "steam_game_name"
+
+#: Steam Store API endpoint used to resolve app IDs to game names.
+_STEAM_APPDETAILS_URL: str = "https://store.steampowered.com/api/appdetails"
+
+#: How long to wait before retrying a failed game-name lookup for the same app.
+_STEAM_GAME_NAME_RETRY_COOLDOWN: float = 60.0 * 60.0
+
+#: Last lookup attempt time per app ID.  Used so a repeatedly failing feed
+#: does not trigger a network request on every single message.
+_steam_game_name_attempts: dict[str, float] = {}
+
+
+def get_steam_game_name(app_id: str) -> str | None:  # ruff:ignore[too-many-return-statements]
+    """Fetch the game name for *app_id* from the Steam Store API.
+
+    Args:
+        app_id: The Steam application ID.
+
+    Returns:
+        The game name, or ``None`` if it could not be determined.
+    """
+    try:
+        response: Response = httpx2.get(
+            _STEAM_APPDETAILS_URL,
+            params={"appids": app_id, "l": "english"},
+            timeout=10.0,
+        )
+        response.raise_for_status()
+    except (HTTPError, OSError) as exc:
+        logger.warning("Failed to fetch Steam game name for app %s: %s", app_id, exc)
+        return None
+
+    try:
+        data: object = response.json()
+    except ValueError as exc:
+        logger.warning("Invalid JSON from Steam Store API for app %s: %s", app_id, exc)
+        return None
+
+    if not isinstance(data, dict):
+        return None
+    details: object = data.get(app_id)
+    if not isinstance(details, dict) or not details.get("success"):
+        logger.warning("Steam Store API returned no details for app %s", app_id)
+        return None
+    app_data: object = details.get("data")
+    if not isinstance(app_data, dict):
+        return None
+    name: object = app_data.get("name")
+    if isinstance(name, str) and name.strip():
+        return name.strip()
+    return None
+
+
+def get_cached_steam_game_name(reader: Reader, feed: Feed | str) -> str | None:
+    """Return the Steam game name cached in the reader DB for *feed*, if any.
+
+    Args:
+        reader: The reader instance.
+        feed: The feed (or feed URL) to look up.
+
+    Returns:
+        The cached game name, or ``None`` when nothing is cached.
+    """
+    try:
+        cached = reader.get_tag(feed, STEAM_GAME_NAME_TAG, None)
+    except ReaderError:
+        logger.exception("Failed to read Steam game name tag for %s", feed)
+        return None
+    if isinstance(cached, str) and cached.strip():
+        return cached.strip()
+    return None
+
+
+def set_steam_game_name(reader: Reader, feed: Feed | str, game_name: str) -> None:
+    """Cache *game_name* for *feed* in the reader DB.
+
+    Args:
+        reader: The reader instance.
+        feed: The feed (or feed URL) to store the name for.
+        game_name: The game name to cache.
+    """
+    try:
+        reader.set_tag(feed, STEAM_GAME_NAME_TAG, game_name)  # pyright: ignore[reportArgumentType]
+    except ReaderError:
+        logger.exception("Failed to cache Steam game name for %s", feed)
+
+
+def get_feed_display_title(feed: Feed, reader: Reader) -> str:
+    """Return the display title for a feed.
+
+    For Steam feeds, uses the game name (e.g. "Dota") instead of the raw feed
+    title (e.g. "570 RSS Feed").  The name is read from the reader DB cache;
+    when the cache is empty it is fetched from the Steam Store API once and
+    then cached, so title rendering never makes "unnecessary network requests"
+    for feeds that have already been resolved.  Falls back to the feed's own
+    title when the game name cannot be determined.  Non-Steam feeds are
+    returned with their title unchanged.
+
+    Args:
+        feed: The feed to render a title for.
+        reader: The reader instance.
+
+    Returns:
+        The display title for *feed*.
+    """
+    feed_url: str = getattr(feed, "url", "") or ""
+    fallback_title: str = getattr(feed, "title", "") or ""
+    if not is_steam_url(feed_url):
+        return fallback_title
+
+    app_id: str | None = extract_app_id(feed_url)
+    if not app_id:
+        return fallback_title
+
+    cached: str | None = get_cached_steam_game_name(reader, feed)
+    if cached:
+        return cached
+
+    # Don't hammer the API for app IDs whose lookup recently failed.
+    now: float = time.monotonic()
+    last_attempt: float = _steam_game_name_attempts.get(app_id, 0.0)
+    if now - last_attempt < _STEAM_GAME_NAME_RETRY_COOLDOWN:
+        return fallback_title
+
+    _steam_game_name_attempts[app_id] = now
+    game_name: str | None = get_steam_game_name(app_id)
+    if game_name:
+        set_steam_game_name(reader, feed, game_name)
+        return game_name
+    return fallback_title
+
+
+def get_cached_feed_display_title(feed: Feed, reader: Reader) -> str:
+    """Return the display title for a feed using only cached data.
+
+    For Steam feeds, uses the cached game name when available, otherwise the
+    feed's own title.  Unlike :func:`get_feed_display_title`, this never
+    performs network requests or writes to the reader — it only reads the
+    cache.  Meant for read-only render paths (e.g. web UI pages) that must not
+    block on the Steam Store API.
+
+    Args:
+        feed: The feed to render a title for.
+        reader: The reader instance.
+
+    Returns:
+        The display title for *feed* using only cached data.
+    """
+    feed_url: str = getattr(feed, "url", "") or ""
+    fallback_title: str = getattr(feed, "title", "") or ""
+    if not is_steam_url(feed_url):
+        return fallback_title
+
+    app_id: str | None = extract_app_id(feed_url)
+    if not app_id:
+        return fallback_title
+
+    cached: str | None = get_cached_steam_game_name(reader, feed)
+    if cached:
+        return cached
+    return fallback_title
 
 
 def _try_read_icon_file(app_id: str) -> WebhookFile | None:
