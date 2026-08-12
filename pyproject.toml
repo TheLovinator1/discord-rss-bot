@@ -17,6 +17,7 @@ dependencies = [
     "python-multipart",
     "reader",
     "sentry-sdk[fastapi]",
+    "sgmllib3k",
     "tldextract",
     "uvicorn",
 ]
