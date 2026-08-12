@@ -37,10 +37,13 @@ from discord_rss_bot.extensions.hoyolab import HoyolabExtension
 from discord_rss_bot.extensions.jwplayer_thumbnail import _SLUG_CACHE
 from discord_rss_bot.extensions.jwplayer_thumbnail import JWPlayerThumbnailExtension
 from discord_rss_bot.extensions.steam import SteamExtension
+from discord_rss_bot.extensions.steam import fix_steam_image_url
+from discord_rss_bot.extensions.steam import fix_steam_image_urls_in_payload
 from discord_rss_bot.extensions.storage import get_enabled_extensions_for_feed
 from discord_rss_bot.extensions.storage import set_enabled_extensions_for_feed
 from discord_rss_bot.extensions.wordpress import WordPressExtension
 from discord_rss_bot.extensions.youtube import YouTubeExtension
+from discord_rss_bot.webhook import DiscordWebhook
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -699,6 +702,131 @@ def test_steam_extension_has_auto_enable_patterns() -> None:
     assert SteamExtension.matches_feed_url("https://store.steampowered.com/feeds/news/app/570/")
     assert SteamExtension.matches_feed_url("https://steamcommunity.com/games/570/")
     assert not SteamExtension.matches_feed_url("https://example.com/feed.xml")
+
+
+def test_fix_steam_image_url_removes_locale_suffix() -> None:
+    """Broken Steam localized image URLs should be rewritten to the working URL."""
+    cases: list[tuple[str, str]] = [
+        (
+            "https://clan.akamai.steamstatic.com/images/3703047/aa83bcaaafe7cd4d11a841ec381ec28ccb039d41/english.png",
+            "https://clan.akamai.steamstatic.com/images/3703047/aa83bcaaafe7cd4d11a841ec381ec28ccb039d41.png",
+        ),
+        (
+            "https://clan.fastly.steamstatic.com/images/3703047/aa83bcaaafe7cd4d11a841ec381ec28ccb039d41/english.png",
+            "https://clan.fastly.steamstatic.com/images/3703047/aa83bcaaafe7cd4d11a841ec381ec28ccb039d41.png",
+        ),
+        (
+            "https://clan.akamai.steamstatic.com/images/123/abc/german.jpg",
+            "https://clan.akamai.steamstatic.com/images/123/abc.jpg",
+        ),
+        (
+            "https://community.akamai.steamstatic.com/images/123/abc/schinese.webp",
+            "https://community.akamai.steamstatic.com/images/123/abc.webp",
+        ),
+        (
+            "https://clan.akamai.steamstatic.com/images/123/abc/english.png?foo=1",
+            "https://clan.akamai.steamstatic.com/images/123/abc.png?foo=1",
+        ),
+    ]
+    for broken, expected in cases:
+        assert fix_steam_image_url(broken) == expected
+
+
+def test_fix_steam_image_url_leaves_other_urls_unchanged() -> None:
+    """Non-matching URLs should be returned unchanged."""
+    unchanged: list[str] = [
+        "",
+        "https://example.com/images/abc/english.png",
+        "https://clan.akamai.steamstatic.com/images/123/abc.png",
+        "https://clan.akamai.steamstatic.com/images/123/abc/capsule_sm_120.jpg",
+        "https://clan.akamai.steamstatic.com/images/123/abc/notalocale.png",
+        "attachment://steam-app-570.png",
+    ]
+    for url in unchanged:
+        assert fix_steam_image_url(url) == url
+
+
+def test_steam_modify_webhook_fixes_broken_image_urls() -> None:
+    """modify_webhook should rewrite broken Steam localized image URLs."""
+    reader = MagicMock()
+    reader.get_tag.return_value = '{"show_steam_game_icon_in_thumbnail": false}'
+
+    entry = SimpleNamespace(
+        feed=SimpleNamespace(url="https://store.steampowered.com/feeds/news/app/570/"),
+        link="https://store.steampowered.com/news/app/570/",
+    )
+
+    webhook = DiscordWebhook(url="https://discord.com/api/webhooks/123/abc")
+    webhook.content = "See [image](https://clan.akamai.steamstatic.com/images/123/abc/english.png)"
+    webhook.json["embeds"] = [
+        {
+            "image": {"url": "https://clan.akamai.steamstatic.com/images/123/abc/french.jpg"},
+            "thumbnail": {"url": "https://clan.akamai.steamstatic.com/images/123/abc/english.png"},
+        },
+    ]
+    webhook.json["components"] = [
+        {
+            "type": 12,
+            "items": [
+                {
+                    "media": {"url": "https://clan.fastly.steamstatic.com/images/123/abc/german.png"},
+                    "description": "desc",
+                },
+            ],
+        },
+    ]
+
+    result: DiscordWebhook = SteamExtension().modify_webhook(webhook, entry, reader)  # type: ignore[arg-type]
+
+    assert result.json["content"] == ("See [image](https://clan.akamai.steamstatic.com/images/123/abc.png)")
+    embeds = result.json["embeds"]
+    assert isinstance(embeds, list)
+    assert isinstance(embeds[0], dict)
+    image = embeds[0]["image"]
+    assert isinstance(image, dict)
+    assert image["url"] == "https://clan.akamai.steamstatic.com/images/123/abc.jpg"
+    thumbnail = embeds[0]["thumbnail"]
+    assert isinstance(thumbnail, dict)
+    assert thumbnail["url"] == "https://clan.akamai.steamstatic.com/images/123/abc.png"
+
+    components = result.json["components"]
+    assert isinstance(components, list)
+    assert isinstance(components[0], dict)
+    items = components[0]["items"]
+    assert isinstance(items, list)
+    assert isinstance(items[0], dict)
+    media = items[0]["media"]
+    assert isinstance(media, dict)
+    assert media["url"] == "https://clan.fastly.steamstatic.com/images/123/abc.png"
+
+
+def test_fix_steam_image_urls_in_text() -> None:
+    """URLs embedded in prose or markdown should also be rewritten."""
+    text = (
+        "See https://clan.akamai.steamstatic.com/images/123/abc/english.png for details. "
+        "And [this](https://clan.akamai.steamstatic.com/images/123/abc/french.jpg) link."
+    )
+
+    fixed = fix_steam_image_urls_in_payload(text)
+
+    assert fixed == (
+        "See https://clan.akamai.steamstatic.com/images/123/abc.png for details. "
+        "And [this](https://clan.akamai.steamstatic.com/images/123/abc.jpg) link."
+    )
+
+
+def test_steam_modify_webhook_skips_non_steam_feed() -> None:
+    """modify_webhook should leave the payload unchanged for non-Steam feeds."""
+    entry = SimpleNamespace(
+        feed=SimpleNamespace(url="https://example.com/feed.xml"),
+        link="",
+    )
+    webhook = DiscordWebhook(url="https://discord.com/api/webhooks/123/abc")
+    webhook.content = "https://clan.akamai.steamstatic.com/images/123/abc/english.png"
+
+    result: DiscordWebhook = SteamExtension().modify_webhook(webhook, entry, MagicMock())  # type: ignore[arg-type]
+
+    assert result.json["content"] == "https://clan.akamai.steamstatic.com/images/123/abc/english.png"
 
 
 def test_youtube_extension_has_auto_enable_patterns() -> None:

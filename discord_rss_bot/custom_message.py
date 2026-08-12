@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 from bs4 import Tag
 
 from discord_rss_bot.extensions import run_extensions
+from discord_rss_bot.extensions.steam import fix_steam_image_url
 from discord_rss_bot.html_format import format_entry_html_for_discord
 from discord_rss_bot.is_url_valid import is_url_valid
 
@@ -200,6 +201,10 @@ def get_image_urls(
             if not is_url_valid(src):
                 logger.warning("Invalid URL: %s", src)
                 continue
+
+            # Steam news feeds sometimes emit broken localized image names
+            # (e.g. ".../english.png"); rewrite them to the working URL.
+            src = fix_steam_image_url(src)
 
             if src in seen_urls:
                 continue

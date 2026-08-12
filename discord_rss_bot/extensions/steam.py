@@ -4,6 +4,10 @@ Detects feeds from ``store.steampowered.com`` and ``steamcommunity.com``,
 extracts the application ID, and exposes the game's capsule image URL
 as ``{{steam_thumbnail_url}}`` and the app ID as ``{{steam_app_id}}``.
 
+It also rewrites broken Steam CDN image URLs: some news feeds reference
+localized image names such as ``.../english.png`` that return a 404, and
+the working URL omits the language segment (``.../<hash>.png``).
+
 Usage:
     1. Enable ``steam`` on the feed's Extensions page.
     2. In embed settings, set Thumbnail URL to ``{{steam_thumbnail_url}}``.
@@ -14,17 +18,22 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import ClassVar
+from typing import cast
+from urllib.parse import ParseResult
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
+from urllib.parse import urlunsplit
 
 from reader import ReaderError
 
 from discord_rss_bot.extensions.base import FeedExtension
 from discord_rss_bot.settings import data_dir
 from discord_rss_bot.webhook import DiscordWebhook
+from discord_rss_bot.webhook import JsonValue
 from discord_rss_bot.webhook import WebhookFile
 
 if TYPE_CHECKING:
@@ -120,6 +129,133 @@ def extract_app_id(url: str) -> str | None:
 
     # Query parameter fallback for any other netloc
     return _extract_app_id_from_query(parsed.query)
+
+
+#: Steam language codes that appear as image filename suffixes
+#: (e.g. ``.../aa83bcaaafe7cd4d11a841ec381ec28ccb039d41/english.png``).
+#: These localized URLs 404; the working URL omits the language segment.
+_STEAM_IMAGE_LOCALES: tuple[str, ...] = (
+    "arabic",
+    "brazilian",
+    "bulgarian",
+    "czech",
+    "danish",
+    "dutch",
+    "english",
+    "finnish",
+    "french",
+    "german",
+    "greek",
+    "hungarian",
+    "indonesian",
+    "italian",
+    "japanese",
+    "koreana",
+    "latam",
+    "norwegian",
+    "polish",
+    "portuguese",
+    "romanian",
+    "russian",
+    "schinese",
+    "spanish",
+    "swedish",
+    "tchinese",
+    "thai",
+    "turkish",
+    "ukrainian",
+    "vietnamese",
+)
+
+#: Image file extensions that may carry a Steam locale suffix.
+_STEAM_IMAGE_EXTENSIONS: tuple[str, ...] = ("png", "jpg", "jpeg", "gif", "webp")
+
+_STEAM_IMAGE_PATH_RE: re.Pattern[str] = re.compile(
+    rf"^(.+)/({'|'.join(_STEAM_IMAGE_LOCALES)})\.({'|'.join(_STEAM_IMAGE_EXTENSIONS)})$",
+    re.IGNORECASE,
+)
+
+
+def fix_steam_image_url(url: str) -> str:
+    """Return *url* with Steam's broken localized image suffix removed.
+
+    Some Steam news feeds reference localized images such as
+    ``.../<hash>/english.png``, which return a 404.  The working URL omits
+    the language segment: ``.../<hash>.png``.
+
+    Args:
+        url: The image URL to inspect.
+
+    Returns:
+        The fixed URL, or *url* unchanged when no fix applies.
+    """
+    if not url:
+        return url
+    stripped_url: str = url.strip()
+    parsed: ParseResult = urlparse(stripped_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc.lower().endswith(".steamstatic.com"):
+        return url
+    match: re.Match[str] | None = _STEAM_IMAGE_PATH_RE.match(parsed.path)
+    if not match:
+        return url
+    fixed_path: str = f"{match.group(1)}.{match.group(3)}"
+    return urlunsplit((parsed.scheme, parsed.netloc, fixed_path, parsed.query, parsed.fragment))
+
+
+#: Matches http(s) URLs within larger text so they can be rewritten in place.
+_STEAM_URL_IN_TEXT_RE: re.Pattern[str] = re.compile(r"""https?://[^\s<>"']+""", re.IGNORECASE)
+
+#: Punctuation that may trail a URL inside prose or a markdown link.
+_STEAM_URL_TRAILING_CHARS: frozenset[str] = frozenset(")]},.;!?")
+
+
+def _fix_steam_image_urls_in_text(text: str) -> str:
+    """Rewrite broken Steam image URLs that appear inside *text*.
+
+    Handles both standalone URLs and URLs embedded in markdown or prose
+    (e.g. ``[image](https://.../english.png)``).
+
+    Args:
+        text: The text to rewrite.
+
+    Returns:
+        The text with matching Steam image URLs fixed.
+    """
+
+    def _replace(match: re.Match[str]) -> str:
+        raw_url: str = match.group(0)
+        trimmed_url: str = raw_url
+        while trimmed_url and trimmed_url[-1] in _STEAM_URL_TRAILING_CHARS:
+            trimmed_url = trimmed_url[:-1]
+        trailing: str = raw_url[len(trimmed_url) :]
+        fixed_url: str = fix_steam_image_url(trimmed_url)
+        if fixed_url == trimmed_url:
+            return raw_url
+        return f"{fixed_url}{trailing}"
+
+    return _STEAM_URL_IN_TEXT_RE.sub(_replace, text)
+
+
+def fix_steam_image_urls_in_payload(value: JsonValue) -> JsonValue:
+    """Recursively rewrite Steam image URLs throughout a webhook payload.
+
+    Walks every string in a JSON-compatible payload (embeds, media gallery
+    components, description text, avatar URL, etc.) and applies
+    :func:`fix_steam_image_url` to each.
+
+    Args:
+        value: A JSON-compatible webhook payload value.
+
+    Returns:
+        A new payload with all matching Steam image URLs fixed.
+    """
+    if isinstance(value, str):
+        return _fix_steam_image_urls_in_text(value)
+    if isinstance(value, list):
+        return [fix_steam_image_urls_in_payload(item) for item in value]
+    if isinstance(value, dict):
+        return {key: fix_steam_image_urls_in_payload(item) for key, item in value.items()}
+    return value
 
 
 def _try_read_icon_file(app_id: str) -> WebhookFile | None:
@@ -233,7 +369,9 @@ class SteamExtension(FeedExtension):
     ) -> DiscordWebhook:
         """Set the embed thumbnail to the Steam game's capsule image.
 
-        Also attaches a locally cached icon file when available.
+        Also rewrites broken Steam CDN image URLs (localized image names
+        like ``.../english.png``) anywhere in the payload, and attaches a
+        locally cached icon file when available.
         Only applies when ``show_steam_game_icon_in_thumbnail`` is enabled
         in the feed's embed settings.
 
@@ -248,6 +386,13 @@ class SteamExtension(FeedExtension):
         feed_url: str = entry.feed.url or ""
         if not is_steam_url(feed_url):
             return webhook
+
+        # Steam news feeds occasionally emit localized image names
+        # (e.g. ".../english.png") that 404.  Rewrite them throughout the
+        # payload so embeds, media galleries, and text links resolve.
+        fixed_payload = cast("dict[str, JsonValue]", fix_steam_image_urls_in_payload(webhook.json))
+        webhook.json.clear()
+        webhook.json.update(fixed_payload)
 
         if not _steam_thumbnail_enabled(reader, entry.feed):
             return webhook

@@ -271,6 +271,32 @@ def test_get_image_urls_respects_limit() -> None:
     assert images == ["https://example.com/one.jpg", "https://example.com/two.jpg"]
 
 
+def test_get_image_urls_fixes_broken_steam_image_url() -> None:
+    """Broken Steam localized image URLs should be rewritten during extraction."""
+    summary = (
+        '<p><img src="https://clan.akamai.steamstatic.com/images/3703047/'
+        'aa83bcaaafe7cd4d11a841ec381ec28ccb039d41/english.png" /></p>'
+    )
+
+    images: list[str] = get_image_urls(summary, None)
+
+    assert images == [
+        ("https://clan.akamai.steamstatic.com/images/3703047/aa83bcaaafe7cd4d11a841ec381ec28ccb039d41.png"),
+    ]
+
+
+def test_get_first_image_fixes_broken_steam_image_url() -> None:
+    """get_first_image should return the fixed Steam image URL."""
+    summary = (
+        '<p><img src="https://clan.akamai.steamstatic.com/images/3703047/'
+        'aa83bcaaafe7cd4d11a841ec381ec28ccb039d41/english.png" /></p>'
+    )
+
+    image: str = get_first_image(summary, None)
+
+    assert image == ("https://clan.akamai.steamstatic.com/images/3703047/aa83bcaaafe7cd4d11a841ec381ec28ccb039d41.png")
+
+
 def test_get_first_image_returns_empty_when_images_have_no_src() -> None:
     summary = "<p></p>"
     content = '<p><img alt="missing source" /></p>'
