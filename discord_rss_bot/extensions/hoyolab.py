@@ -29,6 +29,7 @@ from discord_rss_bot.webhook import DiscordWebhook
 
 if TYPE_CHECKING:
     from reader import Entry
+    from reader import Feed
     from reader import Reader
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -137,6 +138,105 @@ def _as_json_object(value: JsonValue) -> JsonObject:
     return cast("JsonObject", value) if isinstance(value, dict) else {}
 
 
+# ---------------------------------------------------------------------------
+# Persistent (reader db) cache for Hoyolab post -> channel lookups, plus a
+# per-feed registry of channels seen so far (used to populate the
+# blacklist/whitelist "known channels" dropdown).
+# ---------------------------------------------------------------------------
+CHANNEL_CACHE_TAG = "hoyolab_channel_cache"
+KNOWN_CHANNELS_TAG = "hoyolab_known_channels"
+
+
+def _get_channel_cache(reader: Reader) -> dict[str, JsonObject]:
+    return cast("dict[str, JsonObject]", reader.get_tag((), CHANNEL_CACHE_TAG, {}))
+
+
+def _set_channel_cache_entry(reader: Reader, post_id: str, channel_id: str, channel_name: str) -> None:
+    cache: dict[str, JsonObject] = _get_channel_cache(reader)
+    cache[post_id] = {"channel_id": channel_id, "channel_name": channel_name}
+    reader.set_tag((), CHANNEL_CACHE_TAG, cache)  # pyright: ignore[reportArgumentType]
+
+
+def get_cached_channel_info(reader: Reader, post_id: str) -> tuple[str, str] | None:
+    """Return a cached ``(channel_id, channel_name)`` pair for a post, if known.
+
+    Returns:
+        The cached pair, or ``None`` if this post hasn't been resolved yet.
+    """
+    cached: JsonObject | None = _get_channel_cache(reader).get(post_id)
+    if cached is None:
+        return None
+    return str(cached.get("channel_id", "")), str(cached.get("channel_name", ""))
+
+
+def get_known_channels_for_feed(reader: Reader, feed_or_url: Feed | str) -> dict[str, str]:
+    """Return the ``channel_id -> channel_name`` map discovered so far for a feed.
+
+    Returns:
+        The known channels map, empty if none have been discovered yet.
+    """
+    return cast("dict[str, str]", reader.get_tag(feed_or_url, KNOWN_CHANNELS_TAG, {}))
+
+
+def _record_known_channel_for_feed(reader: Reader, feed_url: str, channel_id: str, channel_name: str) -> None:
+    """Merge a resolved channel into the feed's known-channels registry."""
+    if not channel_id:
+        return
+    known: dict[str, str] = dict(get_known_channels_for_feed(reader, feed_url))
+    known[channel_id] = channel_name
+    reader.set_tag(feed_url, KNOWN_CHANNELS_TAG, known)  # pyright: ignore[reportArgumentType]
+
+
+def get_channel_info_for_entry(entry: Entry, reader: Reader, *, allow_fetch: bool = True) -> tuple[str, str]:
+    """Return ``(channel_id, channel_name)`` for an entry's Hoyolab post, cache-first.
+
+    Also records the channel in the feed's known-channels registry whenever
+    it is resolved (from cache or freshly fetched).
+
+    Args:
+        entry: The feed entry to resolve channel info for.
+        reader: The reader instance, used for persistent caching.
+        allow_fetch: Whether a network fetch is allowed on a cache miss.
+
+    Returns:
+        A ``(channel_id, channel_name)`` tuple, empty strings if unavailable.
+    """
+    if not is_c3kay_feed_url(entry.feed.url):
+        return "", ""
+
+    post_id: str | None = extract_post_id(str(entry.link or ""))
+    if not post_id:
+        return "", ""
+
+    cached: tuple[str, str] | None = get_cached_channel_info(reader, post_id)
+    if cached is not None:
+        _record_known_channel_for_feed(reader, entry.feed.url, *cached)
+        return cached
+
+    if not allow_fetch:
+        return "", ""
+
+    post_data: JsonObject | None = _cached_fetch_post(post_id)
+    if not post_data:
+        return "", ""
+
+    channel: JsonObject = _as_json_object(post_data.get("channel"))
+    channel_id: str = str(channel.get("id", ""))
+    channel_name: str = str(channel.get("name", ""))
+    _set_channel_cache_entry(reader, post_id, channel_id, channel_name)
+    _record_known_channel_for_feed(reader, entry.feed.url, channel_id, channel_name)
+    return channel_id, channel_name
+
+
+def get_cached_channel_info_for_entry(entry: Entry, reader: Reader) -> tuple[str, str]:
+    """Read-only variant of ``get_channel_info_for_entry`` — never hits the network.
+
+    Returns:
+        A ``(channel_id, channel_name)`` tuple, empty strings if not yet cached.
+    """
+    return get_channel_info_for_entry(entry, reader, allow_fetch=False)
+
+
 class HoyolabExtension(FeedExtension):
     """Fetches full post data from the Hoyolab API for c3kay.de feeds.
 
@@ -182,12 +282,15 @@ class HoyolabExtension(FeedExtension):
         # Event dates
         "hoyolab_event_start",
         "hoyolab_event_end",
+        # Channel
+        "hoyolab_channel_id",
+        "hoyolab_channel_name",
     ]
     auto_enable_url_patterns: ClassVar[list[str]] = [
         r"feeds\.c3kay\.de",
     ]
 
-    def process_entry(self, entry: Entry, reader: Reader) -> dict[str, str]:  # ruff:ignore[unused-method-argument]
+    def process_entry(self, entry: Entry, reader: Reader) -> dict[str, str]:
         """Provide Hoyolab post data as template variables.
 
         Args:
@@ -211,7 +314,18 @@ class HoyolabExtension(FeedExtension):
         if not post_data:
             return {}
 
-        return self._collect_template_variables(post_data)
+        result: dict[str, str] = self._collect_template_variables(post_data)
+
+        channel: JsonObject = _as_json_object(post_data.get("channel"))
+        channel_id: str = str(channel.get("id", ""))
+        channel_name: str = str(channel.get("name", ""))
+        if channel_id:
+            _set_channel_cache_entry(reader, post_id, channel_id, channel_name)
+            _record_known_channel_for_feed(reader, entry.feed.url, channel_id, channel_name)
+        result["hoyolab_channel_id"] = channel_id
+        result["hoyolab_channel_name"] = channel_name
+
+        return result
 
     @staticmethod
     def _collect_template_variables(post_data: JsonObject) -> dict[str, str]:

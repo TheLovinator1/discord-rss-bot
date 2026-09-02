@@ -64,6 +64,9 @@ from discord_rss_bot.custom_message import save_embed
 from discord_rss_bot.extensions import FeedExtension as FeedExtensionABC
 from discord_rss_bot.extensions import get_registry as get_extension_registry
 from discord_rss_bot.extensions import run_extensions
+from discord_rss_bot.extensions.hoyolab import get_cached_channel_info_for_entry
+from discord_rss_bot.extensions.hoyolab import get_known_channels_for_feed
+from discord_rss_bot.extensions.hoyolab import is_c3kay_feed_url
 from discord_rss_bot.extensions.steam import get_cached_feed_display_title
 from discord_rss_bot.extensions.steam import get_feed_display_title
 from discord_rss_bot.extensions.steam import is_steam_url as is_steam_feed_url
@@ -223,6 +226,7 @@ PREVIEW_FIELD_LABELS: dict[str, str] = {
     "author": "Author",
     "summary": "Description",
     "content": "Content",
+    "channel_id": "Channel ID",
 }
 PREVIEW_HTML_TAG_PATTERN = re.compile(r"<[^>]+>")
 PREVIEW_WHITESPACE_PATTERN = re.compile(r"\s+")
@@ -787,6 +791,7 @@ async def post_set_whitelist(
     regex_whitelist_summary: Annotated[str, Form()] = "",
     regex_whitelist_content: Annotated[str, Form()] = "",
     regex_whitelist_author: Annotated[str, Form()] = "",
+    whitelist_channel_id: Annotated[str, Form()] = "",
     feed_url: Annotated[str, Form()] = "",
 ) -> RedirectResponse:
     """Set what the whitelist should be sent, if you have this set only words in the whitelist will be sent.
@@ -800,6 +805,7 @@ async def post_set_whitelist(
         regex_whitelist_summary: Whitelisted regex for when checking the summary.
         regex_whitelist_content: Whitelisted regex for when checking the content.
         regex_whitelist_author: Whitelisted regex for when checking the author.
+        whitelist_channel_id: Whitelisted Hoyolab channel IDs (comma-separated).
         feed_url: The feed we should set the whitelist for.
         reader: The Reader instance.
 
@@ -815,6 +821,7 @@ async def post_set_whitelist(
     reader.set_tag(clean_feed_url, "regex_whitelist_summary", regex_whitelist_summary)  # pyright: ignore[reportArgumentType][call-overload]
     reader.set_tag(clean_feed_url, "regex_whitelist_content", regex_whitelist_content)  # pyright: ignore[reportArgumentType][call-overload]
     reader.set_tag(clean_feed_url, "regex_whitelist_author", regex_whitelist_author)  # pyright: ignore[reportArgumentType][call-overload]
+    reader.set_tag(clean_feed_url, "whitelist_channel_id", whitelist_channel_id)  # pyright: ignore[reportArgumentType][call-overload]
 
     commit_state_change(reader, f"Update whitelist for {clean_feed_url}")
 
@@ -844,6 +851,8 @@ async def get_whitelist(
         "request": request,
         "feed": feed,
         "feed_title": get_feed_display_title(feed, reader),
+        "is_hoyolab_feed": is_c3kay_feed_url(feed.url),
+        "known_channels": build_known_channels_list(reader, feed),
         **build_filter_form_context("whitelist", get_filter_values_from_reader(reader, feed, "whitelist")),
         **build_filter_preview_context(reader, feed, "whitelist"),
     }
@@ -863,6 +872,7 @@ async def get_whitelist_preview(
     regex_whitelist_summary: str = "",
     regex_whitelist_content: str = "",
     regex_whitelist_author: str = "",
+    whitelist_channel_id: str = "",
 ) -> HTMLResponse:
     """Render the whitelist preview fragment for HTMX updates.
 
@@ -878,6 +888,7 @@ async def get_whitelist_preview(
         regex_whitelist_summary: Regex summary whitelist.
         regex_whitelist_content: Regex content whitelist.
         regex_whitelist_author: Regex author whitelist.
+        whitelist_channel_id: Word-based channel ID whitelist (comma-separated).
 
     Returns:
         HTMLResponse: Rendered filter preview fragment.
@@ -894,6 +905,7 @@ async def get_whitelist_preview(
         "regex_whitelist_summary": regex_whitelist_summary,
         "regex_whitelist_content": regex_whitelist_content,
         "regex_whitelist_author": regex_whitelist_author,
+        "whitelist_channel_id": whitelist_channel_id,
     }
 
     return templates.TemplateResponse(
@@ -918,6 +930,7 @@ async def post_set_blacklist(
     regex_blacklist_summary: Annotated[str, Form()] = "",
     regex_blacklist_content: Annotated[str, Form()] = "",
     regex_blacklist_author: Annotated[str, Form()] = "",
+    blacklist_channel_id: Annotated[str, Form()] = "",
     feed_url: Annotated[str, Form()] = "",
 ) -> RedirectResponse:
     """Set the blacklist.
@@ -934,6 +947,7 @@ async def post_set_blacklist(
         regex_blacklist_summary: Blacklisted regex for when checking the summary.
         regex_blacklist_content: Blacklisted regex for when checking the content.
         regex_blacklist_author: Blacklisted regex for when checking the author.
+        blacklist_channel_id: Blacklisted Hoyolab channel IDs (comma-separated).
         feed_url: What feed we should set the blacklist for.
         reader: The Reader instance.
 
@@ -949,6 +963,7 @@ async def post_set_blacklist(
     reader.set_tag(clean_feed_url, "regex_blacklist_summary", regex_blacklist_summary)  # pyright: ignore[reportArgumentType][call-overload]
     reader.set_tag(clean_feed_url, "regex_blacklist_content", regex_blacklist_content)  # pyright: ignore[reportArgumentType][call-overload]
     reader.set_tag(clean_feed_url, "regex_blacklist_author", regex_blacklist_author)  # pyright: ignore[reportArgumentType][call-overload]
+    reader.set_tag(clean_feed_url, "blacklist_channel_id", blacklist_channel_id)  # pyright: ignore[reportArgumentType][call-overload]
     commit_state_change(reader, f"Update blacklist for {clean_feed_url}")
     return RedirectResponse(url=f"/feed?feed_url={urllib.parse.quote(clean_feed_url)}", status_code=303)
 
@@ -976,6 +991,8 @@ async def get_blacklist(
         "request": request,
         "feed": feed,
         "feed_title": get_feed_display_title(feed, reader),
+        "is_hoyolab_feed": is_c3kay_feed_url(feed.url),
+        "known_channels": build_known_channels_list(reader, feed),
         **build_filter_form_context("blacklist", get_filter_values_from_reader(reader, feed, "blacklist")),
         **build_filter_preview_context(reader, feed, "blacklist"),
     }
@@ -995,6 +1012,7 @@ async def get_blacklist_preview(
     regex_blacklist_summary: str = "",
     regex_blacklist_content: str = "",
     regex_blacklist_author: str = "",
+    blacklist_channel_id: str = "",
 ) -> HTMLResponse:
     """Render the blacklist preview fragment for HTMX updates.
 
@@ -1010,6 +1028,7 @@ async def get_blacklist_preview(
         regex_blacklist_summary: Regex summary blacklist.
         regex_blacklist_content: Regex content blacklist.
         regex_blacklist_author: Regex author blacklist.
+        blacklist_channel_id: Word-based channel ID blacklist (comma-separated).
 
     Returns:
         HTMLResponse: Rendered filter preview fragment.
@@ -1026,6 +1045,7 @@ async def get_blacklist_preview(
         "regex_blacklist_summary": regex_blacklist_summary,
         "regex_blacklist_content": regex_blacklist_content,
         "regex_blacklist_author": regex_blacklist_author,
+        "blacklist_channel_id": blacklist_channel_id,
     }
 
     return templates.TemplateResponse(
@@ -1036,6 +1056,23 @@ async def get_blacklist_preview(
             "feed": feed,
             **build_filter_preview_context(reader, feed, "blacklist", form_values=form_values),
         },
+    )
+
+
+def build_known_channels_list(reader: Reader, feed: Feed) -> list[dict[str, str]]:
+    """Return known Hoyolab channels for a feed, sorted for a dropdown.
+
+    Args:
+        reader: The Reader instance.
+        feed: The feed whose known channels should be returned.
+
+    Returns:
+        list[dict[str, str]]: Channels as ``{"id": ..., "name": ...}``, sorted by name then id.
+    """
+    known_channels: dict[str, str] = get_known_channels_for_feed(reader, feed)
+    return sorted(
+        ({"id": channel_id, "name": channel_name} for channel_id, channel_name in known_channels.items()),
+        key=lambda channel: (channel["name"].casefold(), channel["id"]),
     )
 
 
@@ -1101,6 +1138,8 @@ def build_filter_preview_context(
             entry,
             blacklist_values=preview_blacklist_values,
             whitelist_values=preview_whitelist_values,
+            reader=reader,
+            allow_fetch=True,
         )
         preview_decisions[get_entry_decision_key(entry)] = decision
 
@@ -1122,7 +1161,7 @@ def build_filter_preview_context(
             {
                 "entry": entry,
                 "decision": decision,
-                "field_rows": build_preview_field_rows(entry, decision),
+                "field_rows": build_preview_field_rows(entry, decision, reader=reader),
                 "published_label": published_label,
                 "status_label": "Sent" if decision.should_send else "Skipped",
                 "status_class": "success" if decision.should_send else "danger",
@@ -1147,20 +1186,22 @@ def build_filter_preview_context(
     }
 
 
-def build_preview_field_rows(entry: Entry, decision: EntryFilterDecision) -> list[PreviewFieldRow]:
+def build_preview_field_rows(entry: Entry, decision: EntryFilterDecision, *, reader: Reader) -> list[PreviewFieldRow]:
     """Build labeled preview fields for the filter UI.
 
     Args:
         entry: Entry whose values should be shown.
         decision: The final decision for the entry.
+        reader: The Reader instance, used to resolve extension-provided fields
+            such as the Hoyolab ``channel_id``.
 
     Returns:
         list[PreviewFieldRow]: Labeled field rows for the preview template.
     """
-    entry_fields: dict[str, str] = get_entry_fields(entry)
+    entry_fields: dict[str, str] = get_entry_fields(entry, reader=reader, allow_fetch=True)
     field_rows: list[PreviewFieldRow] = []
 
-    for field_name in ("title", "author", "summary", "content"):
+    for field_name in ("title", "author", "summary", "content", "channel_id"):
         badges: list[dict[str, str]] = []
         matches: list[tuple[FilterMatch, str]] = []
         if decision.blacklist_match and decision.blacklist_match.field_name == field_name:
@@ -2293,7 +2334,7 @@ async def get_feed(  # ruff:ignore[complex-structure, too-many-branches, too-man
     return templates.TemplateResponse(request=request, name="feed.html", context=context)
 
 
-def create_html_for_feed(  # ruff:ignore[complex-structure, too-many-locals]
+def create_html_for_feed(  # ruff:ignore[complex-structure, too-many-locals, too-many-branches, too-many-statements]
     reader: Reader,
     entries: Iterable[Entry],
     current_feed_url: str = "",
@@ -2346,6 +2387,12 @@ def create_html_for_feed(  # ruff:ignore[complex-structure, too-many-locals]
         if is_whitelisted:
             whitelisted = "<span class='badge bg-success'>Whitelisted</span>"
 
+        channel_badge: str = ""
+        channel_id, channel_name = get_cached_channel_info_for_entry(entry, reader)
+        if channel_id:
+            channel_label: str = f"{channel_name} ({channel_id})" if channel_name else channel_id
+            channel_badge = f"<span class='badge bg-secondary'>Channel: {escape(channel_label)}</span>"
+
         source_feed_url: str = getattr(entry, "original_feed_url", None) or entry.feed.url
 
         from_another_feed: str = ""
@@ -2391,7 +2438,7 @@ def create_html_for_feed(  # ruff:ignore[complex-structure, too-many-locals]
         image_html: str = f"<img src='{first_image}' class='img-fluid'>" if first_image else ""
 
         html += f"""<div class="p-2 mb-2 border border-dark">
-{blacklisted}{whitelisted}{from_another_feed}<a class="text-muted text-decoration-none" href="{entry.link}"><h2>{entry.title}</h2></a>
+{blacklisted}{whitelisted}{channel_badge}{from_another_feed}<a class="text-muted text-decoration-none" href="{entry.link}"><h2>{entry.title}</h2></a>
 {feed_link}{f"By {entry.authors_str} @" if entry.authors_str else ""}{published} - {to_discord_html}
 
 {text}

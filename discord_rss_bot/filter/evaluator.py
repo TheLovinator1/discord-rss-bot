@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from functools import cache
 from typing import TYPE_CHECKING
 
+from discord_rss_bot.extensions.hoyolab import get_channel_info_for_entry
 from discord_rss_bot.filter.utils import is_regex_match
 from discord_rss_bot.filter.utils import is_word_in_text
 
@@ -16,7 +17,7 @@ if TYPE_CHECKING:
     from reader import Reader
 
 
-FILTER_FIELDS: tuple[str, str, str, str] = ("title", "summary", "content", "author")
+FILTER_FIELDS: tuple[str, str, str, str, str] = ("title", "summary", "content", "author", "channel_id")
 FilterValues = dict[str, str]
 
 
@@ -98,12 +99,19 @@ def has_filter_values(values: Mapping[str, str]) -> bool:
     return any(str(value).strip() for value in values.values())
 
 
-def get_entry_filter_decision_from_reader(reader: Reader, entry: Entry) -> EntryFilterDecision:
+def get_entry_filter_decision_from_reader(
+    reader: Reader,
+    entry: Entry,
+    *,
+    allow_fetch: bool = False,
+) -> EntryFilterDecision:
     """Evaluate an entry against its saved blacklist and whitelist tags.
 
     Args:
         reader: The reader instance.
         entry: The entry to evaluate.
+        allow_fetch: Whether extension data (e.g. Hoyolab channel info) may be
+            fetched over the network on a cache miss.
 
     Returns:
         EntryFilterDecision: Final decision plus match details.
@@ -112,6 +120,8 @@ def get_entry_filter_decision_from_reader(reader: Reader, entry: Entry) -> Entry
         entry,
         blacklist_values=get_filter_values_from_reader(reader, entry.feed, "blacklist"),
         whitelist_values=get_filter_values_from_reader(reader, entry.feed, "whitelist"),
+        reader=reader,
+        allow_fetch=allow_fetch,
     )
 
 
@@ -120,6 +130,8 @@ def evaluate_entry_filters(
     *,
     blacklist_values: Mapping[str, str] | None = None,
     whitelist_values: Mapping[str, str] | None = None,
+    reader: Reader | None = None,
+    allow_fetch: bool = False,
 ) -> EntryFilterDecision:
     """Evaluate one entry against blacklist and whitelist settings.
 
@@ -129,6 +141,10 @@ def evaluate_entry_filters(
         entry: The entry to evaluate.
         blacklist_values: Blacklist values from saved tags or a form.
         whitelist_values: Whitelist values from saved tags or a form.
+        reader: Optional reader instance, needed to resolve extension-provided
+            fields such as the Hoyolab ``channel_id``.
+        allow_fetch: Whether extension data may be fetched over the network
+            on a cache miss (only used when ``reader`` is given).
 
     Returns:
         EntryFilterDecision: Final decision plus match details.
@@ -136,8 +152,20 @@ def evaluate_entry_filters(
     normalized_blacklist_values: FilterValues = coerce_filter_values("blacklist", blacklist_values)
     normalized_whitelist_values: FilterValues = coerce_filter_values("whitelist", whitelist_values)
 
-    blacklist_match: FilterMatch | None = find_filter_match(entry, normalized_blacklist_values, "blacklist")
-    whitelist_match: FilterMatch | None = find_filter_match(entry, normalized_whitelist_values, "whitelist")
+    blacklist_match: FilterMatch | None = find_filter_match(
+        entry,
+        normalized_blacklist_values,
+        "blacklist",
+        reader=reader,
+        allow_fetch=allow_fetch,
+    )
+    whitelist_match: FilterMatch | None = find_filter_match(
+        entry,
+        normalized_whitelist_values,
+        "whitelist",
+        reader=reader,
+        allow_fetch=allow_fetch,
+    )
 
     has_blacklist_filters: bool = has_filter_values(normalized_blacklist_values)
     has_whitelist_filters: bool = has_filter_values(normalized_whitelist_values)
@@ -192,18 +220,29 @@ def evaluate_entry_filters(
     )
 
 
-def find_filter_match(entry: Entry, values: Mapping[str, str], filter_name: str) -> FilterMatch | None:
+def find_filter_match(
+    entry: Entry,
+    values: Mapping[str, str],
+    filter_name: str,
+    *,
+    reader: Reader | None = None,
+    allow_fetch: bool = False,
+) -> FilterMatch | None:
     """Return the first matching filter rule for an entry.
 
     Args:
         entry: The entry to evaluate.
         values: Normalized filter values.
         filter_name: Either blacklist or whitelist.
+        reader: Optional reader instance, needed to resolve extension-provided
+            fields such as the Hoyolab ``channel_id``.
+        allow_fetch: Whether extension data may be fetched over the network
+            on a cache miss (only used when ``reader`` is given).
 
     Returns:
         FilterMatch | None: The first matching rule, if any.
     """
-    entry_fields: dict[str, str] = get_entry_fields(entry)
+    entry_fields: dict[str, str] = get_entry_fields(entry, reader=reader, allow_fetch=allow_fetch)
 
     for field_name in FILTER_FIELDS:
         pattern: str = str(values.get(field_name, "")).strip()
@@ -230,11 +269,16 @@ def find_filter_match(entry: Entry, values: Mapping[str, str], filter_name: str)
     return None
 
 
-def get_entry_fields(entry: Entry) -> dict[str, str]:
+def get_entry_fields(entry: Entry, *, reader: Reader | None = None, allow_fetch: bool = False) -> dict[str, str]:
     """Return the entry fields used during filter matching.
 
     Args:
         entry: The entry to inspect.
+        reader: Optional reader instance, needed to resolve extension-provided
+            fields such as the Hoyolab ``channel_id``. Omitting it yields an
+            empty ``channel_id``.
+        allow_fetch: Whether extension data may be fetched over the network
+            on a cache miss (only used when ``reader`` is given).
 
     Returns:
         dict[str, str]: The fields used by filter evaluation.
@@ -243,11 +287,16 @@ def get_entry_fields(entry: Entry) -> dict[str, str]:
     if entry.content and entry.content[0].value:
         content_value = entry.content[0].value
 
+    channel_id: str = ""
+    if reader is not None:
+        channel_id = get_channel_info_for_entry(entry, reader, allow_fetch=allow_fetch)[0]
+
     return {
         "title": entry.title or "",
         "summary": entry.summary or "",
         "content": content_value,
         "author": entry.authors_str or "",
+        "channel_id": channel_id,
     }
 
 
@@ -286,14 +335,20 @@ def should_be_sent(reader: Reader, entry: Entry) -> bool:
     return bool(find_filter_match(entry, get_filter_values_from_reader(reader, entry.feed, "whitelist"), "whitelist"))
 
 
-def entry_is_whitelisted(entry_to_check: Entry, reader: Reader) -> bool:
+def entry_is_whitelisted(entry_to_check: Entry, reader: Reader, *, allow_fetch: bool = False) -> bool:
     """Return True if the entry is whitelisted."""
-    return get_entry_filter_decision_from_reader(reader, entry_to_check).whitelist_match is not None
+    return (
+        get_entry_filter_decision_from_reader(reader, entry_to_check, allow_fetch=allow_fetch).whitelist_match
+        is not None
+    )
 
 
-def entry_is_blacklisted(entry_to_check: Entry, reader: Reader) -> bool:
+def entry_is_blacklisted(entry_to_check: Entry, reader: Reader, *, allow_fetch: bool = False) -> bool:
     """Return True if the entry is blacklisted."""
-    return get_entry_filter_decision_from_reader(reader, entry_to_check).blacklist_match is not None
+    return (
+        get_entry_filter_decision_from_reader(reader, entry_to_check, allow_fetch=allow_fetch).blacklist_match
+        is not None
+    )
 
 
 @cache

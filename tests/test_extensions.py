@@ -36,6 +36,10 @@ from discord_rss_bot.extensions import registry_clear
 from discord_rss_bot.extensions import run_extensions
 from discord_rss_bot.extensions.base import FeedExtension as FeedExtensionABC
 from discord_rss_bot.extensions.hoyolab import HoyolabExtension
+from discord_rss_bot.extensions.hoyolab import get_cached_channel_info
+from discord_rss_bot.extensions.hoyolab import get_cached_channel_info_for_entry
+from discord_rss_bot.extensions.hoyolab import get_channel_info_for_entry
+from discord_rss_bot.extensions.hoyolab import get_known_channels_for_feed
 from discord_rss_bot.extensions.jwplayer_thumbnail import _SLUG_CACHE
 from discord_rss_bot.extensions.jwplayer_thumbnail import JWPlayerThumbnailExtension
 from discord_rss_bot.extensions.steam import SteamExtension
@@ -888,16 +892,16 @@ def test_get_steam_game_name_returns_none_on_missing_details(mock_get: MagicMock
 def test_get_cached_steam_game_name_reads_reader_tag(mock_reader: MagicMock) -> None:
     """get_cached_steam_game_name should read the cached name from the reader."""
     feed: SimpleNamespace = _steam_feed()
-    assert get_cached_steam_game_name(mock_reader, feed) is None
+    assert get_cached_steam_game_name(mock_reader, feed) is None  # type: ignore[arg-type]
 
-    set_steam_game_name(mock_reader, feed, "Dota")
-    assert get_cached_steam_game_name(mock_reader, feed) == "Dota"
+    set_steam_game_name(mock_reader, feed, "Dota")  # type: ignore[arg-type]
+    assert get_cached_steam_game_name(mock_reader, feed) == "Dota"  # type: ignore[arg-type]
 
 
 def test_set_steam_game_name_stores_reader_tag(mock_reader: MagicMock) -> None:
     """set_steam_game_name should persist the name in the reader DB."""
     feed: SimpleNamespace = _steam_feed()
-    set_steam_game_name(mock_reader, feed, "Dota 2")
+    set_steam_game_name(mock_reader, feed, "Dota 2")  # type: ignore[arg-type]
 
     assert mock_reader.tags[feed.url]["steam_game_name"] == "Dota 2"
 
@@ -909,7 +913,7 @@ def test_get_feed_display_title_uses_cached_game_name(
 ) -> None:
     """A cached game name should be used without any network request."""
     feed: SimpleNamespace = _steam_feed()
-    set_steam_game_name(mock_reader, feed, "Dota")
+    set_steam_game_name(mock_reader, feed, "Dota")  # type: ignore[arg-type]
 
     result: str = get_feed_display_title(feed, mock_reader)  # type: ignore[arg-type]
 
@@ -999,7 +1003,7 @@ def test_get_cached_feed_display_title_never_fetches(
     assert uncached == "570 RSS Feed"
     mock_get.assert_not_called()
 
-    set_steam_game_name(mock_reader, feed, "Dota")
+    set_steam_game_name(mock_reader, feed, "Dota")  # type: ignore[arg-type]
     cached: str = get_cached_feed_display_title(feed, mock_reader)  # type: ignore[arg-type]
     assert cached == "Dota"
     mock_get.assert_not_called()
@@ -1017,6 +1021,119 @@ def test_hoyolab_extension_has_auto_enable_patterns() -> None:
     assert len(HoyolabExtension.auto_enable_url_patterns) > 0
     assert HoyolabExtension.matches_feed_url("https://feeds.c3kay.de/hoyolab.xml")
     assert not HoyolabExtension.matches_feed_url("https://example.com/feed.xml")
+
+
+# ---------------------------------------------------------------------------
+# Tests: hoyolab.py channel_id caching + known-channels registry
+# ---------------------------------------------------------------------------
+
+
+def _make_hoyolab_entry(mock_feed: SimpleNamespace, mock_entry: SimpleNamespace, post_id: str) -> SimpleNamespace:
+    """Return a copy of mock_entry pointed at a c3kay feed and a Hoyolab article link."""
+    feed = SimpleNamespace(**{**mock_feed.__dict__, "url": "https://feeds.c3kay.de/hoyolab.xml"})
+    return SimpleNamespace(
+        **{
+            **mock_entry.__dict__,
+            "feed": feed,
+            "link": f"https://www.hoyolab.com/article/{post_id}",
+        },
+    )
+
+
+def _hoyolab_post_response(channel_id: str = "46", channel_name: str = "Coff Cafe") -> MagicMock:
+    response = MagicMock()
+    response.status_code = 200
+    response.json.return_value = {
+        "retcode": 0,
+        "data": {
+            "post": {
+                "post": {"subject": "Hello"},
+                "channel": {"id": channel_id, "name": channel_name},
+            },
+        },
+    }
+    return response
+
+
+def test_get_channel_info_for_entry_returns_empty_for_non_c3kay_feed(
+    mock_reader: MagicMock,
+    mock_feed: SimpleNamespace,
+    mock_entry: SimpleNamespace,
+) -> None:
+    """Non-Hoyolab feeds should never resolve channel info."""
+    assert mock_feed.url == "https://example.com/feed.xml"
+    assert get_channel_info_for_entry(mock_entry, mock_reader) == ("", "")  # type: ignore[arg-type]
+
+
+@patch("discord_rss_bot.extensions.hoyolab.requests.get")
+def test_get_channel_info_for_entry_fetches_and_caches(
+    mock_get: MagicMock,
+    mock_reader: MagicMock,
+    mock_feed: SimpleNamespace,
+    mock_entry: SimpleNamespace,
+) -> None:
+    """A cache miss should fetch the post, persist the channel, and register it for the feed."""
+    mock_get.return_value = _hoyolab_post_response()
+    entry = _make_hoyolab_entry(mock_feed, mock_entry, "90000001")
+
+    result = get_channel_info_for_entry(entry, mock_reader)  # type: ignore[arg-type]
+
+    assert result == ("46", "Coff Cafe")
+    assert get_cached_channel_info(mock_reader, "90000001") == ("46", "Coff Cafe")  # type: ignore[arg-type]
+    assert get_known_channels_for_feed(mock_reader, entry.feed.url) == {"46": "Coff Cafe"}  # type: ignore[arg-type]
+
+
+@patch("discord_rss_bot.extensions.hoyolab.requests.get")
+def test_get_channel_info_for_entry_uses_cache_without_refetching(
+    mock_get: MagicMock,
+    mock_reader: MagicMock,
+    mock_feed: SimpleNamespace,
+    mock_entry: SimpleNamespace,
+) -> None:
+    """A second lookup of the same post should not hit the network again."""
+    mock_get.return_value = _hoyolab_post_response()
+    entry = _make_hoyolab_entry(mock_feed, mock_entry, "90000002")
+
+    get_channel_info_for_entry(entry, mock_reader)  # type: ignore[arg-type]
+    mock_get.reset_mock()
+    result = get_channel_info_for_entry(entry, mock_reader)  # type: ignore[arg-type]
+
+    assert result == ("46", "Coff Cafe")
+    mock_get.assert_not_called()
+
+
+@patch("discord_rss_bot.extensions.hoyolab.requests.get")
+def test_get_channel_info_for_entry_allow_fetch_false_skips_network(
+    mock_get: MagicMock,
+    mock_reader: MagicMock,
+    mock_feed: SimpleNamespace,
+    mock_entry: SimpleNamespace,
+) -> None:
+    """With allow_fetch=False, an uncached post should return empty without a network call."""
+    entry = _make_hoyolab_entry(mock_feed, mock_entry, "90000003")
+
+    result = get_cached_channel_info_for_entry(entry, mock_reader)  # type: ignore[arg-type]
+
+    assert result == ("", "")
+    mock_get.assert_not_called()
+
+
+@patch("discord_rss_bot.extensions.hoyolab.requests.get")
+def test_process_entry_includes_channel_variables(
+    mock_get: MagicMock,
+    mock_reader: MagicMock,
+    mock_feed: SimpleNamespace,
+    mock_entry: SimpleNamespace,
+) -> None:
+    """process_entry should expose hoyolab_channel_id/hoyolab_channel_name and persist them."""
+    mock_get.return_value = _hoyolab_post_response(channel_id="52", channel_name="General Chat")
+    entry = _make_hoyolab_entry(mock_feed, mock_entry, "90000004")
+
+    result = HoyolabExtension().process_entry(entry, mock_reader)  # type: ignore[arg-type]
+
+    assert result["hoyolab_channel_id"] == "52"
+    assert result["hoyolab_channel_name"] == "General Chat"
+    assert get_known_channels_for_feed(mock_reader, entry.feed.url) == {"52": "General Chat"}  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------

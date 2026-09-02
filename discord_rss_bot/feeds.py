@@ -1961,7 +1961,7 @@ def send_to_discord(reader: Reader | None = None, feed: Feed | None = None, *, d
             logger.info("No webhook URL found for feed: %s", entry.feed.url)
             continue
 
-        decision = get_entry_filter_decision_from_reader(effective_reader, entry)
+        decision = get_entry_filter_decision_from_reader(effective_reader, entry, allow_fetch=True)
         if not decision.should_send:
             logger.info("Entry was skipped: %s (%s)", entry.id, decision.reason)
             continue

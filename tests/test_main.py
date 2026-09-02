@@ -857,6 +857,55 @@ def test_c3kay_feed_delivery_mode_toggle_routes_update_stored_tags() -> None:
     assert reader.get_tag(c3kay_feed_url, "should_send_embed") is True
 
 
+def test_blacklist_page_shows_known_channels_dropdown() -> None:
+    reader = get_reader_dependency()
+    c3kay_feed_url = "https://feeds.c3kay.de/hoyolab-known-channels-test.xml"
+
+    with contextlib.suppress(Exception):
+        reader.add_feed(c3kay_feed_url)
+
+    reader.set_tag(c3kay_feed_url, "hoyolab_known_channels", {"46": "Coff Cafe"})  # pyright: ignore[reportArgumentType]
+
+    response: Response = client.get(url="/blacklist", params={"feed_url": c3kay_feed_url})
+    assert response.status_code == 200, f"/blacklist failed: {response.text}"
+    assert "Coff Cafe (46)" in response.text
+    assert 'id="blacklist_channel_id_picker"' in response.text
+
+    reader.delete_tag(c3kay_feed_url, "hoyolab_known_channels")
+
+
+def test_whitelist_page_hides_dropdown_when_no_known_channels() -> None:
+    c3kay_feed_url = "https://feeds.c3kay.de/hoyolab-no-known-channels-test.xml"
+    reader = get_reader_dependency()
+
+    with contextlib.suppress(Exception):
+        reader.add_feed(c3kay_feed_url)
+
+    response: Response = client.get(url="/whitelist", params={"feed_url": c3kay_feed_url})
+    assert response.status_code == 200, f"/whitelist failed: {response.text}"
+    assert "No channels discovered yet for this feed." in response.text
+    assert 'id="whitelist_channel_id_picker"' not in response.text
+
+
+def test_blacklist_channel_id_round_trip() -> None:
+    reader = get_reader_dependency()
+    c3kay_feed_url = "https://feeds.c3kay.de/hoyolab-channel-roundtrip-test.xml"
+
+    with contextlib.suppress(Exception):
+        reader.add_feed(c3kay_feed_url)
+
+    response = client.post(
+        url="/blacklist",
+        data={"feed_url": c3kay_feed_url, "blacklist_channel_id": "46, 52"},
+    )
+    assert response.status_code in {200, 303}
+    assert reader.get_tag(c3kay_feed_url, "blacklist_channel_id") == "46, 52"
+
+    response = client.get(url="/blacklist", params={"feed_url": c3kay_feed_url})
+    assert response.status_code == 200, f"/blacklist failed: {response.text}"
+    assert 'value="46, 52"' in response.text
+
+
 def test_set_feed_save_sent_webhooks_route_updates_stored_tag() -> None:
     @dataclass(slots=True)
     class DummyFeed:

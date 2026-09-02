@@ -74,6 +74,38 @@
                                    id="blacklist_author"
                                    value="{{ blacklist_author }}" />
                         </div>
+                        {% if is_hoyolab_feed %}
+                            <div class="col-12">
+                                <label for="blacklist_channel_id" class="form-label">Block if Hoyolab channel ID is</label>
+                                <div class="p-3 border border-dark rounded-0 form-text mb-2">
+                                    <p class="mb-0">Comma separated numeric channel IDs.</p>
+                                </div>
+                                <input name="blacklist_channel_id"
+                                       type="text"
+                                       class="form-control bg-dark border-dark text-muted"
+                                       id="blacklist_channel_id"
+                                       value="{{ blacklist_channel_id }}" />
+                                {% if known_channels %}
+                                    <label for="blacklist_channel_id_picker" class="form-label mt-2">Known channels for this feed</label>
+                                    <select multiple
+                                            class="form-select bg-dark border-dark text-muted"
+                                            id="blacklist_channel_id_picker"
+                                            size="4">
+                                        {% for channel in known_channels %}<option value="{{ channel.id }}">{{ channel.name }} ({{ channel.id }})</option>{% endfor %}
+                                    </select>
+                                    <script>
+                                        document.getElementById("blacklist_channel_id_picker").addEventListener("change", function () {
+                                            var ids = Array.from(this.selectedOptions).map(function (option) { return option.value; });
+                                            var input = document.getElementById("blacklist_channel_id");
+                                            input.value = ids.join(", ");
+                                            input.dispatchEvent(new Event("input", { bubbles: true }));
+                                        });
+                                    </script>
+                                {% else %}
+                                    <p class="text-muted small mb-0 mt-2">No channels discovered yet for this feed.</p>
+                                {% endif %}
+                            </div>
+                        {% endif %}
                         <div class="col-12 pt-2">
                             <h3 class="h6 text-uppercase text-muted mb-3">Regex Rules</h3>
                             <div class="p-3 border border-dark rounded-0 form-text mb-3">

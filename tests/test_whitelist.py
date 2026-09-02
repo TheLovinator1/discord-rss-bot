@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
+from unittest.mock import patch
 
 from reader import Entry
 from reader import Feed
@@ -237,3 +238,39 @@ def test_whitelist_substring_match_on_title() -> None:
 
     reader.set_tag(feed, "whitelist_title", "vnnnfn")  # pyright: ignore[reportArgumentType]
     assert should_be_sent(reader, first_entry[0]) is True, "Substring title match should whitelist the entry"
+
+
+def test_should_be_sent_by_channel_id() -> None:
+    """A whitelisted Hoyolab channel ID should allow the entry through."""
+    reader: Reader = get_reader()
+
+    reader.add_feed(feed_url)
+    feed: Feed = reader.get_feed(feed_url)
+    reader.update_feeds()
+
+    first_entry: list[Entry] = []
+    entries: Iterable[Entry] = reader.get_entries(feed=feed)
+    for entry in entries:
+        first_entry.append(entry)
+        break
+    assert len(first_entry) == 1, "First entry should be added"
+
+    reader.set_tag(feed, "whitelist_channel_id", "46")  # pyright: ignore[reportArgumentType]
+
+    with patch(
+        "discord_rss_bot.filter.evaluator.get_channel_info_for_entry",
+        return_value=("46", "Coff Cafe"),
+    ):
+        decision = evaluate_entry_filters(
+            first_entry[0],
+            blacklist_values=get_filter_values_from_reader(reader, feed, "blacklist"),
+            whitelist_values=get_filter_values_from_reader(reader, feed, "whitelist"),
+            reader=reader,
+            allow_fetch=True,
+        )
+
+    assert decision.should_send is True, "Entry should be sent when its channel ID is whitelisted"
+    assert decision.whitelist_match is not None
+    assert decision.whitelist_match.field_name == "channel_id"
+
+    reader.delete_tag(feed, "whitelist_channel_id")
